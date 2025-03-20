@@ -110,7 +110,7 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
             case TRANSFORM_BASE64URL:
 			case TRANSFORM_BASE64:
 			{
-                //_dbg("[TRANSFORM_BASE64] Applying...");
+                // _dbg("[TRANSFORM_BASE64] Applying...");//DEBUG
 				
                 outlen = calculate_base64_encoded_size(transformedLength);
                 char* temp_encoded = (char *)LocalAlloc(LPTR, outlen + 1);
@@ -146,7 +146,7 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
             // TODO : Not working with HTTPX profile
             // case TRANSFORM_BASE64URL:
             // {
-            //     //_dbg("[TRANSFORM_BASE64URL] Applying...");
+            //     _dbg("[TRANSFORM_BASE64URL] Applying...");//DEBUG
 
             //     outlen = calculate_base64_encoded_size(transformedLength);
             //     char* temp_encoded = (char *)LocalAlloc(LPTR, outlen + 1);
@@ -365,16 +365,18 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
     {
         switch (step)
         {
+        // case TRANSFORM_BASE64URL:
         case TRANSFORM_BASE64:
         {
-            //_dbg("[TRANSFORM_BASE64] Reversing...");
+            // _dbg("[REVERSE_BASE64] ...");
+            int status;
 
             recoverable[recoverableLength] = 0;
             
             outlen = maxGet;
             
-            if (base64_decode((const char*)recoverable, recoverableLength, temp, &outlen) != 0) {
-                _err("base64_decode failed ERROR : %d", GetLastError());
+            if ((status = base64_decode((const char*)recoverable, recoverableLength, temp, &outlen)) != 0) {
+                _err("base64_decode failed ERROR : %d", status);
                 return FALSE;
             }
 
@@ -388,21 +390,24 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
         }
         case TRANSFORM_BASE64URL:
         {
-            //_dbg("[TRANSFORM_BASE64URL] Reversing...");
+            _dbg("[REVERSE_BASE64URL] ...");
+            int status;
 
             recoverable[recoverableLength] = 0;
             
             outlen = maxGet;
 
-            if (base64url_decode((const char*)recoverable, recoverableLength, temp, &outlen) != 0) {
-                _err("base64url_decode failed. ERROR : %d", GetLastError());
+            if ((status = base64url_decode((const char*)recoverable, recoverableLength, temp, &outlen)) != 0) {
+                _err("base64url_decode failed. ERROR : %d", status);
                 return FALSE;
             }
-
+            
             recoverableLength = outlen;
 
-            if (recoverableLength == 0)
-					return FALSE;
+            if (recoverableLength == 0) {
+                _err("No data recovered");
+                return FALSE;
+            }
 
             memcpy(recoverable, temp, recoverableLength);
             break;

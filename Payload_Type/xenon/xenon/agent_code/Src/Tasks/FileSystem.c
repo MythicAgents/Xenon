@@ -5,7 +5,7 @@
 #include "Task.h"
 #include "Config.h"
 
-#ifdef INCLUDE_CMD_CP
+#ifdef INCLUDE_CMD_CD
 VOID FileSystemCd(PCHAR taskUuid, PPARSER arguments)
 {
     // Get command arguments for filepath
@@ -96,8 +96,6 @@ end:
 #ifdef INCLUDE_CMD_CP
 VOID FileSystemCopy(PCHAR taskUuid, PPARSER arguments)
 {
-#define MAX_EXISTING_FILENAME 0x2000
-#define MAX_NEW_FILENAME 0x2000
     // Get command arguments for filepath
     UINT32 nbArg = ParserGetInt32(arguments);
 

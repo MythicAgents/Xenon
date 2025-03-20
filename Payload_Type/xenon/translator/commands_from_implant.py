@@ -14,7 +14,7 @@ def checkin_to_mythic_format(data):
     data = data[36:]
     
     # Retrieve IPs
-    num_ips = int.from_bytes(data[0:4])
+    num_ips = int.from_bytes(data[0:4], byteorder='big')
     data = data[4:]
     i = 0
     IPs = []
@@ -48,7 +48,7 @@ def checkin_to_mythic_format(data):
     domain, data = get_bytes_with_size(data)
     
     # Retrieve PID
-    pid = int.from_bytes(data[0:4])
+    pid = int.from_bytes(data[0:4], byteorder='big')
     data = data[4:]
 
     # Retrieve Process Name
@@ -87,7 +87,7 @@ def get_tasking_to_mythic_format(data):
     """
     Parse get_tasking message from Agent and return JSON in Mythic format.
     """
-    numTasks = int.from_bytes(data[0:4])
+    numTasks = int.from_bytes(data[0:4], byteorder='big')
     mythic_json = { 
             "action": "get_tasking", 
             "tasking_size": numTasks 
@@ -202,7 +202,7 @@ def download_init_to_mythic_format(data):
     data = data[36:]
     
     # Retrieve total chunks for file
-    total_chunks = int.from_bytes(data[0:4])
+    total_chunks = int.from_bytes(data[0:4], byteorder='big')
     data = data[4:]
     
     logging.info(f"total_chunks : {total_chunks}", )
@@ -213,7 +213,7 @@ def download_init_to_mythic_format(data):
     logging.info(f"full_path : {full_path.decode('cp850')}")
     
     # Retrive chunk size of file chunks
-    chunk_size = int.from_bytes(data[0:4])
+    chunk_size = int.from_bytes(data[0:4], byteorder='big')
     data = data[4:]
 
     logging.info(f"chunk_size : {chunk_size}")
@@ -265,7 +265,7 @@ def download_cont_to_mythic_format(data):
     data = data[36:]
     
     # Retrieve current chunk
-    chunk_num = int.from_bytes(data[0:4])
+    chunk_num = int.from_bytes(data[0:4], byteorder='big')
     data = data[4:]
         
     # Retrieve UUID from previous response
@@ -277,7 +277,7 @@ def download_cont_to_mythic_format(data):
     bs64_chunk_data = base64.b64encode(chunk_data).decode('utf-8')      # base64 encode file bytes on translator side here
 
     # Retrieve chunk size
-    chunk_size = int.from_bytes(data[0:4])
+    chunk_size = int.from_bytes(data[0:4], byteorder='big')
     data = data[4:]
 
     response_task = []
@@ -325,7 +325,7 @@ def upload_to_mythic_format(data):
     data = data[36:]
     
     # Retrieve current chunk number
-    chunk_num = int.from_bytes(data[0:4])
+    chunk_num = int.from_bytes(data[0:4], byteorder='big')
     data = data[4:]
         
     # Retrieve UUID from previous response
@@ -336,7 +336,7 @@ def upload_to_mythic_format(data):
     full_path, data = get_bytes_with_size(data)
 
     # Retrieve chunk size
-    chunk_size = int.from_bytes(data[0:4])
+    chunk_size = int.from_bytes(data[0:4], byteorder='big')
     data = data[4:]
 
     response_task = []

@@ -1,9 +1,14 @@
 __pycache__/
 .DS_Store
+# Python virtual environment
+.venv
 .vs
 .vscode
 main
 .idea
+
+# Mythic stuff
+rabbitmq_config.json
 mythic_go_services.bin
 Payload_Type/xenon/xenon/agent_code/*.exe
 Payload_Type/xenon/xenon/agent_code/*.dll

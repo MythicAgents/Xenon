@@ -40,7 +40,7 @@
                     "value": "randomKey"
                 },
                 {
-                    "action": "base64url",
+                    "action": "base64",
                     "value": ""
                 },
                 {
@@ -92,7 +92,7 @@
                     "value": "yetAnotherSomeRandomKey"
                 },
                 {
-                    "action": "base64url",
+                    "action": "base64",
                     "value": ""
                 },
                 {

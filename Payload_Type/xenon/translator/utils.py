@@ -46,7 +46,7 @@ def get_bytes_with_size(data):
     """
     Parse a length-prefixed buffer and return size, data.
     """
-    size = int.from_bytes(data[0:4])
+    size = int.from_bytes(data[0:4], byteorder='big')
     data = data[4:]
     return data[:size], data[size:]
 

@@ -96,7 +96,7 @@ BOOL NetworkHttpXSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 
     HttpInit();
 
-    BOOL bStatus;
+    BOOL bStatus = TRUE;
 
 retry_request:
     // Domain rotation strategy

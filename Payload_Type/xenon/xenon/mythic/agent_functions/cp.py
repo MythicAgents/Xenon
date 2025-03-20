@@ -1,20 +1,19 @@
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
 
-
 class CpArguments(TaskArguments):
     def __init__(self, command_line, **kwargs):
         super().__init__(command_line, **kwargs)
         self.args = [
             CommandParameter(
-                name="new_file", 
-                type=ParameterType.String, 
-                description="Destination path to copy file"
-            ),
-            CommandParameter(
                 name="existing_file", 
                 type=ParameterType.String, 
                 description="Source path to copy file"
+            ),
+            CommandParameter(
+                name="new_file", 
+                type=ParameterType.String, 
+                description="Destination path to copy file"
             )
         ]
 
@@ -29,7 +28,7 @@ class CpArguments(TaskArguments):
 class CpCommand(CommandBase):
     cmd = "cp"
     needs_admin = False
-    help_cmd = "cp C:\\source\\path C:\\destination\\path"
+    help_cmd = "cp C:\\source\\path C:\\destination\\path"      
     description = "Copy a file to new destination."
     version = 1
     author = "@c0rnbread"

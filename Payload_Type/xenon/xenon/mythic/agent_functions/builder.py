@@ -344,9 +344,10 @@ class XenonAgent(PayloadType):
             ######################################
             
             # https://github.com/silentwarble/Hannibal/blob/main/Payload_Type/hannibal/hannibal/mythic/agent_functions/builder.py
-            included_commands = [f"INCLUDE_CMD_{x.upper()}" for x in self.commands.get_commands()]
+            #included_commands = [f"INCLUDE_CMD_{x.upper()}" for x in self.commands.get_commands()]
+            included_commands = [f"INCLUDE_CMD_{x.upper()}" for x in self.commands.get_commands() if not x.startswith("sa_")]
             logging.info(f"Operator selected commands: {included_commands}")
-                        
+
             line = ""
             for cmd in included_commands:
                 line += f'#define {cmd}\n'

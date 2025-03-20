@@ -119,14 +119,16 @@ def generate_raw_c2_transform_definitions(data):
         # DON'T MOVE ORDER
         # Insert payload location action LAST, because the client will unpack buffer in order
         # Find payload location (header, cookie, query, body)
+        # Find payload location (header, cookie, query, body)
         message_location = config[section].get('message', {}).get('location', "").lower()
         message_location_value = TRANSFORM_TYPES.get(message_location, 0x0)
         definitions += serialize_int(message_location_value)
-        
+
         # Some locations need a 'key' name (query, header, cookie) 
-        message_name = config[section].get('message', {}).get('name', "")
-        if message_name:
+        if message_location in {"header", "cookie", "query"}:
+            message_name = config[section].get('message', {}).get('name', "")
             definitions += serialize_string(message_name)
+
         
         return definitions
     
