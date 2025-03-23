@@ -160,7 +160,6 @@ BOOL InjectProcessViaEarlyBird(_In_ PBYTE buf, _In_ SIZE_T szShellcodeLen, _Out_
 		char tempBuffer[1024];
 
 		BOOL success = ReadFile(hStdOutRead, tempBuffer, chunk - 1, &bytesRead, NULL);
-		_dbg("BYTES READ: %d", bytesRead);
 		if (!success || bytesRead == 0) {
 			break;  // No more data
 		}

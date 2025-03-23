@@ -214,7 +214,8 @@ class ExecuteAssemblyCommand(CommandBase):
                 # logging.info(f"ASSEMBLY CONTENTS: {assembly_contents.Content}")
                 tmp.write(assembly_contents.Content)
 
-            assembly_shellcode = donut.create(file=temppath, params=taskData.args.get_arg("assembly_arguments"), bypass=1)
+            # Bypass=None, ExitOption=exit process
+            assembly_shellcode = donut.create(file=temppath, params=taskData.args.get_arg("assembly_arguments"), bypass=1, exit_opt=2)
             # Clean up temp file
             os.remove(temppath)
             
