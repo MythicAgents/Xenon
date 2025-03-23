@@ -46,9 +46,10 @@ class ExecuteAssemblyArguments(TaskArguments):
                 display_name="Arguments",
                 type=ParameterType.String,
                 description="Arguments to pass to the assembly.",
+                default_value="",
                 parameter_group_info=[
                     ParameterGroupInfo(
-                        required=False, group_name="Default", ui_position=2
+                        required=False, group_name="Default", ui_position=2,
                     ),
                     ParameterGroupInfo(
                         required=False, group_name="New Assembly", ui_position=2
@@ -155,6 +156,12 @@ class ExecuteAssemblyCommand(CommandBase):
                         raise Exception("Failed to find that file")
                 else:
                     raise Exception("Error from Mythic trying to get file: " + str(file_resp.Error))
+                
+                # Set display parameters
+                response.DisplayParams = "-Assembly {} -Arguments {}".format(
+                    file_resp.Files[0].Filename,
+                    taskData.args.get_arg("assembly_arguments")
+                )
                 
                 taskData.args.add_arg("assembly_name", file_resp.Files[0].Filename)
                 taskData.args.remove_arg("assembly_file")

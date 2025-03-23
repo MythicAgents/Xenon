@@ -10,6 +10,8 @@
 
 VOID ExecuteAssembly(_In_ PCHAR taskUuid, _In_ PPARSER arguments);
 
+DWORD WINAPI ExecuteAssemblyThread(_In_ LPVOID lpTaskParamter);
+
 #endif //INCLUDE_CMD_EXECUTE_ASSEMBLY
 
 #endif  //EXECUTE_ASSEMBLY_H
