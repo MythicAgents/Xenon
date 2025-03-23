@@ -118,11 +118,6 @@ BOOL RunViaRemoteApcInjection(IN HANDLE hThread, IN HANDLE hProc, IN PBYTE pPayl
 */
 BOOL InjectProcessViaEarlyBird(_In_ PBYTE buf, _In_ SIZE_T szShellcodeLen, _Out_ PCHAR* outData)
 {
-	/*
-		TODO - move settings to the global instance xenonConfig
-	*/
-
-	// LPCSTR sProcName = "C:\\Windows\\System32\\svchost.exe";		// Full path to process
 	LPCSTR sProcName = xenonConfig->spawnto;						// Full path to process
 	DWORD dwProcId = NULL;
 	HANDLE hProcess = NULL;
