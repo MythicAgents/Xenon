@@ -390,7 +390,7 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
         }
         case TRANSFORM_BASE64URL:
         {
-            _dbg("[REVERSE_BASE64URL] ...");
+            // _dbg("[REVERSE_BASE64URL] ...");
             int status;
 
             recoverable[recoverableLength] = 0;

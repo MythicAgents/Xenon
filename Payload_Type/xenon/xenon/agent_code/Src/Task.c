@@ -10,6 +10,8 @@
 #include "Tasks/Process.h"
 #include "Tasks/Download.h"
 #include "Tasks/Upload.h"
+#include "Tasks/InlineExecute.h"
+#include "Tasks/ExecuteAssembly.h"
 #include "Tasks/Token.h"
 #include "Tasks/Exit.h"
 
@@ -243,6 +245,15 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             _dbg("INLINE_EXECUTE_CMD was called");
             
             InlineExecute(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_EXECUTE_ASSEMBLY
+        case EXECUTE_ASSEMBLY_CMD:
+        {
+            _dbg("EXECUTE_ASSEMBLY_CMD was called");
+            
+            ExecuteAssembly(taskUuid, taskParser);
             return;
         }
 #endif

@@ -37,6 +37,7 @@
 #define UPLOAD_CMD      0x50
 #define DOWNLOAD_CMD    0x51
 #define INLINE_EXECUTE_CMD 0x53
+#define EXECUTE_ASSEMBLY_CMD 0x54
 // System enumeration
 #define PS_CMD          0x52
 // MISC

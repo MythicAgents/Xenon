@@ -154,7 +154,7 @@ VOID Upload(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
     PCHAR fileUuid      = ParserGetString(arguments, &uuidLen);
     PCHAR uploadPath    = ParserGetString(arguments, &pathLen);
 
-    // Need to send the file in chunks until finished now
+    // Need to get the file in chunks until finished now
     upload.hFile = CreateFileA(uploadPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (upload.hFile == INVALID_HANDLE_VALUE)
     {
