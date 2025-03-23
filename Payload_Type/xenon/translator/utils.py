@@ -27,6 +27,7 @@ commands = {
     "ps": 0x52, 
     "inline_execute": 0x53,
     "execute_assembly": 0x54,
+    "spawnto": 0x55,
     "shell": 0x60, 
     "powershell": 0x61, 
     "getuid": 0x70, 

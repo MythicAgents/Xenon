@@ -6,6 +6,7 @@
 #include "Xenon.h"
 #include "Parser.h"
 #include "Strategy.h"
+#include "Config.h"
 
 /** 
  * Update the sleep & jitter timers for global Xenon instance.
@@ -58,3 +59,45 @@ VOID AgentStatus(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
     // Cleanup
     PackageDestroy(data);
 }
+
+
+
+
+#ifdef INCLUDE_CMD_SPAWNTO
+/**
+ * Update spawnto process path
+ */
+VOID AgentSpawnto(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
+{
+    // Get command arguments for filepath
+    UINT32 nbArg = ParserGetInt32(arguments);
+    _dbg("\t Got %d arguments", nbArg);
+    if (nbArg == 0)
+    {
+        return;
+    }
+
+    SIZE_T newLen  = 0;
+    PCHAR previous = xenonConfig->spawnto;
+    PCHAR new      = ParserStringCopy(arguments, &newLen);
+    
+    if (new == NULL || newLen == 0)
+    {
+        _err("Failed to update spawnto process");
+        PackageError(taskUuid, 0);
+    }
+    
+    // Update spawnto path
+    xenonConfig->spawnto = new;
+
+    _dbg("Updated Xenon SPAWNTO \"%s\"", xenonConfig->spawnto);
+
+    // Cleanup previous spawnto path
+    memset(previous, '\0', sizeof(previous));
+    LocalFree(previous);
+    
+    // Success
+    PackageComplete(taskUuid, NULL);
+}
+
+#endif //INCLUDE_CMD_SPAWNTO

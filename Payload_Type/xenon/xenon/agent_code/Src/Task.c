@@ -287,6 +287,14 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             return;
         }
 #endif
+#ifdef INCLUDE_CMD_SPAWNTO
+        case SPAWNTO_CMD:
+        {
+            _dbg("SPAWNTO_CMD was called");
+            AgentSpawnto(taskUuid, taskParser);
+            return;
+        }
+#endif
     }
 }
 

@@ -37,7 +37,10 @@ typedef struct
     UINT32 failoverThreshold;
     UINT32 sleeptime;
     UINT32 jitter;
+    // Injection Options
+    PCHAR spawnto;
 
+    // Linked-list
     PCALLBACK_NODE CallbackDomains;        // Newly added here
     PCALLBACK_NODE CallbackDomainHead;     // Newly added here
 

