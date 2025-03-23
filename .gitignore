@@ -1,5 +1,7 @@
 __pycache__/
 .DS_Store
+# Shellcode
+loader.bin
 # Python virtual environment
 .venv
 .vs

