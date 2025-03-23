@@ -7,7 +7,6 @@
 
 
 #if defined(INCLUDE_CMD_UPLOAD) || defined(INCLUDE_CMD_INLINE_EXECUTE) || defined(INCLUDE_CMD_EXECUTE_ASSEMBLY)
-
 /**
  * @brief Fetches a file from Mythic server using its UUID
  * 
