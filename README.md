@@ -52,7 +52,8 @@ Xenon makes no claims about evasion. In fact it is not OPSEC safe. There are man
 | `ps`           | `ps`                                                | List host processes. |
 | `shell`        | `shell <command>`                                   | Runs `{command}` in a terminal. |
 | `sleep`        | `sleep <seconds> [jitter]`                          | Change sleep timer and jitter. |
-| `inline_execute` | `inline_execute -BOF [COFF.o] [-Arguments [optional arguments]]` | Execute a Beacon Object File in the current process thread. **Warning:** Incorrect argument types can crash the Agent process. |
+| `inline_execute` | `inline_execute -BOF [COFF.o] [-Arguments [optional arguments]]` | Execute a Beacon Object File in the current process thread and see output. **Warning:** Incorrect argument types can crash the Agent process. |
+| `execute_assembly` | `inline_execute -Assembly SharpUp.exe [-Arguments "audit"]` | Execute a .NET Assembly in a remote processes and retrieve the output. |
 | `download`     | `download -path <file path>`                           | Download a file off the target system (supports UNC path). |
 | `upload`       | `upload (modal)`                                            | Upload a file to the target machine by selecting a file from your computer. |
 | `status`         | `status`                                              | List C2 connection hosts and their status. |
