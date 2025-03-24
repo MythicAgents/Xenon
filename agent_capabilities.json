@@ -1,14 +1,30 @@
 {
-    "os": ["Windows"],
-    "languages": ["C"] ,
-    "features": {
-      "mythic": [],
-      "custom": ["bofs", "donut"]
-    },
-    "payload_output": ["exe", "dll", "shellcode"],
-    "architectures": ["x86_64"],
-    "c2": ["httpx"],
-    "mythic_version": "3.3.1-rc44",
-    "agent_version": "0.0.1",
-    "supported_wrappers": []
-  }
+  "os": [
+    "Windows"
+  ],
+  "languages": [
+    "C"
+  ],
+  "features": {
+    "mythic": [],
+    "custom": [
+      "bofs",
+      "donut",
+      "execute assembly"
+    ]
+  },
+  "payload_output": [
+    "exe",
+    "dll",
+    "shellcode"
+  ],
+  "architectures": [
+    "x86_64"
+  ],
+  "c2": [
+    "httpx"
+  ],
+  "mythic_version": "3.3.1-rc44",
+  "agent_version": "0.0.1",
+  "supported_wrappers": []
+}
