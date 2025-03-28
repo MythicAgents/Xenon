@@ -65,7 +65,7 @@ class ExecuteAssemblyArguments(TaskArguments):
         response = PTRPCDynamicQueryFunctionMessageResponse()
         file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
             CallbackID=callback.Callback,
-            LimitByCallback=True,
+            LimitByCallback=False,
             Filename="",
         ))
         if file_resp.Success:
@@ -171,7 +171,7 @@ class ExecuteAssemblyCommand(CommandBase):
                 file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
                     TaskID=taskData.Task.ID,
                     Filename=taskData.args.get_arg("assembly_name"),
-                    LimitByCallback=True,                                # TODO TEST THIS
+                    LimitByCallback=False,                                # TODO TEST THIS
                     MaxResults=1
                 ))
                 if file_resp.Success:
