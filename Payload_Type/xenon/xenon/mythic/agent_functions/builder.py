@@ -166,9 +166,39 @@ class XenonAgent(PayloadType):
         ### Initialize BOF Modules ####
         ###############################
         
-        SA_MODULE_PATH = pathlib.Path(".") / "xenon" / "agent_code" / "modules" / "trustedsec_bofs"
+        CORE_MODULE_PATH = pathlib.Path(".") / "xenon" / "agent_code" / "modules" / "core"
+        # Add Core Modules 
+        bof_filename = "inline-ea.x64.o"
+        bof_path = CORE_MODULE_PATH / "inline-ea" / bof_filename
+    
+        if not bof_path.exists():
+            logging.error(f"BOF file not found: {bof_path}")
+
+        try:
+            with open(bof_path, "rb") as f:
+                bof_bytes = f.read()
+
+            # Upload BOF to Mythic 
+            file_resp = await SendMythicRPCFileCreate(
+                MythicRPCFileCreateMessage(
+                    PayloadUUID=self.uuid,
+                    Filename=bof_filename,
+                    DeleteAfterFetch=False,
+                    FileContents=bof_bytes
+                )
+            )
+
+            if file_resp.Success:
+                logging.info(f"Successfully uploaded: {bof_filename}")
+            else:
+                raise Exception(f"Failed to upload {bof_filename}: {file_resp.Error}")
+
+        except Exception as e:
+            logging.exception(f"Error uploading {bof_filename}: {str(e)}")
+
 
         # Add Situational Awareness BOFs to Mythic. (e.g., sa_<cmd>)
+        SA_MODULE_PATH = pathlib.Path(".") / "xenon" / "agent_code" / "modules" / "trustedsec_bofs"        
         for cmd in self.commands.get_commands():
             if cmd.startswith("sa_"):
                 bof_stem = cmd[3:]  # Strip 'sa_' prefix
