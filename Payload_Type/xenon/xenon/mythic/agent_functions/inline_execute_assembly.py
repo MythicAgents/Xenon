@@ -208,15 +208,7 @@ class InlineExecuteAssemblyCommand(CoffCommandBase):
                     d. PatchExit
                     e. PatchAmsi
                     f. PatchEtw
-
-                    Params=json.dumps({
-                        "bof_name": file_name,
-                        "bof_arguments": arguments
-                    }),
-                    
-                4. profit?
         '''
-        
         
         try:
             ######################################
@@ -240,7 +232,7 @@ class InlineExecuteAssemblyCommand(CoffCommandBase):
                     raise Exception("Error from Mythic trying to get file: " + str(file_resp.Error))
                 
                 # Set display parameters
-                response.DisplayParams = "-Assembly {} -Arguments {} -patchexit {} -amsi {} -etw {}".format(
+                response.DisplayParams = "-Assembly {} -Arguments {} --patchexit {} --amsi {} --etw {}".format(
                     file_resp.Files[0].Filename,
                     taskData.args.get_arg("assembly_arguments"),
                     taskData.args.get_arg("patch_exit"),
@@ -266,7 +258,7 @@ class InlineExecuteAssemblyCommand(CoffCommandBase):
                         taskData.args.remove_arg("assembly_name")    # Don't need this anymore
                         
                         # Set display parameters
-                        response.DisplayParams = "-Assembly {} -Arguments {} -patchexit {} -amsi {} -etw {}".format(
+                        response.DisplayParams = "-Assembly {} -Arguments {} --patchexit {} --amsi {} --etw {}".format(
                             file_resp.Files[0].Filename,
                             taskData.args.get_arg("assembly_arguments"),
                             taskData.args.get_arg("patch_exit"),
@@ -327,7 +319,7 @@ class InlineExecuteAssemblyCommand(CoffCommandBase):
             ]
             
             # Debugging
-            logging.info(taskData.args.to_json())
+            # logging.info(taskData.args.to_json())
             
             # Run inline_execute subtask
             subtask = await SendMythicRPCTaskCreateSubtask(
