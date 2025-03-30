@@ -177,7 +177,7 @@ class InlineExecuteAssemblyCommand(CoffCommandBase):
     cmd = "inline_execute_assembly"
     needs_admin = False
     help_cmd = "inline_execute_assembly -Assembly [file] [-Arguments [assembly args] [--patchexit] [--amsi] [--etw]]"
-    description = "Execute a .NET Assembly in the current process using an evasive BOF \"Inline-EA\" (e.g., inline_execute_assembly -Assembly SharpUp.exe -Arguments \"audit\" --patchexit --amsi --etw)"
+    description = "Execute a .NET Assembly in the current process using @EricEsquivel's BOF \"Inline-EA\" (e.g., inline_execute_assembly -Assembly SharpUp.exe -Arguments \"audit\" --patchexit --amsi --etw)"
     version = 1
     author = "@c0rnbread"
     script_only = True
