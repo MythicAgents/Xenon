@@ -46,8 +46,8 @@ class XenonAgent(PayloadType):
         BuildParameter(
             name = "spawnto_process",
             parameter_type=BuildParameterType.String,
-            default_value="C:\\Windows\\System32\\svchost.exe",
-            description="Spawnto Process: Full path of process to use for spawn & inject commands.",
+            default_value="svchost.exe",
+            description="Spawnto Process: Process name to use for spawn & inject commands.",
         )
     ]
     agent_path = pathlib.Path(".") / "xenon" / "mythic"

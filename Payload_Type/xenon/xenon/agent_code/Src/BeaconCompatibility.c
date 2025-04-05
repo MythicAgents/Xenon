@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include "Xenon.h"
 #include "Config.h"
 
 #ifdef INCLUDE_CMD_INLINE_EXECUTE
