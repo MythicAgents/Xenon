@@ -16,8 +16,6 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
     on it. 
     In order for the Dll to continue to run from the bootstrap donut loader, it requires an 
     exported function. This just keeps the process open.
-
-    TODO - modify DLL entrypoint function in Donut shellcode Python
 */
 
 // Default DLL export name
