@@ -65,6 +65,8 @@ def get_tasking_to_agent_format(tasks):
                         packer.addshort(int(item_value))
                     elif item_type == "int32":
                         packer.adduint32(int(item_value))
+                    elif item_type == "bytes":
+                        packer.addbytes(bytes.fromhex(item_value))
                     elif item_type == "string":
                         packer.addstr(item_value)
                     elif item_type == "wchar":

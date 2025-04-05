@@ -14,4 +14,4 @@ rabbitmq_config.json
 mythic_go_services.bin
 Payload_Type/xenon/xenon/agent_code/*.exe
 Payload_Type/xenon/xenon/agent_code/*.dll
-Payload_Type/xenon/xenon/agent_code/*.o
+#Payload_Type/xenon/xenon/agent_code/*.o

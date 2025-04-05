@@ -23,8 +23,8 @@ VOID ShellCmd(PCHAR taskUuid, PPARSER arguments)
 
     PPackage temp = PackageInit(0, FALSE);
 
-    fp = _popen(cmd, "rb");
-    if (!fp)
+    fp = _popen(cmd, "rb");     // TODO: Fix so it doesn't hang. This hangs until child process is done. 
+    if (!fp)    
     {
         DWORD error = GetLastError();
         _err("[CMD_SHELL] code : %d", error);

@@ -25,12 +25,6 @@ class XenonAgent(PayloadType):
     translation_container = "XenonTranslator"
     build_parameters = [
         BuildParameter(
-            name = "spawnto_process",
-            parameter_type=BuildParameterType.String,
-            default_value="C:\\Windows\\System32\\svchost.exe",
-            description="Spawnto Process: Full path of process to use for spawn & inject commands.",
-        ),
-        BuildParameter(
             name = "output_type",
             parameter_type=BuildParameterType.ChooseOne,
             choices=[ "exe", "dll", "shellcode"],
@@ -42,6 +36,18 @@ class XenonAgent(PayloadType):
             parameter_type=BuildParameterType.Boolean,
             default_value="false",
             description="Debug: Includes debugging console and symbols in agent. Don't use for real",
+        ),
+        BuildParameter(
+            name = "dll_export_function",
+            parameter_type=BuildParameterType.String,
+            default_value="DllRegisterServer",
+            description="Dll Export Function: The name of the exported function when using the DLL payload type. (e.g., rundll32.exe xenon.dll,MyExportFunction)",
+        ),
+        BuildParameter(
+            name = "spawnto_process",
+            parameter_type=BuildParameterType.String,
+            default_value="C:\\Windows\\System32\\svchost.exe",
+            description="Spawnto Process: Full path of process to use for spawn & inject commands.",
         )
     ]
     agent_path = pathlib.Path(".") / "xenon" / "mythic"
@@ -166,9 +172,39 @@ class XenonAgent(PayloadType):
         ### Initialize BOF Modules ####
         ###############################
         
-        SA_MODULE_PATH = pathlib.Path(".") / "xenon" / "agent_code" / "modules" / "trustedsec_bofs"
+        CORE_MODULE_PATH = pathlib.Path(".") / "xenon" / "agent_code" / "modules" / "core"
+        # Add Core Modules 
+        bof_filename = "inline-ea.x64.o"
+        bof_path = CORE_MODULE_PATH / "inline-ea" / bof_filename
+    
+        if not bof_path.exists():
+            logging.error(f"BOF file not found: {bof_path}")
+
+        try:
+            with open(bof_path, "rb") as f:
+                bof_bytes = f.read()
+
+            # Upload BOF to Mythic 
+            file_resp = await SendMythicRPCFileCreate(
+                MythicRPCFileCreateMessage(
+                    PayloadUUID=self.uuid,
+                    Filename=bof_filename,
+                    DeleteAfterFetch=False,
+                    FileContents=bof_bytes
+                )
+            )
+
+            if file_resp.Success:
+                logging.info(f"Successfully uploaded: {bof_filename}")
+            else:
+                raise Exception(f"Failed to upload {bof_filename}: {file_resp.Error}")
+
+        except Exception as e:
+            logging.exception(f"Error uploading {bof_filename}: {str(e)}")
+
 
         # Add Situational Awareness BOFs to Mythic. (e.g., sa_<cmd>)
+        SA_MODULE_PATH = pathlib.Path(".") / "xenon" / "agent_code" / "modules" / "trustedsec_bofs"        
         for cmd in self.commands.get_commands():
             if cmd.startswith("sa_"):
                 bof_stem = cmd[3:]  # Strip 'sa_' prefix
@@ -211,7 +247,7 @@ class XenonAgent(PayloadType):
         ))
          
         ######################################
-        #####  Source code substitutions  ####
+        #####  Agent instance config (packed)####
         ######################################
         try:
             ''' 
@@ -345,9 +381,25 @@ class XenonAgent(PayloadType):
                 f.truncate()
 
 
+            ######################################
+            #####     Payload Options         ####
+            ######################################
+            if self.get_parameter('output_type') == 'dll' or self.get_parameter('output_type') == 'shellcode':
+                with open(agent_build_path.name + "/Include/Config.h", "r+") as f:
+                    content = f.read()    
+                    export_function = self.get_parameter('dll_export_function')
+                    
+                    content = content.replace("%S_DLL_EXPORT_FUNC%", export_function)
+                    
+                    logging.info(f'#define S_DLL_EXPORT_FUNC {export_function}')
+
+                    # Write the updated content back to the file
+                    f.seek(0)
+                    f.write(content)
+                    f.truncate()
 
             ######################################
-            #####     Create C Definitions    ####
+            #####     Included commands       ####
             ######################################
             
             # https://github.com/silentwarble/Hannibal/blob/main/Payload_Type/hannibal/hannibal/mythic/agent_functions/builder.py
@@ -435,7 +487,7 @@ class XenonAgent(PayloadType):
             if self.get_parameter('output_type') == 'shellcode':
                 bin_file = f"{agent_build_path.name}/loader.bin"
                 # Use donut-shellcode here
-                donut.create(file=output_path, output=bin_file, arch=3, bypass=1, method="Go")  # Static exported method "Go" for now
+                donut.create(file=output_path, output=bin_file, arch=3, bypass=1, method=export_function)
    
                 if os.path.exists(bin_file):
                     # Shellcode is new output file path
