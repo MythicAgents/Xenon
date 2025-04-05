@@ -7,6 +7,11 @@
  * Built off of the beacon.h file provided to build for CS.
  */
 #ifndef BEACON_COMPATIBILITY_H_
+
+#include "Config.h"
+
+#ifdef INCLUDE_CMD_INLINE_EXECUTE
+
  /* Structures as is in beacon.h */
 extern unsigned char* InternalFunctions[30][2];
 
@@ -70,4 +75,7 @@ BOOL   toWideChar(char* src, wchar_t* dst, int max);
 UINT32 swap_endianess(UINT32 indata);
 
 char*   BeaconGetOutputData(int* outsize);
+
+#endif //INCLUDE_CMD_INLINE_EXECUTE
+
 #endif

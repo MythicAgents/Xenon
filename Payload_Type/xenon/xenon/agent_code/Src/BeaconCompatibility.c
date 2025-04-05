@@ -3,7 +3,7 @@
  * -----------------------------------------
  * @ref https://github.com/trustedsec/COFFLoader/blob/main/beacon_compatibility.c
  * The whole point of these files are to allow beacon object files built for CS
- * to run fine inside of other tools without recompiling.
+ * to run fine inside of other tools without having to modify them.
  *
  * Built off of the beacon.h file provided to build for CS.
  */
@@ -11,6 +11,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include "Config.h"
+
+#ifdef INCLUDE_CMD_INLINE_EXECUTE
 
 #ifdef _WIN32
 #include <windows.h>
@@ -383,3 +386,6 @@ char* BeaconGetOutputData(int* outsize) {
 }
 
 #endif
+
+
+#endif //INCLUDE_CMD_INLINE_EXECUTE
