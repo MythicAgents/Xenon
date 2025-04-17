@@ -89,6 +89,8 @@ typedef struct COFF {
 
 VOID InlineExecute(PCHAR taskUuid, PPARSER arguments);
 
+BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdata, unsigned long argumentsize);
+
 #endif //INCLUDE_CMD_INLINE_EXECUTE
 
 #endif  //INLINEEXECUTE_H

