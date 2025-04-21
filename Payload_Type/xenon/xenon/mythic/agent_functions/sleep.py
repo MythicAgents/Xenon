@@ -76,6 +76,13 @@ class SleepCommand(CommandBase):
             TaskID=taskData.Task.ID,
             Success=True,
         )
+        
+        # Display parameters
+        response.DisplayParams = "{} {}".format(
+            taskData.args.get_arg('seconds'),
+            taskData.args.get_arg('jitter')
+        )
+        
         return response
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:

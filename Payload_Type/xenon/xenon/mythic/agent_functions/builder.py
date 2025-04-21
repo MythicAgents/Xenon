@@ -384,6 +384,8 @@ class XenonAgent(PayloadType):
             ######################################
             #####     Payload Options         ####
             ######################################
+            
+            # Set DLL export function name
             if self.get_parameter('output_type') == 'dll' or self.get_parameter('output_type') == 'shellcode':
                 with open(agent_build_path.name + "/Include/Config.h", "r+") as f:
                     content = f.read()    

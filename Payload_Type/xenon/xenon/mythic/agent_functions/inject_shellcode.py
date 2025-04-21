@@ -6,40 +6,68 @@ import os
 import tempfile
 import donut
 
-logging.basicConfig(level=logging.INFO)
+'''
+    [BRIEF]
+    
+    This command is not designed to be used directly although it can be.
+    It takes an already uploaded PIC shellcode file as an input and sends a UUID string as 
+    an argument to the Agent.
+    
+    [Input]: 
+        - File
+    [Output]:
+        - {str} File UUID
+'''
 
+logging.basicConfig(level=logging.INFO)
 
 class InjectShellcodeArguments(TaskArguments):
     def __init__(self, command_line, **kwargs):
         super().__init__(command_line, **kwargs)
         self.args = [
-            CommandParameter(
-                name="shellcode_name",
-                cli_name="File",
-                display_name="File",
-                type=ParameterType.ChooseOne,
-                dynamic_query_function=self.get_files,
-                description="Already existing PIC Shellcode to execute (e.g. mimi.bin)",
-                parameter_group_info=[
-                    ParameterGroupInfo(
-                        required=True,
-                        group_name="Default",
-                        ui_position=1
-                    )
-                ]),
+            # This is designed to be passed from other commands with MythicRPCTaskCreateSubtaskMessage
             CommandParameter(
                 name="shellcode_file",
-                display_name="New File",
+                cli_name="File",
+                display_name="File",
                 type=ParameterType.File,
-                description="A new PIC shellcode to execute. After uploading once, you can just supply the -File parameter",
+                description="A shellcode file uploaded to Mythic.",
                 parameter_group_info=[
                     ParameterGroupInfo(
                         required=True, 
-                        group_name="New File", 
+                        group_name="Existing", 
                         ui_position=1,
                     )
                 ]
-            )            
+            )
+            # CommandParameter(
+            #     name="shellcode_name",
+            #     cli_name="File",
+            #     display_name="File",
+            #     type=ParameterType.ChooseOne,
+            #     dynamic_query_function=self.get_files,
+            #     description="Already existing PIC Shellcode to execute (e.g. mimi.bin)",
+            #     parameter_group_info=[
+            #         ParameterGroupInfo(
+            #             required=True,
+            #             group_name="Existing",
+            #             ui_position=1
+            #         )
+            #     ]),
+            # CommandParameter(
+            #     name="shellcode_file",
+            #     cli_name="File",
+            #     display_name="New File",
+            #     type=ParameterType.File,
+            #     description="A new PIC shellcode to execute. After uploading once, you can just supply the -File parameter",
+            #     parameter_group_info=[
+            #         ParameterGroupInfo(
+            #             required=True, 
+            #             group_name="New File", 
+            #             ui_position=1,
+            #         )
+            #     ]
+            # )            
         ]
     
     async def get_files(self, callback: PTRPCDynamicQueryFunctionMessage) -> PTRPCDynamicQueryFunctionMessageResponse:
@@ -69,25 +97,11 @@ class InjectShellcodeArguments(TaskArguments):
 
     async def parse_arguments(self):
         if len(self.command_line) == 0:
-            raise ValueError("Must supply arguments")
-        raise ValueError("Must supply named arguments or use the modal")
-
-    async def parse_arguments(self):
-        if len(self.command_line) == 0:
-            raise Exception(
-                "Require shellcode to execute.\n\tUsage: {}".format(
-                    InjectShellcodeCommand.help_cmd
-                )
-            )
+            raise Exception("No arguments given.")
+        if self.command_line[0] != "{":
+            raise Exception("Require JSON blob, but got raw command line.")
         self.load_args_from_json_string(self.command_line)
-        # if self.command_line[0] == "{":
-        #     self.load_args_from_json_string(self.command_line)
-        # else:
-        #     parts = self.command_line.split(" ", maxsplit=1)
-        #     self.add_arg("shellcode_name", parts[0])
-        #     self.add_arg("arguments", "")
-        #     if len(parts) == 2:
-        #         self.add_arg("arguments", parts[1])
+        pass
         
 class InjectShellcodeCommand(CommandBase):
     cmd = "inject_shellcode"
@@ -113,26 +127,39 @@ class InjectShellcodeCommand(CommandBase):
         try:
             ######################################
             #                                    #
-            #   Group (New File | Default)   #
+            #   Group (New File | Existing)       #
             #                                    #
             ######################################
             groupName = taskData.args.get_parameter_group_name()
             
-            if groupName == "New File":
-                file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
-                    TaskID=taskData.Task.ID,
-                    AgentFileID=taskData.args.get_arg("shellcode_file")
-                ))
-                if file_resp.Success:
-                    if len(file_resp.Files) > 0:
-                        taskData.args.add_arg("shellcode_name", file_resp.Files[0].Filename)
-                        #taskData.args.remove_arg("shellcode_file")
-                    else:
-                        raise Exception("Failed to find that file")
-                else:
-                    raise Exception("Error from Mythic trying to get file: " + str(file_resp.Error))
-                                
-            elif groupName == "Default":
+            # if groupName == "New File":
+            #     file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
+            #         TaskID=taskData.Task.ID,
+            #         AgentFileID=taskData.args.get_arg("shellcode_file")
+            #     ))
+                
+            #     if file_resp.Success:
+            #         original_file_name = file_resp.Files[0].Filename
+            #     else:
+            #         raise Exception("Failed to fetch uploaded file from Mythic (ID: {})".format(taskData.args.get_arg("shellcode_file")))
+                
+            #     taskData.args.add_arg("shellcode_file", file_resp.Files[0].AgentFileId, parameter_group_info=[ParameterGroupInfo(
+            #         group_name="New File"
+            #     )])
+            #     # When this is here the filename is properly set in Mythic, BUT agent parses filename as UUID and fails.
+            #     taskData.args.add_arg("shellcode_name", original_file_name, parameter_group_info=[ParameterGroupInfo(
+            #         group_name="New File"
+            #         )])
+                
+                
+            #     # taskData.args.add_arg("file_id", taskData.args.get_arg("shellcode_file"), parameter_group_info=[ParameterGroupInfo(
+            #     #     group_name="New File"
+            #     #     )])
+
+            #     response.DisplayParams = original_file_name
+
+            if groupName == "Existing":
+            #elif groupName == "Existing":
                 # We're trying to find an already existing file and use that
                 file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
                     TaskID=taskData.Task.ID,
@@ -140,26 +167,17 @@ class InjectShellcodeCommand(CommandBase):
                     LimitByCallback=False,
                     MaxResults=1
                 ))
-                if file_resp.Success:
-                    if len(file_resp.Files) > 0:
-                        # taskData.args.remove_arg("shellcode_name")
-                        pass
-                    else:
-                        raise Exception("Failed to find the named file. Have you uploaded it before? Did it get deleted?")
-                else:
-                    raise Exception("Error from Mythic trying to search files:\n" + str(file_resp.Error))
+                
+                if not file_resp.Success:
+                    raise Exception("Failed to fetch find file from Mythic (name: {})".format(taskData.args.get_arg("shellcode_name")))
+                
+                taskData.args.add_arg("shellcode_file", file_resp.Files[0].AgentFileId, parameter_group_info=[ParameterGroupInfo(
+                    group_name="Existing"
+                )])
+                
+                taskData.args.remove_arg("shellcode_name")      # Don't need this for Agent
             
-            # Set display parameters (only visual)
-            response.DisplayParams = "-File {}".format(
-                file_resp.Files[0].Filename
-            )
-            # Remove these args 
-            #taskData.args.remove_arg("shellcode_file")
-            #taskData.args.remove_arg("shellcode_name")
-            
-            # Only needs UUID so Agent can download file with it
-            #file_uuid = file_resp.Files[0].AgentFileId
-            #taskData.args.add_arg("shellcode_file_id", file_uuid)
+                response.DisplayParams = "-File {}".format(file_resp.Files[0].Filename)
             
             # Debugging
             logging.info(taskData.args.to_json())
