@@ -29,6 +29,7 @@ commands = {
     "execute_assembly": 0x54,
     "spawnto": 0x55,
     "inject_shellcode": 0x56,
+    "register_process_inject_kit": 0x57,
     "shell": 0x60, 
     "powershell": 0x61, 
     "getuid": 0x70, 

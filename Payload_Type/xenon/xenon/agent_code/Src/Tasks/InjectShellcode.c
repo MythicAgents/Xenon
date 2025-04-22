@@ -27,6 +27,14 @@ VOID InjectShellcode(PCHAR taskUuid, PPARSER arguments)
     MYTHIC_FILE Shellcode       = { 0 };
 
     PCHAR  fileUuid  = ParserGetString(arguments, &uuidLen);
+    /*
+        TODO:
+            - Parse isProcessInjectKit
+            - Parse Bytes for proc inject BOF
+            - Get shellcode file
+            - Call COFF with sc as param
+    */
+
 
     strncpy(Shellcode.fileUuid, fileUuid, TASK_UUID_SIZE + 1);
     Shellcode.fileUuid[TASK_UUID_SIZE + 1] = '\0';

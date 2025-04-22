@@ -304,7 +304,15 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             return;
         }
 #endif
-    }
+#ifdef INCLUDE_CMD_REGISTER_PROCESS_INJECT_KIT
+        case REGISTER_PROCESS_INJECT_KIT_CMD:
+        {
+            _dbg("REGISTER_PROCESS_INJECT_KIT_CMD was called");
+            AgentRegisterProcessInjectKit(taskUuid, taskParser);
+            return;
+        }
+#endif
+    }//end switch
 }
 
 BOOL TaskCheckin(PPARSER checkinResponseData)

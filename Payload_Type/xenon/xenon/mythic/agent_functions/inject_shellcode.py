@@ -29,7 +29,7 @@ class InjectShellcodeArguments(TaskArguments):
             CommandParameter(
                 name="shellcode_file",
                 cli_name="File",
-                display_name="File",
+                display_name="Shellcode File",
                 type=ParameterType.File,
                 description="A shellcode file uploaded to Mythic.",
                 parameter_group_info=[
@@ -39,7 +39,41 @@ class InjectShellcodeArguments(TaskArguments):
                         ui_position=1,
                     )
                 ]
-            )
+            ),
+            CommandParameter(
+                name="process_inject_method",
+                cli_name="-method",
+                display_name="Inject Method",
+                type=ParameterType.ChooseOne,
+                default_value="default",
+                choices=[
+                    "default",
+                    "custom"
+                ],
+                description="Process injection method used to execute the shellcode. (e.g., default|custom)",
+                parameter_group_info=[
+                    ParameterGroupInfo(
+                        required=True, 
+                        group_name="Existing", 
+                        ui_position=2,
+                    )
+                ]
+            ),
+            # CommandParameter(
+            #     name="process_inject_kit_file",
+            #     cli_name="-kit",
+            #     display_name="Injection Kit",
+            #     type=ParameterType.File,
+            #     description="Custom Process Inject Kit BOF file. This gets passed as a Mythic File UUID",
+            #     parameter_group_info=[
+            #         ParameterGroupInfo(
+            #             required=False,
+            #             group_name="Existing", 
+            #             ui_position=3,
+            #         )
+            #     ]
+            # ),
+            
             # CommandParameter(
             #     name="shellcode_name",
             #     cli_name="File",
@@ -106,8 +140,8 @@ class InjectShellcodeArguments(TaskArguments):
 class InjectShellcodeCommand(CommandBase):
     cmd = "inject_shellcode"
     needs_admin = False
-    help_cmd = "inject_shellcode -File [mimi.bin]"
-    description = "Execute PIC shellcode. (e.g., inject_shellcode -File mimi.bin"
+    help_cmd = "inject_shellcode -File [mimi.bin] --method [default|custom] --kit [file.o]"
+    description = "Execute PIC shellcode. (e.g., inject_shellcode -File mimi.bin --method default --kit inject_spawn.x64.o"
     version = 1
     author = "@c0rnbread"
     attackmapping = []
@@ -158,8 +192,8 @@ class InjectShellcodeCommand(CommandBase):
 
             #     response.DisplayParams = original_file_name
 
-            if groupName == "Existing":
             #elif groupName == "Existing":
+            if groupName == "Existing":
                 # We're trying to find an already existing file and use that
                 file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
                     TaskID=taskData.Task.ID,
@@ -174,13 +208,23 @@ class InjectShellcodeCommand(CommandBase):
                 taskData.args.add_arg("shellcode_file", file_resp.Files[0].AgentFileId, parameter_group_info=[ParameterGroupInfo(
                     group_name="Existing"
                 )])
-                
+
                 taskData.args.remove_arg("shellcode_name")      # Don't need this for Agent
             
-                response.DisplayParams = "-File {}".format(file_resp.Files[0].Filename)
+                # Insert a reference to a Global for the Process Inject File UUID
+                if taskData.args.get_arg("process_inject_kit_file") == "custom":
+                    # Set file uuid to that file
+                    pass
+            
+                response.DisplayParams = "-File {} --method {} --kit {}".format(
+                    file_resp.Files[0].Filename,
+                    taskData.args.get_arg("shellcode_name"),
+                    taskData.args.get_arg("process_inject_method"),
+                    taskData.args.get_arg("process_inject_kit_file")
+                )
             
             # Debugging
-            logging.info(taskData.args.to_json())
+            #logging.info(taskData.args.to_json())
             
             return response
 
