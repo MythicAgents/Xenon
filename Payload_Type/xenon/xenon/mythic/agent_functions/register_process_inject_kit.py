@@ -1,6 +1,7 @@
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
 import logging
+from .utils.agent_global_settings import PROCESS_INJECT_KIT
 
 class RegisterProcessInjectKitArguments(TaskArguments):
     def __init__(self, command_line, **kwargs):
@@ -69,10 +70,12 @@ class RegisterProcessInjectKitCommand(CommandBase):
             Success=True,
         )
         
+        # TODO - Create a second UI component to select already uploaded files that are named inject_spawn.x64.o OR inject_explicit.x64.o
+        
         is_enabled = taskData.args.get_arg("enabled")
         inject_spawn = taskData.args.get_arg("inject_spawn")
         inject_explicit = taskData.args.get_arg("inject_explicit")
-        logging.info("Settings {}, {}, {}".format(is_enabled, inject_spawn, inject_explicit))
+
         if is_enabled:
             if inject_spawn:
                 inject_spawn_file = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
@@ -81,7 +84,7 @@ class RegisterProcessInjectKitCommand(CommandBase):
                 ))
                 if inject_spawn_file.Success:
                     if len(inject_spawn_file.Files) > 0:
-                        pass
+                        PROCESS_INJECT_KIT.set_inject_spawn(inject_spawn_file.Files[0].AgentFileId)
                     else:
                         raise Exception("Failed to find that file")
                 else:
@@ -94,7 +97,7 @@ class RegisterProcessInjectKitCommand(CommandBase):
                 ))
                 if inject_explicit_file.Success:
                     if len(inject_explicit_file.Files) > 0:
-                        pass
+                        PROCESS_INJECT_KIT.set_inject_explicit(inject_explicit_file.Files[0].AgentFileId)
                     else:
                         raise Exception("Failed to find that file")
                 else:

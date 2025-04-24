@@ -5,6 +5,7 @@ import logging, sys
 import os
 import tempfile
 import donut
+from .utils.agent_global_settings import PROCESS_INJECT_KIT
 
 '''
     [BRIEF]
@@ -17,6 +18,7 @@ import donut
         - File
     [Output]:
         - {str} File UUID
+        - {typedlist} [bytes:kit_spawn_contents] Raw file of the currently configured Process Injection Kit BOF 
 '''
 
 logging.basicConfig(level=logging.INFO)
@@ -41,7 +43,7 @@ class InjectShellcodeArguments(TaskArguments):
                 ]
             ),
             CommandParameter(
-                name="process_inject_method",
+                name="method",
                 cli_name="-method",
                 display_name="Inject Method",
                 type=ParameterType.ChooseOne,
@@ -59,6 +61,7 @@ class InjectShellcodeArguments(TaskArguments):
                     )
                 ]
             ),
+            # This will be set Globally, so dont make it an option
             # CommandParameter(
             #     name="process_inject_kit_file",
             #     cli_name="-kit",
@@ -161,10 +164,11 @@ class InjectShellcodeCommand(CommandBase):
         try:
             ######################################
             #                                    #
-            #   Group (New File | Existing)       #
+            #   Group (New File | Existing)      #
             #                                    #
             ######################################
             groupName = taskData.args.get_parameter_group_name()
+            method = taskData.args.get_arg("method")
             
             # if groupName == "New File":
             #     file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
@@ -194,37 +198,53 @@ class InjectShellcodeCommand(CommandBase):
 
             #elif groupName == "Existing":
             if groupName == "Existing":
-                # We're trying to find an already existing file and use that
+                # Retrieve the shellcode file to inject
                 file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
                     TaskID=taskData.Task.ID,
                     Filename=taskData.args.get_arg("shellcode_name"),
                     LimitByCallback=False,
                     MaxResults=1
                 ))
-                
                 if not file_resp.Success:
                     raise Exception("Failed to fetch find file from Mythic (name: {})".format(taskData.args.get_arg("shellcode_name")))
-                
                 taskData.args.add_arg("shellcode_file", file_resp.Files[0].AgentFileId, parameter_group_info=[ParameterGroupInfo(
                     group_name="Existing"
                 )])
+                
+                taskData.args.remove_arg("shellcode_name")      # Don't need to send this to Agent
+                taskData.args.remove_arg("method")              # Don't need to send this to Agent
 
-                taskData.args.remove_arg("shellcode_name")      # Don't need this for Agent
-            
-                # Insert a reference to a Global for the Process Inject File UUID
-                if taskData.args.get_arg("process_inject_kit_file") == "custom":
-                    # Set file uuid to that file
-                    pass
-            
-                response.DisplayParams = "-File {} --method {} --kit {}".format(
+                # Handle custom process injection kit option
+                if method == "custom":
+                    kit_spawn_uuid = PROCESS_INJECT_KIT.get_inject_spawn()
+                    if not kit_spawn_uuid:
+                        raise Exception("Failed to get UUID for Process Injection Kit. Have you run register_process_injection_kit yet??")
+                    # Send BOF contents to Agent
+                    kit_spawn_file = await SendMythicRPCFileGetContent(
+                        MythicRPCFileGetContentMessage(AgentFileId=kit_spawn_uuid)
+                    )
+                    if not kit_spawn_file.Success:
+                        raise Exception("Failed to fetch find file from Mythic (UUID: {})".format(kit_spawn_uuid))
+                    
+                    kit_spawn_contents = kit_spawn_file.Content
+                    
+                    #taskData.args.add_arg("kit_spawn_contents", kit_spawn_contents)
+                    kit_typed_array = [["bytes", kit_spawn_contents.hex()]]         # I'm only doing this cause its easier for my translation container to pack raw bytes
+                    taskData.args.add_arg("kit_spawn_contents", kit_typed_array, type=ParameterType.TypedArray, parameter_group_info=[ParameterGroupInfo(
+                        group_name="Existing"
+                    )])
+                    
+                    logging.info(f"\n[+] Using Custom Process Injection Kit. \n\t- PROCESS_INJECT_SPAWN:{kit_spawn_uuid}:{len(kit_spawn_contents)} bytes\n")
+                    
+                response.DisplayParams = "-File {} --method {}".format(
                     file_resp.Files[0].Filename,
                     taskData.args.get_arg("shellcode_name"),
-                    taskData.args.get_arg("process_inject_method"),
-                    taskData.args.get_arg("process_inject_kit_file")
+                    taskData.args.get_arg("method"),
+                    # taskData.args.get_arg("process_inject_kit_file")
                 )
             
             # Debugging
-            #logging.info(taskData.args.to_json())
+            logging.info(taskData.args.to_json())
             
             return response
 

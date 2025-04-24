@@ -46,6 +46,8 @@ int base64url_decode(const char *in,  unsigned long inlen,
 
 VOID addInt64ToBuffer(PBYTE buffer, UINT64 value);
 VOID addInt32ToBuffer(PBYTE buffer, UINT32 value);
+VOID addInt32ToBuffer_LE(PBYTE buffer, UINT32 value);
+
 
 WCHAR *char_to_wchar(const char *input);
 

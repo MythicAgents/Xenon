@@ -49,6 +49,9 @@ def get_tasking_to_agent_format(tasks):
                 encoded += len(param_bytes).to_bytes(4, "big") + param_bytes
             elif isinstance(param_value, bool):
                 encoded += param_value.to_bytes(4, "big")
+            elif isinstance(param_value, bytes):                # TODO - This won't work because it comes from ParameterType class which doesnt have an option for bytes
+                param_bytes = bytes.fromhex(param_value)
+                encoded += len(param_bytes).to_bytes(4, "big") + param_bytes
             elif isinstance(param_value, int):
                 encoded += param_value.to_bytes(4, "big")
             elif isinstance(param_value, list):

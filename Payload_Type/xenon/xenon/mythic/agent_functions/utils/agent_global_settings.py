@@ -30,5 +30,7 @@ class ProcessInjectKit:
         self._inject_explicit = value
 
 
+# Global
+PROCESS_INJECT_KIT = ProcessInjectKit()
 
 

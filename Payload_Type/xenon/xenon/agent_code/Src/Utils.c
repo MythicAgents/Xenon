@@ -288,6 +288,13 @@ SIZE_T calculate_base64_decoded_size(const char *in, SIZE_T inLen)
     return ret;
 }
 
+VOID addInt32ToBuffer_LE(PBYTE buffer, UINT32 value)
+{
+    buffer[0] = (value) & 0xFF;         
+    buffer[1] = (value >> 8) & 0xFF;
+    buffer[2] = (value >> 16) & 0xFF;
+    buffer[3] = (value >> 24) & 0xFF;
+}
 
 VOID addInt32ToBuffer(PBYTE buffer, UINT32 value)
 {

