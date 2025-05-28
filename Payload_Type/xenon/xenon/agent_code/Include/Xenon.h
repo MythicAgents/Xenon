@@ -41,6 +41,7 @@ typedef struct
     PCHAR spawnto;  
     CHAR injectKitSpawn[37];               // Mythic UUIDs for BOF files
     CHAR injectKitExplicit[37];
+    PCHAR pipename;
 
     // Linked-list
     PCALLBACK_NODE CallbackDomains;

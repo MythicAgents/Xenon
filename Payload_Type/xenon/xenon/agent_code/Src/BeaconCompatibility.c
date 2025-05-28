@@ -323,8 +323,6 @@ BOOL BeaconIsAdmin(void) {
 
 /* Injection/spawning related stuffs
  *
- * These functions are basic place holders, and if implemented into something
- * real should be just calling internal functions for your tools. 
  */
 void BeaconGetSpawnTo(BOOL x86, char* buffer, int length) {
 	CHAR tempBufferPath [MAX_PATH * 2];
@@ -472,52 +470,6 @@ void BeaconInjectTemporaryProcess(PROCESS_INFORMATION* pInfo, char* payload, int
 
     // Execute shellcode
     ResumeThread(hThread);
-
-
-
-    /* Read the output of the process */
-	DWORD bytesRead;
-	DWORD totalSize = 0;
-	DWORD chunkSize = 1024;		// Read in 1KB chunks
-	char* outputBuffer = (char*)malloc(chunkSize);
-	if (!outputBuffer) {
-		_dbg("Memory allocation failed.\n");
-		return FALSE;
-	}
-
-	while (TRUE) {
-		DWORD chunk = 1024;
-		char tempBuffer[1024];
-
-		BOOL success = ReadFile(hStdOutRead, tempBuffer, chunk - 1, &bytesRead, NULL);
-		if (!success || bytesRead == 0) {
-			break;  // No more data
-		}
-
-		tempBuffer[bytesRead] = '\0';  // Null-terminate
-
-		// Resize buffer if needed
-		if (totalSize + bytesRead >= chunkSize) {
-			chunkSize *= 2;  // Double the buffer size
-			outputBuffer = (char*)realloc(outputBuffer, chunkSize);
-			if (!outputBuffer) {
-				_dbg("Memory allocation failed.\n");
-				return 1;
-			}
-		}
-
-		// Append new data
-		memcpy(outputBuffer + totalSize, tempBuffer, bytesRead);
-		totalSize += bytesRead;
-	}
-
-	// Output buffer
-	outputBuffer[totalSize] = '\0';
-
-	*outData = outputBuffer;
-
-	CloseHandle(hStdOutRead);
-
 
     return;
 }

@@ -109,6 +109,8 @@ VOID AgentSpawnto(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
 /**
  * Update process inject kit.
  * A UUID string is set in the global Xenon instance which represents a file on the Mythic server.
+ * 
+ * Cobalt Strike Process inject kits are uploaded as BOFs and stored on server for pulling down during injections.
  */
 VOID AgentRegisterProcessInjectKit(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
 {
@@ -121,9 +123,11 @@ VOID AgentRegisterProcessInjectKit(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
 
     SIZE_T uuidLen        = 0;
     SIZE_T uuidLen2       = 0;
-    BOOL isCustomKit      = (BOOL)ParserGetInt32(arguments);
     PCHAR  injectKitSpawn = NULL;
     PCHAR  injectKitExplicit = NULL;
+
+    BOOL isCustomKit = (BOOL)ParserGetInt32(arguments);
+
     if (isCustomKit) {
         _dbg("[+] Registering Custom Process Injection Kit.")
         injectKitSpawn = ParserGetString(arguments, &uuidLen);        // Mythic file UUID for BOF
@@ -132,6 +136,7 @@ VOID AgentRegisterProcessInjectKit(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
         //     injectKitExplicit = ParserGetString(arguments, &uuidLen2);
     }
     else {
+        // TODO - cleanup logic for un-registering kit
         goto END;
     }
 

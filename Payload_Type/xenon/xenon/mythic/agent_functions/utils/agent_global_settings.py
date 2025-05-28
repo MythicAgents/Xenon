@@ -1,13 +1,12 @@
-from ..builder import XenonAgent
-
 
 class ProcessInjectKit:
     ''' 
     Manage the custom BOF files operators can upload for process injection 
     '''
-    def __init__(self, inject_spawn: str = "", inject_explicit: str = ""):
+    def __init__(self, inject_spawn: str = "", inject_explicit: str = "", named_pipe_stub: bytes = b""):
         self._inject_spawn = inject_spawn
         self._inject_explicit = inject_explicit
+        self._named_pipe_stub = named_pipe_stub
 
     # Getter for inject_spawn
     def get_inject_spawn(self) -> str:
@@ -28,6 +27,14 @@ class ProcessInjectKit:
         if not isinstance(value, str):
             raise TypeError("inject_explicit must be a string")
         self._inject_explicit = value
+
+    def set_named_pipe_stub(self, value: bytes):
+        if not isinstance(value, bytes):
+            raise TypeError("named_pipe must be bytes")
+        self._named_pipe_stub = value
+    
+    def get_named_pipe_stub(self) -> bytes:
+        self._named_pipe_stub
 
 
 # Global
