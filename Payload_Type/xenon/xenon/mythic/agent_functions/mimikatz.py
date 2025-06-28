@@ -184,7 +184,7 @@ class MimikatCommand(CoffCommandBase):
                     Token=taskData.Task.TokenID,
                 )
             )
-        
+            
             
             return response
 

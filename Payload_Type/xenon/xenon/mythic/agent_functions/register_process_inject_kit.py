@@ -105,10 +105,10 @@ class RegisterProcessInjectKitCommand(CommandBase):
         else:
             pass
         
-        response.DisplayParams = "{} PROCESS_INJECT_SPAWN: {} PROCESS_INJECT_EXPLICIT: {}".format(
-            "enabled" if is_enabled else "disabled",
-            inject_spawn_file.Files[0].AgentFileId if inject_spawn else "not set",
-            inject_explicit_file.Files[0].AgentFileId if inject_explicit else "not set"
+        response.DisplayParams = "--enabled {} --inject_spawn {} --inject_explicit: {}".format(
+            "True" if is_enabled else "False",
+            inject_spawn_file.Files[0].Filename if inject_spawn else "",
+            inject_explicit_file.Files[0].Filename if inject_explicit else ""
         )
         
         logging.info(taskData.args.to_json())

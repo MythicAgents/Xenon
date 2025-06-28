@@ -11,7 +11,7 @@ from .utils.agent_global_settings import PROCESS_INJECT_KIT
     [BRIEF]
     
     This command is not designed to be used directly although it can be.
-    It takes an already uploaded PIC shellcode file as an input and sends a UUID string as 
+    It takes a PIC shellcode file as an input and sends it's UUID string as 
     an argument to the Agent.
     
     [Input]: 
@@ -42,26 +42,26 @@ class InjectShellcodeArguments(TaskArguments):
                     )
                 ]
             ),
-            CommandParameter(
-                name="method",
-                cli_name="-method",
-                display_name="Inject Method",
-                type=ParameterType.ChooseOne,
-                default_value="default",
-                choices=[
-                    "kit",
-                    "default"
-                    
-                ],
-                description="Process injection method used to execute the shellcode. (e.g., default|kit)",
-                parameter_group_info=[
-                    ParameterGroupInfo(
-                        required=True, 
-                        group_name="Existing", 
-                        ui_position=2,
-                    )
-                ]
-            ),
+            # CommandParameter(
+            #     name="method",
+            #     cli_name="-method",
+            #     display_name="Inject Method",
+            #     type=ParameterType.ChooseOne,
+            #     default_value="default",
+            #     choices=[
+            #         "kit",
+            #         "default"
+            #     ],
+            #     description="Process injection method used to execute the shellcode. (e.g., default|kit)",
+            #     parameter_group_info=[
+            #         ParameterGroupInfo(
+            #             required=False, 
+            #             group_name="Existing", 
+            #             ui_position=2,
+            #         )
+            #     ]
+            # ),
+            
             # This will be set Globally, so dont make it an option
             # CommandParameter(
             #     name="process_inject_kit_file",
@@ -169,7 +169,8 @@ class InjectShellcodeCommand(CommandBase):
             #                                    #
             ######################################
             groupName = taskData.args.get_parameter_group_name()
-            method = taskData.args.get_arg("method")
+            method = "kit" if PROCESS_INJECT_KIT.get_inject_spawn() or PROCESS_INJECT_KIT.get_inject_explicit() else "default"
+            # method = taskData.args.get_arg("method")
             
             # if groupName == "New File":
             #     file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
@@ -199,7 +200,6 @@ class InjectShellcodeCommand(CommandBase):
 
             #elif groupName == "Existing":
             if groupName == "Existing":
-                
                 shellcode_file_id = taskData.args.get_arg("shellcode_file")
                 
                 # Retrieve the shellcode file to inject
@@ -246,11 +246,8 @@ class InjectShellcodeCommand(CommandBase):
                 taskData.args.add_arg("shellcode_file", final_file_uuid, parameter_group_info=[ParameterGroupInfo(
                     group_name="Existing"
                 )])
-                
-                taskData.args.remove_arg("shellcode_name")      # Don't need to send this to Agent
-                taskData.args.remove_arg("method")              # Don't need to send this to Agent
 
-                # Handle custom process injection kit option
+                # Add raw contents of process inject kit to command tasking
                 if method == "kit":
                     kit_spawn_uuid = PROCESS_INJECT_KIT.get_inject_spawn()
                     if not kit_spawn_uuid:
@@ -264,19 +261,21 @@ class InjectShellcodeCommand(CommandBase):
                     
                     kit_spawn_contents = kit_spawn_file.Content
                     
-                    #taskData.args.add_arg("kit_spawn_contents", kit_spawn_contents)
-                    kit_typed_array = [["bytes", kit_spawn_contents.hex()]]         # I'm only doing this cause its easier for my translation container to pack raw bytes
+                    kit_typed_array = [["bytes", kit_spawn_contents.hex()]]         # I'm only doing a typed-list cause its easier for my translation container to pack raw bytes
                     taskData.args.add_arg("kit_spawn_contents", kit_typed_array, type=ParameterType.TypedArray, parameter_group_info=[ParameterGroupInfo(
                         group_name="Existing"
                     )])
                     
                     logging.info(f"\n[+] Using Custom Process Injection Kit. \n\t- PROCESS_INJECT_SPAWN:{kit_spawn_uuid}:{len(kit_spawn_contents)} bytes\n")
                     
+                
                 response.DisplayParams = "-File {} --method {}".format(
                     taskData.args.get_arg("shellcode_name"),
-                    taskData.args.get_arg("method"),
-                    # taskData.args.get_arg("process_inject_kit_file")
+                    taskData.args.get_arg("method")
                 )
+                
+                taskData.args.remove_arg("shellcode_name")      # Don't need to send this to Agent
+                taskData.args.remove_arg("method")              # Don't need to send this to Agent
             
             # Debugging
             logging.info(taskData.args.to_json())
