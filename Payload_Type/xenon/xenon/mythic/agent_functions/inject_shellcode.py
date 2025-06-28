@@ -267,8 +267,8 @@ class InjectShellcodeCommand(CommandBase):
                     )])
                     
                     logging.info(f"\n[+] Using Custom Process Injection Kit. \n\t- PROCESS_INJECT_SPAWN:{kit_spawn_uuid}:{len(kit_spawn_contents)} bytes\n")
-                    
-                
+
+
                 response.DisplayParams = "-File {} --method {}".format(
                     taskData.args.get_arg("shellcode_name"),
                     taskData.args.get_arg("method")

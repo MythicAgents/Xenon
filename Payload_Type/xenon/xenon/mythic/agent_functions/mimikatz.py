@@ -172,6 +172,7 @@ class MimikatCommand(CoffCommandBase):
             # Debugging
             # logging.info(taskData.args.to_json())
             # Group name 'Existing'
+            # Send subtask to inject shellcode
             subtask = await SendMythicRPCTaskCreateSubtask(
                 MythicRPCTaskCreateSubtaskMessage(
                     taskData.Task.ID,

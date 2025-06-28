@@ -13,33 +13,75 @@ class RegisterProcessInjectKitArguments(TaskArguments):
                 display_name="Enable Process Inject Kit",
                 type=ParameterType.Boolean,
                 description="Enables using a custom BOF for process injection.",
-                parameter_group_info=[ParameterGroupInfo(
-                    required=True
+                parameter_group_info=[
+                    ParameterGroupInfo(required=True, group_name="Existing", ui_position=1),
+                    ParameterGroupInfo(required=True, group_name="New Kit", ui_position=1),
+                ]
+            ),
+            CommandParameter(
+                name="inject_spawn",
+                cli_name="-inject_spawn",
+                display_name="PROCESS_INECT_SPAWN",
+                type=ParameterType.File,
+                description="Custom BOF file for fork & run injection",
+                parameter_group_info=[
+                    ParameterGroupInfo(
+                        required=False,
+                        group_name="New Kit",
+                        ui_position=2
                 )]
             ),
             CommandParameter(
                 name="inject_spawn",
                 cli_name="-inject_spawn",
-                display_name="PROCESS_INJECT_SPAWN",
-                type=ParameterType.File,
-                default_value=False,
-                description="Custom BOF file for fork & run injection",
-                parameter_group_info=[ParameterGroupInfo(
-                    required=False
+                display_name="PROCESS_INECT_SPAWN",
+                type=ParameterType.ChooseOne,
+                dynamic_query_function=self.get_files,
+                description="Already existing process injection kit to choose.",
+                parameter_group_info=[
+                    ParameterGroupInfo(
+                        required=True,
+                        group_name="Existing",
+                        ui_position=2
                 )]
             ),
-            CommandParameter(
-                name="inject_explicit",
-                cli_name="-inject_explicit",
-                display_name="PROCESS_INJECT_EXPLICIT",
-                type=ParameterType.File,
-                default_value=False,
-                description="Custom BOF file for explicit injection",
-                parameter_group_info=[ParameterGroupInfo(
-                    required=False
-                )]
-            ),
+            # TODO maybe
+            # CommandParameter(
+            #     name="inject_explicit",
+            #     cli_name="-inject_explicit",
+            #     display_name="PROCESS_INJECT_EXPLICIT",
+            #     type=ParameterType.File,
+            #     default_value=False,
+            #     description="Custom BOF file for explicit injection",
+            #     parameter_group_info=[ParameterGroupInfo(
+            #         required=False
+            #     )]
+            # ),
         ]
+        
+    async def get_files(self, callback: PTRPCDynamicQueryFunctionMessage) -> PTRPCDynamicQueryFunctionMessageResponse:
+        response = PTRPCDynamicQueryFunctionMessageResponse()
+        file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
+            CallbackID=callback.Callback,
+            LimitByCallback=False,
+            Filename="",
+        ))
+        if file_resp.Success:
+            file_names = []
+            for f in file_resp.Files:
+                if f.Filename not in file_names and f.Filename.endswith(".o"):
+                    file_names.append(f.Filename)
+            response.Success = True
+            response.Choices = file_names
+            return response
+        else:
+            await SendMythicRPCOperationEventLogCreate(MythicRPCOperationEventLogCreateMessage(
+                CallbackId=callback.Callback,
+                Message=f"Failed to get files: {file_resp.Error}",
+                MessageLevel="warning"
+            ))
+            response.Error = f"Failed to get files: {file_resp.Error}"
+            return response
 
     async def parse_arguments(self):
         if len(self.command_line) == 0:
@@ -74,7 +116,7 @@ class RegisterProcessInjectKitCommand(CommandBase):
         
         is_enabled = taskData.args.get_arg("enabled")
         inject_spawn = taskData.args.get_arg("inject_spawn")
-        inject_explicit = taskData.args.get_arg("inject_explicit")
+        # inject_explicit = taskData.args.get_arg("inject_explicit")
 
         if is_enabled:
             if inject_spawn:
@@ -90,25 +132,25 @@ class RegisterProcessInjectKitCommand(CommandBase):
                 else:
                     raise Exception("Error from Mythic trying to get file: " + str(inject_spawn_file.Error))
             
-            if inject_explicit:
-                inject_explicit_file = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
-                    TaskID=taskData.Task.ID, 
-                    AgentFileID=taskData.args.get_arg("inject_explicit")
-                ))
-                if inject_explicit_file.Success:
-                    if len(inject_explicit_file.Files) > 0:
-                        PROCESS_INJECT_KIT.set_inject_explicit(inject_explicit_file.Files[0].AgentFileId)
-                    else:
-                        raise Exception("Failed to find that file")
-                else:
-                    raise Exception("Error from Mythic trying to get file: " + str(inject_explicit_file.Error))
+            # if inject_explicit:
+            #     inject_explicit_file = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
+            #         TaskID=taskData.Task.ID, 
+            #         AgentFileID=taskData.args.get_arg("inject_explicit")
+            #     ))
+            #     if inject_explicit_file.Success:
+            #         if len(inject_explicit_file.Files) > 0:
+            #             PROCESS_INJECT_KIT.set_inject_explicit(inject_explicit_file.Files[0].AgentFileId)
+            #         else:
+            #             raise Exception("Failed to find that file")
+            #     else:
+            #         raise Exception("Error from Mythic trying to get file: " + str(inject_explicit_file.Error))
         else:
             pass
         
-        response.DisplayParams = "--enabled {} --inject_spawn {} --inject_explicit: {}".format(
+        response.DisplayParams = "--enabled {} --inject_spawn {} ".format(
             "True" if is_enabled else "False",
-            inject_spawn_file.Files[0].Filename if inject_spawn else "",
-            inject_explicit_file.Files[0].Filename if inject_explicit else ""
+            inject_spawn_file.Files[0].Filename if inject_spawn else ""
+            # inject_explicit_file.Files[0].Filename if inject_explicit else ""
         )
         
         logging.info(taskData.args.to_json())

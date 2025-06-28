@@ -26,7 +26,7 @@ commands = {
     "download": 0x51,
     "ps": 0x52, 
     "inline_execute": 0x53,
-    "execute_assembly": 0x54,
+    # "execute_assembly": 0x54,
     "spawnto": 0x55,
     "inject_shellcode": 0x56,
     "register_process_inject_kit": 0x57,

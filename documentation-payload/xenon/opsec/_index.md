@@ -13,7 +13,7 @@ They are compatible with Cobalt Strike's Process Injection Kits.
 | Command                  | Usage                                                         | Description |
 |--------------------------|---------------------------------------------------------------|-------------|
 | `mimikatz`          | `mimikatz [args]`                                               | Execute mimikatz on the host. (e.g., mimikatz sekurlsa::logonpasswords) OPSEC Warning: Uses donut shellcode. |
-
+| `execute_assembly` | `execute_assembly -Assembly [SharpUp.exe] [-Arguments [assembly arguments]]` | Execute a .NET Assembly in a remote processes and retrieve the output. OPSEC Warning: Uses donut shellcode. |
 
 ## Process Injection Kit
 You can read about Cobalt Strike's Process Injection Kit [here](https://www.cobaltstrike.com/blog/process-injection-update-in-cobalt-strike-4-5).
