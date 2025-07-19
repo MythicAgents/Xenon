@@ -3,6 +3,8 @@ from mythic_container.MythicRPC import *
 import logging
 from .utils.agent_global_settings import PROCESS_INJECT_KIT
 
+logging.basicConfig(level=logging.INFO)
+
 class RegisterProcessInjectKitArguments(TaskArguments):
     def __init__(self, command_line, **kwargs):
         super().__init__(command_line, **kwargs)
@@ -19,9 +21,9 @@ class RegisterProcessInjectKitArguments(TaskArguments):
                 ]
             ),
             CommandParameter(
-                name="inject_spawn",
+                name="inject_spawn_file",
                 cli_name="-inject_spawn",
-                display_name="PROCESS_INECT_SPAWN",
+                display_name="PROCESS_INJECT_SPAWN upload",
                 type=ParameterType.File,
                 description="Custom BOF file for fork & run injection",
                 parameter_group_info=[
@@ -32,15 +34,15 @@ class RegisterProcessInjectKitArguments(TaskArguments):
                 )]
             ),
             CommandParameter(
-                name="inject_spawn",
+                name="inject_spawn_choose",
                 cli_name="-inject_spawn",
-                display_name="PROCESS_INECT_SPAWN",
+                display_name="PROCESS_INJECT_SPAWN file",
                 type=ParameterType.ChooseOne,
                 dynamic_query_function=self.get_files,
                 description="Already existing process injection kit to choose.",
                 parameter_group_info=[
                     ParameterGroupInfo(
-                        required=True,
+                        required=False,
                         group_name="Existing",
                         ui_position=2
                 )]
@@ -89,7 +91,6 @@ class RegisterProcessInjectKitArguments(TaskArguments):
 
     async def parse_dictionary(self, dictionary):
         self.load_args_from_dictionary(dictionary)
-        # TODO - Make sure they don't do Enabled with no files
 
 class RegisterProcessInjectKitCommand(CommandBase):
     cmd = "register_process_inject_kit"
@@ -112,48 +113,78 @@ class RegisterProcessInjectKitCommand(CommandBase):
             Success=True,
         )
         
-        # TODO - Create a second UI component to select already uploaded files that are named inject_spawn.x64.o OR inject_explicit.x64.o
-        
         is_enabled = taskData.args.get_arg("enabled")
-        inject_spawn = taskData.args.get_arg("inject_spawn")
-        # inject_explicit = taskData.args.get_arg("inject_explicit")
-
-        if is_enabled:
-            if inject_spawn:
-                inject_spawn_file = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
-                    TaskID=taskData.Task.ID, 
-                    AgentFileID=taskData.args.get_arg("inject_spawn")
+        inject_spawn_file = taskData.args.get_arg("inject_spawn_file")
+        inject_spawn_choice = taskData.args.get_arg("inject_spawn_choose")
+        
+        logging.info(f"Got previous kit file: {inject_spawn_file}")
+        logging.info(f"Uploaded new kit file: {inject_spawn_choice}")
+        
+        groupName = taskData.args.get_parameter_group_name()
+        
+        
+        if groupName == "New Kit":
+            file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
+                    TaskID=taskData.Task.ID,
+                    AgentFileID=taskData.args.get_arg("inject_spawn_file")
                 ))
-                if inject_spawn_file.Success:
-                    if len(inject_spawn_file.Files) > 0:
-                        PROCESS_INJECT_KIT.set_inject_spawn(inject_spawn_file.Files[0].AgentFileId)
-                    else:
-                        raise Exception("Failed to find that file")
+            if file_resp.Success:
+                if len(file_resp.Files) > 0:
+                    kit_spawn_file_id = file_resp.Files[0].AgentFileId
+                    logging.info(f"New kit uploaded with File ID : {kit_spawn_file_id}")
                 else:
-                    raise Exception("Error from Mythic trying to get file: " + str(inject_spawn_file.Error))
+                    raise Exception("Failed to find that file")
+            else:
+                raise Exception("Error from Mythic trying to get file: " + str(file_resp.Error))
             
-            # if inject_explicit:
-            #     inject_explicit_file = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
-            #         TaskID=taskData.Task.ID, 
-            #         AgentFileID=taskData.args.get_arg("inject_explicit")
-            #     ))
-            #     if inject_explicit_file.Success:
-            #         if len(inject_explicit_file.Files) > 0:
-            #             PROCESS_INJECT_KIT.set_inject_explicit(inject_explicit_file.Files[0].AgentFileId)
-            #         else:
-            #             raise Exception("Failed to find that file")
-            #     else:
-            #         raise Exception("Error from Mythic trying to get file: " + str(inject_explicit_file.Error))
+            # taskData.args.add_arg("inject_spawn_file", file_resp.Files[0].Filename)
+            # taskData.args.add_arg("inject_spawn")
+            # taskData.args.remove_arg("inject_spawn_file")
+
+        # TODO - Bug fix existing is using filename instead of file UUID
+        # ERROR:mythic: Failed to get group name for tasking: Supplied Arguments, ['enabled', 'inject_spawn_file', 'inject_spawn_choose'], don't match any parameter group
+        elif groupName == "Existing":
+            # We're trying to find an already existing file and use that
+            file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
+                TaskID=taskData.Task.ID,
+                Filename=taskData.args.get_arg("inject_spawn_choose"),
+                LimitByCallback=False,
+                MaxResults=1
+            ))
+            if file_resp.Success:
+                if len(file_resp.Files) > 0:
+                    kit_spawn_file_id = file_resp.Files[0].AgentFileId
+                    logging.info(f"Found existing Kit with File ID : {kit_spawn_file_id}")
+
+
+                    taskData.args.remove_arg("inject_spawn_choose")    # Don't need this anymore
+                    taskData.args.add_arg("inject_spawn_file", kit_spawn_file_id)
+                    
+
+                elif len(file_resp.Files) == 0:
+                    raise Exception("Failed to find the named file. Have you uploaded it before? Did it get deleted?")
+            else:
+                raise Exception("Error from Mythic trying to search files:\n" + str(file_resp.Error))
+        
+        
+        # inject_explicit = taskData.args.get_arg("inject_explicit")
+        
+        if is_enabled:            
+            PROCESS_INJECT_KIT.set_inject_spawn(kit_spawn_file_id)
+            #PROCESS_INJECT_KIT.set_inject_explicit(kit_explicit_file_id)
         else:
             pass
         
+        
+        
         response.DisplayParams = "--enabled {} --inject_spawn {} ".format(
             "True" if is_enabled else "False",
-            inject_spawn_file.Files[0].Filename if inject_spawn else ""
+            file_resp.Files[0].Filename if file_resp.Success else ""
             # inject_explicit_file.Files[0].Filename if inject_explicit else ""
         )
         
-        logging.info(taskData.args.to_json())
+        # logging.info(taskData.args.to_json())
+        
         return response
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:

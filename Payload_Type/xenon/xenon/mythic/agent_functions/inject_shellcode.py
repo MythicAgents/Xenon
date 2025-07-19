@@ -278,7 +278,7 @@ class InjectShellcodeCommand(CommandBase):
                 taskData.args.remove_arg("method")              # Don't need to send this to Agent
             
             # Debugging
-            logging.info(taskData.args.to_json())
+            # logging.info(taskData.args.to_json())
             
             return response
 
