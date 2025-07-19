@@ -1,7 +1,8 @@
 +++
 title = "Contributing"
 chapter = true
-weight = 100
+weight = 20
+pre = "<b>4. </b>"
 +++
 
 ![logo](/agents/xenon/Xenon.png?width=600px)

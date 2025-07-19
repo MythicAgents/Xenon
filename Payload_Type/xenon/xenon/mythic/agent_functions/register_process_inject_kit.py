@@ -117,8 +117,8 @@ class RegisterProcessInjectKitCommand(CommandBase):
         inject_spawn_file = taskData.args.get_arg("inject_spawn_file")
         inject_spawn_choice = taskData.args.get_arg("inject_spawn_choose")
         
-        logging.info(f"Got previous kit file: {inject_spawn_file}")
-        logging.info(f"Uploaded new kit file: {inject_spawn_choice}")
+        # logging.info(f"Got previous kit file: {inject_spawn_file}")
+        # logging.info(f"Uploaded new kit file: {inject_spawn_choice}")
         
         groupName = taskData.args.get_parameter_group_name()
         
@@ -140,9 +140,7 @@ class RegisterProcessInjectKitCommand(CommandBase):
             # taskData.args.add_arg("inject_spawn_file", file_resp.Files[0].Filename)
             # taskData.args.add_arg("inject_spawn")
             # taskData.args.remove_arg("inject_spawn_file")
-
-        # TODO - Bug fix existing is using filename instead of file UUID
-        # ERROR:mythic: Failed to get group name for tasking: Supplied Arguments, ['enabled', 'inject_spawn_file', 'inject_spawn_choose'], don't match any parameter group
+            
         elif groupName == "Existing":
             # We're trying to find an already existing file and use that
             file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
@@ -173,8 +171,7 @@ class RegisterProcessInjectKitCommand(CommandBase):
             PROCESS_INJECT_KIT.set_inject_spawn(kit_spawn_file_id)
             #PROCESS_INJECT_KIT.set_inject_explicit(kit_explicit_file_id)
         else:
-            pass
-        
+            PROCESS_INJECT_KIT.set_inject_spawn(None)
         
         
         response.DisplayParams = "--enabled {} --inject_spawn {} ".format(
