@@ -1,5 +1,5 @@
 +++
-title = "Xenon"
+title = "Contributing"
 chapter = true
 weight = 100
 +++

@@ -4,7 +4,7 @@ chapter = true
 weight = 100
 +++
 
-<!-- ![logo](/agents/xenon/Xenon.png?width=600px) -->
+![logo](/agents/xenon/Xenon.png?width=600px)
 
 ## Summary
 
