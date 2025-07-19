@@ -171,8 +171,9 @@ class RegisterProcessInjectKitCommand(CommandBase):
             PROCESS_INJECT_KIT.set_inject_spawn(kit_spawn_file_id)
             #PROCESS_INJECT_KIT.set_inject_explicit(kit_explicit_file_id)
         else:
-            PROCESS_INJECT_KIT.set_inject_spawn(None)
-        
+            # Erases current inject kit
+            PROCESS_INJECT_KIT.set_inject_spawn("")         
+            #PROCESS_INJECT_KIT.set_inject_explicit("")
         
         response.DisplayParams = "--enabled {} --inject_spawn {} ".format(
             "True" if is_enabled else "False",
