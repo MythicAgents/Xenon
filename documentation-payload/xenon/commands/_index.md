@@ -1,8 +1,8 @@
 +++
 title = "Commands"
-chapter = true
-weight = 15
-pre = "<b>2. </b>"
+chapter = false
+weight = 20
+pre = "<b>1. </b>"
 +++
 
 ![logo](/agents/xenon/Xenon.png?width=600px)

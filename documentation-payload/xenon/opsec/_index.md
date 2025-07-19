@@ -1,7 +1,8 @@
 +++
 title = "OPSEC"
-chapter = true
-weight = 100
+chapter = false
+weight = 20
+pre = "<b>3. </b>"
 +++
 
 ![logo](/agents/xenon/Xenon.png?width=600px)
