@@ -29,7 +29,8 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 ## Features
 - Modular command inclusion
 - Malleable C2 Profiles w/ [httpx](https://github.com/MythicC2Profiles/httpx)
-- Compatible with Cobalt Strike post-ex BOFs
+- Compatible with CS BOFs
+- Compatible with CS Process Inject Kits
 
 ### OPSEC Disclaimer
 Xenon makes no claims about evasion. In fact it is not OPSEC safe. There are many OPSEC improvements that need to be made to the agent. The main purpose of the project was to learn C and Windows internals better, not create the next FUD implant.
