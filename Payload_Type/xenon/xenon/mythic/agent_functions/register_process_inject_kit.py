@@ -99,6 +99,7 @@ class RegisterProcessInjectKitCommand(CommandBase):
     description = "Register a custom BOF to use for process injection (CS compatible). See documentation for requirements."
     version = 1
     author = "@c0rnbread"
+    script_only = True
     attackmapping = []
     argument_class = RegisterProcessInjectKitArguments
     attributes = CommandAttributes(
@@ -155,8 +156,8 @@ class RegisterProcessInjectKitCommand(CommandBase):
                     logging.info(f"Found existing Kit with File ID : {kit_spawn_file_id}")
 
 
-                    taskData.args.remove_arg("inject_spawn_choose")    # Don't need this anymore
-                    taskData.args.add_arg("inject_spawn_file", kit_spawn_file_id)
+                    # taskData.args.remove_arg("inject_spawn_choose")    # Don't need this anymore
+                    # taskData.args.add_arg("inject_spawn_file", kit_spawn_file_id)
                     
 
                 elif len(file_resp.Files) == 0:
@@ -167,11 +168,11 @@ class RegisterProcessInjectKitCommand(CommandBase):
         
         # inject_explicit = taskData.args.get_arg("inject_explicit")
         
+        # Set the file UUID for the Kit
         if is_enabled:            
             PROCESS_INJECT_KIT.set_inject_spawn(kit_spawn_file_id)
             #PROCESS_INJECT_KIT.set_inject_explicit(kit_explicit_file_id)
         else:
-            # Erases current inject kit
             PROCESS_INJECT_KIT.set_inject_spawn("")         
             #PROCESS_INJECT_KIT.set_inject_explicit("")
         

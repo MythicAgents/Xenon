@@ -24,7 +24,7 @@
   "c2": [
     "httpx"
   ],
-  "mythic_version": "3.3.1-rc44",
-  "agent_version": "0.0.1",
+  "mythic_version": "3.3.1-rc86",
+  "agent_version": "0.0.2",
   "supported_wrappers": []
 }

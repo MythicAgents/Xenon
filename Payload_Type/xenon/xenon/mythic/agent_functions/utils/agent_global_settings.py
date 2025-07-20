@@ -28,14 +28,6 @@ class ProcessInjectKit:
             raise TypeError("inject_explicit must be a string")
         self._inject_explicit = value
 
-    def set_named_pipe_stub(self, value: bytes):
-        if not isinstance(value, bytes):
-            raise TypeError("named_pipe must be bytes")
-        self._named_pipe_stub = value
-    
-    def get_named_pipe_stub(self) -> bytes:
-        self._named_pipe_stub
-
 
 # Global
 PROCESS_INJECT_KIT = ProcessInjectKit()
