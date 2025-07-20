@@ -46,6 +46,18 @@ BOOL PackageAddByte(PPackage package, BYTE byte)
     return TRUE;
 }
 
+BOOL PackageAddShort(PPackage package, USHORT value)
+{
+    package->buffer = LocalReAlloc(package->buffer, package->length + sizeof(USHORT), LMEM_MOVEABLE);
+    if (!package->buffer)
+        return FALSE;
+
+    *(USHORT *)((PBYTE)package->buffer + package->length) = value;
+    package->length += sizeof(USHORT);
+
+    return TRUE;
+}
+
 BOOL PackageAddInt32(PPackage package, UINT32 value)
 {
     package->buffer = LocalReAlloc(package->buffer, package->length + sizeof(UINT32), LMEM_MOVEABLE | LMEM_ZEROINIT);
@@ -53,6 +65,18 @@ BOOL PackageAddInt32(PPackage package, UINT32 value)
         return FALSE;
 
     addInt32ToBuffer((PUCHAR)(package->buffer) + package->length, value);
+    package->length += sizeof(UINT32);
+
+    return TRUE;
+}
+
+BOOL PackageAddInt32_LE(PPackage package, UINT32 value)
+{
+    package->buffer = LocalReAlloc(package->buffer, package->length + sizeof(UINT32), LMEM_MOVEABLE | LMEM_ZEROINIT);
+    if (!package->buffer)
+        return FALSE;
+
+    addInt32ToBuffer_LE((PUCHAR)(package->buffer) + package->length, value);
     package->length += sizeof(UINT32);
 
     return TRUE;

@@ -26,7 +26,8 @@ class InlineExecuteArguments(TaskArguments):
                         group_name="Default",
                         ui_position=1
                     )
-                ]),
+                ]
+            ),
             CommandParameter(
                 name="bof_file",
                 display_name="New BOF",
@@ -65,7 +66,8 @@ class InlineExecuteArguments(TaskArguments):
                         group_name="New",
                         ui_position=4
                     ),
-                ]),
+                ]
+            ),
         ]
         
     async def parse_arguments(self):

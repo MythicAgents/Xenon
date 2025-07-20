@@ -16,7 +16,9 @@ typedef struct
 
 PPackage PackageInit(BYTE commandId, BOOL init);
 BOOL PackageAddByte(PPackage package, BYTE byte);
+BOOL PackageAddShort(PPackage package, USHORT value);
 BOOL PackageAddInt32(PPackage package, UINT32 value);
+BOOL PackageAddInt32_LE(PPackage package, UINT32 value);
 BOOL PackageAddInt64(PPackage package, UINT64 value);
 BOOL PackageAddBytes(PPackage package, PBYTE data, SIZE_T size, BOOL copySize);
 BOOL PackageAddString(PPackage package, PCHAR data, BOOL copySize);

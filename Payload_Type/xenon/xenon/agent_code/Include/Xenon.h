@@ -38,11 +38,14 @@ typedef struct
     UINT32 sleeptime;
     UINT32 jitter;
     // Injection Options
-    PCHAR spawnto;
+    PCHAR spawnto;  
+    CHAR injectKitSpawn[37];               // Mythic UUIDs for BOF files
+    CHAR injectKitExplicit[37];
+    PCHAR pipename;
 
     // Linked-list
-    PCALLBACK_NODE CallbackDomains;        // Newly added here
-    PCALLBACK_NODE CallbackDomainHead;     // Newly added here
+    PCALLBACK_NODE CallbackDomains;
+    PCALLBACK_NODE CallbackDomainHead;
 
 } CONFIG_XENON, *PCONFIG_XENON;
 

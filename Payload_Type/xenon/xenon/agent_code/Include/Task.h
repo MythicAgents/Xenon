@@ -37,8 +37,11 @@
 #define UPLOAD_CMD      0x50
 #define DOWNLOAD_CMD    0x51
 #define INLINE_EXECUTE_CMD 0x53
-#define EXECUTE_ASSEMBLY_CMD 0x54
+// #define EXECUTE_ASSEMBLY_CMD 0x54
 #define SPAWNTO_CMD     0x55
+#define INJECT_SHELLCODE_CMD     0x56
+// #define REGISTER_PROCESS_INJECT_KIT_CMD 0x57
+
 // System enumeration
 #define PS_CMD          0x52
 // MISC

@@ -44,7 +44,7 @@ class SaArpAlias(CoffCommandBase):
 
         file_name = "arp.x64.o"
         arguments = []
-        
+
         # Run inline_execute subtask
         subtask = await SendMythicRPCTaskCreateSubtask(
             MythicRPCTaskCreateSubtaskMessage(

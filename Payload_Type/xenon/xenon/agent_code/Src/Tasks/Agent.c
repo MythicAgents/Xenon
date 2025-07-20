@@ -100,4 +100,6 @@ VOID AgentSpawnto(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
     PackageComplete(taskUuid, NULL);
 }
 
-#endif //INCLUDE_CMD_SPAWNTO
+#endif  //INCLUDE_CMD_SPAWNTO
+
+

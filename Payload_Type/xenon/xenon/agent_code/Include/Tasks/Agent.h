@@ -12,9 +12,11 @@ VOID AgentStatus(_In_ PCHAR taskUuid, _In_ PPARSER arguments);
 
 
 #ifdef INCLUDE_CMD_SPAWNTO
-
 VOID AgentSpawnto(_In_ PCHAR taskUuid, _In_ PPARSER arguments);
+#endif  //INCLUDE_CMD_SPAWNTO
 
-#endif
+#ifdef INCLUDE_CMD_REGISTER_PROCESS_INJECT_KIT
+VOID AgentRegisterProcessInjectKit(_In_ PCHAR taskUuid, _In_ PPARSER arguments);
+#endif // INCLUDE_CMD_REGISTER_PROCESS_INJECT_KIT
 
 #endif  //AGENT_H

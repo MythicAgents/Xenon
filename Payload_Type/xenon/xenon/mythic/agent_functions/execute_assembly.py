@@ -5,6 +5,7 @@ import logging, sys
 import os
 import tempfile
 import donut
+from .utils.bof_utilities import *
 
 logging.basicConfig(level=logging.INFO)
 
@@ -49,10 +50,10 @@ class ExecuteAssemblyArguments(TaskArguments):
                 default_value="",
                 parameter_group_info=[
                     ParameterGroupInfo(
-                        required=False, group_name="Default", ui_position=2,
+                        required=True, group_name="Default", ui_position=2,
                     ),
                     ParameterGroupInfo(
-                        required=False, group_name="New Assembly", ui_position=2
+                        required=True, group_name="New Assembly", ui_position=2
                     ),
                 ],
             ),
@@ -115,13 +116,14 @@ def print_attributes(obj):
             except Exception as e:
                 logging.info(f"{attr}: [Error retrieving attribute] {e}")
 
-class ExecuteAssemblyCommand(CommandBase):
+class ExecuteAssemblyCommand(CoffCommandBase):
     cmd = "execute_assembly"
     needs_admin = False
     help_cmd = "execute_assembly -File [Assmbly Filename] [-Arguments [optional arguments]]"
     description = "Execute a .NET Assembly. Use an already uploaded assembly file or upload one with the command. (e.g., execute_assembly -File SharpUp.exe -Arguments \"audit\")"
     version = 1
     author = "@c0rnbread"
+    script_only = True
     attackmapping = []
     argument_class = ExecuteAssemblyArguments
     attributes = CommandAttributes(
@@ -226,15 +228,25 @@ class ExecuteAssemblyCommand(CommandBase):
                 MythicRPCFileCreateMessage(TaskID=taskData.Task.ID, FileContents=assembly_shellcode, DeleteAfterFetch=True)
             )
             
+
             if shellcode_file_resp.Success:
-                taskData.args.add_arg("assembly_shellcode_id", shellcode_file_resp.AgentFileId)
-                
-                # Don't actually need to send any of these to the Agent
-                taskData.args.remove_arg("assembly_file")
-                taskData.args.remove_arg("assembly_name")
-                taskData.args.remove_arg("assembly_arguments")
+                shellcode_file_uuid = shellcode_file_resp.AgentFileId
             else:
                 raise Exception("Failed to register execute_assembly binary: " + shellcode_file_resp.Error)
+            
+            # Send subtask to inject shellcode
+            subtask = await SendMythicRPCTaskCreateSubtask(
+                MythicRPCTaskCreateSubtaskMessage(
+                    taskData.Task.ID,
+                    CommandName="inject_shellcode",
+                    SubtaskCallbackFunction="coff_completion_callback",
+                    Params=json.dumps({
+                        "shellcode_file": shellcode_file_uuid,
+                        "method": "default"
+                    }),
+                    Token=taskData.Task.TokenID,
+                )
+            )
             
             # Debugging
             logging.info(taskData.args.to_json())

@@ -24,8 +24,8 @@ class SpawntoArguments(TaskArguments):
 class SpawntoCommand(CommandBase):
     cmd = "spawnto"
     needs_admin = False
-    help_cmd = "spawnto C:\\Windows\\System32\\svchost.exe"
-    description = "Change the spawnto path for spawn & inject commands. Requires the full path of the process (e.g., C:\\Windows\\System32\\svchost.exe)"
+    help_cmd = "spawnto svchost.exe"
+    description = "Change the spawnto process for spawn & inject commands. Program must be in C:\\Windows\\System32 or C:\\Windows\\SysWOW64 (e.g., svchost.exe)"
     version = 1
     author = "@c0rnbread"
     attackmapping = []

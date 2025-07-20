@@ -145,7 +145,8 @@ void RelocationTypeParse(COFF_t* COFF, void** SectionMapped, int SectionNumber, 
     //_dbg("\tSectionNumber: 0x%X\n", COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].SectionNumber);
 }
 
-BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdata, unsigned long argumentsize) {
+BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdata, unsigned long argumentsize)
+{
 
 	COFF_t COFF;
     COFF.FileBase = FileData;
