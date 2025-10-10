@@ -8,7 +8,6 @@
 
 #ifdef INCLUDE_CMD_INJECT_SHELLCODE
 
-
 VOID InjectShellcode(PCHAR taskUuid, PPARSER arguments);
 
 #endif //INCLUDE_CMD_INJECT_SHELLCODE

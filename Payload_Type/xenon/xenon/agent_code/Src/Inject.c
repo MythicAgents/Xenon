@@ -5,14 +5,8 @@
 #include "Package.h"
 #include "BeaconCompatibility.h"
 
-
-// #ifdef INCLUDE_CMD_REGISTER_PROCESS_INJECT_KIT
-
-/*
-	This file requires the COFF loader.
-
-	TODO - work on #defines to make code optional
-*/
+/* This file requires the COFF loader for Process Injection Kit capabilities */
+#if defined(INCLUDE_CMD_INJECT_SHELLCODE) && defined(INCLUDE_CMD_INLINE_EXECUTE)
 
 /**
  * @brief Inject PIC using default technique (early bird injection)
@@ -365,3 +359,6 @@ BOOL InjectProcessViaEarlyBird(_In_ PBYTE buf, _In_ SIZE_T szShellcodeLen)
 
 	return TRUE;
 }
+
+
+#endif //INCLUDE_CMD_INJECT_SHELLCODE && INCLUDE_CMD_INLINE_EXECUTE

