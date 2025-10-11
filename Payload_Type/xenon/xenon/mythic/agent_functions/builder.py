@@ -79,7 +79,7 @@ class XenonAgent(PayloadType):
         
         # This function gets called to create an instance of your payload
         resp = BuildResponse(status=BuildStatus.Success)
-        
+                
         ######################################
         ####### Set up agent config  #########
         ######################################
@@ -103,7 +103,7 @@ class XenonAgent(PayloadType):
         stdout_err = ""
         for c2 in self.c2info:
             profile = c2.get_c2profile()
-            # Set each key value from HTTP profile in Config dictionary
+            # Set each key value from HTTPX profile in Config dictionary
             for key, val in c2.get_parameters_dict().items():
                 # Check for encryption
                 if isinstance(val, dict) and 'enc_key' in val:  # enc_key is base64(value)
@@ -171,6 +171,7 @@ class XenonAgent(PayloadType):
                 StepStdout="Found all files for payload",
                 StepSuccess=True
         ))
+        
 
         agent_build_path = tempfile.TemporaryDirectory(suffix=self.uuid)
         copy_tree(str(self.agent_code_path), agent_build_path.name)
@@ -266,7 +267,7 @@ class XenonAgent(PayloadType):
                     logging.exception(f"Error uploading {bof_filename}: {str(e)}")
 
          
-         # Notify: Installed Modules
+        # Notify: Installed Modules
         await SendMythicRPCPayloadUpdatebuildStep(MythicRPCPayloadUpdateBuildStepMessage(
                 PayloadUUID=self.uuid,
                 StepName="Installing Modules",

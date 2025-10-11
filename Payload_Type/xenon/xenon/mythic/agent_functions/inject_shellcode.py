@@ -152,6 +152,7 @@ class InjectShellcodeCommand(CommandBase):
     argument_class = InjectShellcodeArguments
     attributes = CommandAttributes(
         builtin=False,
+        dependencies=["inline_execute"],
         supported_os=[ SupportedOS.Windows ],
         suggested_command=False
     )

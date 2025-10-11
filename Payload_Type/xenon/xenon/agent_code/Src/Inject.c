@@ -6,7 +6,7 @@
 #include "BeaconCompatibility.h"
 
 /* This file requires the COFF loader for Process Injection Kit capabilities */
-#if defined(INCLUDE_CMD_INJECT_SHELLCODE) && defined(INCLUDE_CMD_INLINE_EXECUTE)
+#if defined(INCLUDE_CMD_INJECT_SHELLCODE) || defined(INCLUDE_CMD_INLINE_EXECUTE)
 
 /**
  * @brief Inject PIC using default technique (early bird injection)

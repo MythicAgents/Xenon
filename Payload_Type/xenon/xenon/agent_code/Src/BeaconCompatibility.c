@@ -15,7 +15,7 @@
 #include "Config.h"
 #include "Debug.h"
 
-#ifdef INCLUDE_CMD_INLINE_EXECUTE
+#if defined(INCLUDE_CMD_INJECT_SHELLCODE) || defined(INCLUDE_CMD_INLINE_EXECUTE)
 
 #ifdef _WIN32
 #include <windows.h>
