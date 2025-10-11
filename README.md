@@ -88,6 +88,13 @@ Credits to [@trustedsec](https://github.com/trustedsec) for these.
 | `sa_probe`              | `sa_probe [host] [port]`                                 | **[SituationalAwareness]** Check if a specific port is open. |
 | `sa_whoami`             | `sa_whoami`                                             | **[SituationalAwareness]** List `whoami /all`. |
 
+### Post-Ex Commands (PEs)
+These are post-ex commands that follow the classic **fork & run** style injection. They use either a separate portable executable (DLL or EXE) converted to PIC with `donut-shellcode` (OPSEC warning!).
+
+| Command                  | Usage                                                         | Description |
+|--------------------------|---------------------------------------------------------------|-------------|
+| `mimikatz`          | `mimikatz [args]`                                               | Execute mimikatz in a remote process. |
+
 
 ## Supported C2 Profiles
 
