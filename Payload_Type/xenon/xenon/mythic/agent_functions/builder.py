@@ -1,4 +1,4 @@
-import logging, json, toml
+import logging, json, toml, os
 import traceback
 import pathlib
 from mythic_container.PayloadBuilder import *
@@ -7,11 +7,9 @@ from mythic_container.MythicRPC import *
 from distutils.dir_util import copy_tree
 import asyncio, os, tempfile, base64
 from .utils.agent_global_settings import PROCESS_INJECT_KIT
-import os
-
 import donut
-
 from ..utils.packer import serialize_int, serialize_bool, serialize_string, generate_raw_c2_transform_definitions
+
 
 class XenonAgent(PayloadType):
     name = "xenon"
@@ -20,7 +18,7 @@ class XenonAgent(PayloadType):
     supported_os = [SupportedOS.Windows]
     wrapper = False
     wrapped_payloads = []
-    note = """A Cobalt Strike-like agent for Windows targets. Version: v0.0.2"""
+    note = """A Cobalt Strike-like agent for Windows targets. Version: v0.0.3"""
     supports_dynamic_loading = True
     c2_profiles = ["httpx"]
     mythic_encrypts = True
@@ -121,10 +119,10 @@ class XenonAgent(PayloadType):
                     try:
                         # Read configuration file contents
                         response = await SendMythicRPCFileGetContent(MythicRPCFileGetContentMessage(agentConfigFileId))
-                        
+ 
                         if (response.Success != True):
                             resp.set_status(BuildStatus.Error)
-                            resp.build_stderr = "Key error: " + key + "\n" + configData.Error
+                            resp.build_stderr = "[!] Key error: " + key + "\n" + response.Error
                             resp.build_stderr += "\n" + traceback.format_exc()
                             return resp # early return
                         
@@ -232,41 +230,41 @@ class XenonAgent(PayloadType):
             logging.exception(f"Error uploading {bof_filename}: {str(e)}")
 
 
-        # Add Situational Awareness BOFs to Mythic. (e.g., sa_<cmd>)
-        SA_MODULE_PATH = pathlib.Path(".") / "xenon" / "agent_code" / "modules" / "trustedsec_bofs"        
-        for cmd in self.commands.get_commands():
-            if cmd.startswith("sa_"):
-                bof_stem = cmd[3:]  # Strip 'sa_' prefix
-                bof_filename = f"{bof_stem}.x64.o"
-                bof_path = SA_MODULE_PATH / bof_stem / bof_filename
+        # Upload all Situational Awareness BOFs to Mythic server 
+        SA_MODULE_PATH = pathlib.Path(".") / "xenon" / "agent_code" / "modules" / "trustedsec_bofs"
 
-                if not bof_path.exists():
-                    logging.error(f"BOF file not found: {bof_path}")
-                    continue
+        # If inline_execute is included upload all of these for aliases
+        if "inline_execute" in self.commands.get_commands():
+            logging.info(f"Starting Uploading Situational Awareness BOFs.")
+            # Walk through the BOF directory and upload only .x64.o files
+            for root, _, files in os.walk(SA_MODULE_PATH):
+                for f in files:
+                    if f.endswith(".x64.o"):
+                        bof_path = os.path.join(root, f)
+                        bof_filename = os.path.basename(bof_path)
 
-                try:
-                    with open(bof_path, "rb") as f:
-                        bof_bytes = f.read()
+                        try:
+                            with open(bof_path, "rb") as bof_file:
+                                bof_bytes = bof_file.read()
 
-                    # Upload BOF to Mythic 
-                    file_resp = await SendMythicRPCFileCreate(
-                        MythicRPCFileCreateMessage(
-                            PayloadUUID=self.uuid,
-                            Filename=bof_filename,
-                            DeleteAfterFetch=False,
-                            FileContents=bof_bytes
-                        )
-                    )
+                            # Upload BOF to Mythic
+                            file_resp = await SendMythicRPCFileCreate(
+                                MythicRPCFileCreateMessage(
+                                    PayloadUUID=self.uuid,
+                                    Filename=bof_filename,
+                                    DeleteAfterFetch=False,
+                                    FileContents=bof_bytes
+                                )
+                            )
 
-                    if file_resp.Success:
-                        logging.info(f"Successfully uploaded: {bof_filename}")
-                    else:
-                        raise Exception(f"Failed to upload {bof_filename}: {file_resp.Error}")
+                            if file_resp.Success:
+                                logging.info(f"Successfully uploaded: {bof_filename}")
+                            else:
+                                raise Exception(f"Failed to upload {bof_filename}: {file_resp.Error}")
 
-                except Exception as e:
-                    logging.exception(f"Error uploading {bof_filename}: {str(e)}")
+                        except Exception as e:
+                            logging.exception(f"Error uploading {bof_filename}: {str(e)}")
 
-         
         # Notify: Installed Modules
         await SendMythicRPCPayloadUpdatebuildStep(MythicRPCPayloadUpdateBuildStepMessage(
                 PayloadUUID=self.uuid,
@@ -274,7 +272,7 @@ class XenonAgent(PayloadType):
                 StepStdout="Installed needed BOF files",
                 StepSuccess=True
         ))
-         
+
         ######################################
         #####  Agent instance config (packed)####
         ######################################

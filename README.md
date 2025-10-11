@@ -122,7 +122,7 @@ Xenon currently supports these features of the HTTPX profile:
 * Multiple URI connection strings (only uses first one for now)
 
 > [!WARNING]
-> If you try to use the above in your malleable profile config, it will either **not work** or **break stuff**.
+> If you try to use unsupported httpx features in your malleable profile config, it will either **not work** or **break stuff**.
 
 
 Here's an example of a malleable profile for HTTP(S) traffic:
@@ -249,7 +249,7 @@ If you have suggestions/requests open an issue or you can message me on discord.
 
 ### Bugs
 - [X] Work on memory issues (duplicate buffers etc)
-- [ ] Fix initial install BOF files not found 
+- [ ] Fix initial install files not found 
 
 
 ## Credits
