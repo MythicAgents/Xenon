@@ -105,7 +105,7 @@ I really wanted to support the HTTPX C2 Profile, since it allows the operator to
 Xenon currently supports these features of the HTTPX profile:
 
 * Callback Domains (array of values)
-* Domain Rotation (fail-over and round-robin)
+* Domain Rotation (fail-over, round-robin, random)
 * Domain Fallback Threshold (for fail-over how many failed attempts before moving to the next)
 * Callback Jitter and Sleep intervals
 * Agent Message and Server Response configurations provided via JSON or TOML files at Build time that offer:
@@ -121,7 +121,9 @@ Xenon currently supports these features of the HTTPX profile:
 * POST request payload location (only body is supported)
 * Multiple URI connection strings (only uses first one for now)
 
-If you try to use these in your malleable profile config, it will either **not work** or **break stuff**.
+> [!WARNING]
+> If you try to use the above in your malleable profile config, it will either **not work** or **break stuff**.
+
 
 Here's an example of a malleable profile for HTTP(S) traffic:
 
@@ -240,12 +242,14 @@ Here's an example of a malleable profile for HTTP(S) traffic:
 ## Roadmap
 If you have suggestions/requests open an issue or you can message me on discord.
 
-- [ ] Work on memory issues (duplicate buffers etc)
-- [ ] `execute_assembly` command
-- [ ] Lateral movement related commands
+### Features
+- [X] `execute_assembly` command
 - [ ] `powershell` command
+- [ ] Lateral movement related commands
 
-
+### Bugs
+- [X] Work on memory issues (duplicate buffers etc)
+- [ ] Fix initial install BOF files not found 
 
 
 ## Credits
