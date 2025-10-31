@@ -52,6 +52,9 @@
 #define STEAL_TOKEN_CMD 0x71
 #define MAKE_TOKEN_CMD  0x72
 #define REV2SELF_CMD    0x73
+// Tunnel / Connector
+#define LINK_CMD        0x90
+#define UNLINK_CMD      0x91
 // Agent
 #define EXIT_CMD        0x80
 

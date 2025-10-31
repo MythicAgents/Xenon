@@ -3,7 +3,7 @@
 	Ref: https://github.com/kyxiaxiang/Beacon_Source/blob/main/Beacon/network.c
 */
 
-#include "Http.h"
+#include "TransportHttp.h"
 
 #include "Xenon.h"
 #include "Config.h"
@@ -12,6 +12,9 @@
 #include <ws2ipdef.h>
 #include <stdio.h>
 #include "Transform.h"
+
+/* This file is the the Mythic HTTPX profile */
+#ifdef HTTPX_TRANSPORT
 
 #define INTERNET_OPTION_SUPPRESS_SERVER_AUTH 	104
 
@@ -533,3 +536,6 @@ void HttpClose(void)
 	InternetCloseHandle(gInternetConnect);
 	InternetCloseHandle(gInternetOpen);
 }
+
+
+#endif // HTTPX_TRANSPORT
