@@ -169,9 +169,9 @@ BOOL NetworkSmbSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
     BOOL bStatus = FALSE;
 
     /* Create named pipe server if does not exist */
+    bStatus = SmbSend(package);
     
-    
-    bStatus = HttpPost(package, ppOutData, pOutLen);
+    bStatus = SmbReceive(ppOutData, pOutLen)
 
     return bStatus;
 }

