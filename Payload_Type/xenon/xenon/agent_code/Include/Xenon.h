@@ -24,11 +24,11 @@ typedef struct _CALLBACK_NODE {
 
 // Linked-list for "linked agents"
 typedef struct _LINKS {
-    PCHAR  LinkId;                       // Link UUID
-    PCHAR  PipeName                      // Named pipe string
-    HANDLE hPipe                         // Handle to link's named pipe
-    BOOL   Connected                     // Is link Alive
-    struct LINKS* next;                  // Pointer to the next node in the linked list
+    PCHAR  LinkId;                          // Link UUID
+    PCHAR  PipeName;                        // Named pipe string
+    HANDLE hPipe;                           // Handle to link's named pipe
+    BOOL   Connected;                       // Is link Alive
+    struct LINKS* Next;                     // Pointer to the next node in the linked list
 } LINKS, *PLINKS;
 
 // Agent Instance struct

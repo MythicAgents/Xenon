@@ -8,7 +8,7 @@
 
 #ifdef INCLUDE_CMD_LINK
 VOID Link(PCHAR taskUuid, PPARSER arguments);
-BOOL LinkAdd(_In_ char* NamedPipe, _Out_ PVOID* OutBuffer, _Out_ SIZE_T* OutLen);
+BOOL LinkAdd( PCHAR Target, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen );
 #endif
 
 #ifdef INCLUDE_CMD_UNLINK

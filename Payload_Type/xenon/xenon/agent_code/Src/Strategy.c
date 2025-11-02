@@ -3,6 +3,8 @@
 #include "Utils.h"
 #include "Strategy.h"
 
+#if defined(HTTPX_TRANSPORT)
+
 ULONG Seed = 0xd3adb33f;
 
 
@@ -103,3 +105,5 @@ VOID StrategyRotate(_In_ BOOL isConnectionSuccess, _Inout_ int* attempts)
             break;
     }
 }
+
+#endif //HTTPX_TRANSPORT

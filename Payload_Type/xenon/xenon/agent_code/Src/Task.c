@@ -13,6 +13,7 @@
 #include "Tasks/InlineExecute.h"
 #include "Tasks/InjectShellcode.h"
 #include "Tasks/Token.h"
+#include "Tasks/Link.h"
 #include "Tasks/Exit.h"
 
 /**
@@ -264,8 +265,23 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             return;
         }
 #endif
-
-    }//END
+#ifdef INCLUDE_CMD_LINK
+        case LINK_CMD:
+        {
+            _dbg("LINK_CMD was called");
+            Link(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_UNLINK
+        case UNLINK_CMD:
+        {
+            _dbg("UNLINK_CMD was called");
+            Unlink(taskUuid, taskParser);
+            return;
+        }
+#endif
+    }// END OF CMDS
 }
 
 BOOL TaskCheckin(PPARSER checkinResponseData)
