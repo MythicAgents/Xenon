@@ -186,7 +186,9 @@ BOOL ParserStringCopySafe(PPARSER parser, char* buffer, PSIZE_T size)
 // Base64 decode parser data and adjusts size
 BOOL ParserBase64Decode(PPARSER parser)
 {
-    BOOL success = FALSE;
+    BOOL success                    = FALSE;
+    unsigned char *decoded_buffer   = NULL;
+    SIZE_T decoded_length           = 0;
 
     if (parser == NULL || parser->Buffer == NULL) {
         _err("Invalid input parser");
@@ -196,9 +198,9 @@ BOOL ParserBase64Decode(PPARSER parser)
     ///////////////////////////////////
     //    Base64 Decode Parser //////
     ///////////////////////////////////
-    SIZE_T decoded_length = calculate_base64_decoded_size((const char*)parser->Buffer, parser->Length);  // Calculate exact size of decoded data
+    decoded_length = calculate_base64_decoded_size((const char*)parser->Buffer, parser->Length);  // Calculate exact size of decoded data
     
-    unsigned char *decoded_buffer = (unsigned char *)malloc(decoded_length);
+    decoded_buffer = (unsigned char *)malloc(decoded_length);
     if (!decoded_buffer) {
         _err("Memory allocation failed for base64 decoded buffer");
         goto cleanup;

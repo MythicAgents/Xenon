@@ -6,6 +6,7 @@
 #include "Parser.h"
 #include "Package.h"
 #include "Config.h"
+#include <accctrl.h>
 
 /* This file is the the Mythic SMB profile */
 #ifdef SMB_TRANSPORT
@@ -24,8 +25,12 @@ typedef struct
     PSECURITY_DESCRIPTOR SecDec;
 } SMB_PIPE_SEC_ATTR, *PSMB_PIPE_SEC_ATTR;
 
-VOID SmbSecurityAttrOpen( PSMB_PIPE_SEC_ATTR SmbSecAttr, PSECURITY_ATTRIBUTES SecurityAttr );
-VOID SmbSecurityAttrFree( PSMB_PIPE_SEC_ATTR SmbSecAttr );
+
+BOOL SmbSend(PPackage package);
+BOOL SmbRecieve(PBYTE* ppOutData, SIZE_T* pOutLen);
+
+// VOID SmbSecurityAttrOpen( PSMB_PIPE_SEC_ATTR SmbSecAttr, PSECURITY_ATTRIBUTES SecurityAttr );
+//VOID SmbSecurityAttrFree( PSMB_PIPE_SEC_ATTR SmbSecAttr );
 
 
 #endif // SMB_TRANSPORT

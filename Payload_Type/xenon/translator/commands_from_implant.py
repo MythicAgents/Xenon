@@ -355,8 +355,64 @@ def upload_to_mythic_format(data):
     mythic_json = {
             "action": "post_response",
             "responses": response_task
-        }   
+        }
 
     logging.info(f"[UPLOAD] IMPLANT -> C2: task_id:{task_uuid.decode('cp850')}, chunk_num:{chunk_num}, file_id:{file_id.decode('cp850')}, full_path:{full_path.decode('cp850')}, chunk_size:{chunk_size}")
+
+    return mythic_json
+
+
+
+def p2p_checkin_to_mythic_format(data):
+    """
+    P2P Agents have a specific JSON field in Mythic "delegates"
+    {
+        "action": "some action here",
+        "delegates": [
+            {
+                "message": "base64 agent message",
+                "uuid": "some uuid Agent1 made up",
+                "c2_profile": "ProfileName"
+            }
+        ]
+    }   
+    """
+    
+    # First 36 bytes are task UUID
+    task_uuid = data[:36]
+    data = data[36:]
+    
+    logging.info(f"P2P Checkin Request - Task ID {task_uuid}")
+    
+    # Get the task buffer
+    data = data[36:]
+    output, data = get_bytes_with_size(data)  # The size doesn't include the status byte at the end or the error int32
+    
+    # Prepend a response
+    # output_length = len(output)
+    
+    response_task = []
+    
+    task_json = {
+        "task_id": task_uuid.decode('cp850'),
+        "user_output": "Linked"
+        # "status": status                # Include the status
+    }
+
+    task_json["completed"] = True
+    
+    response_task.append(task_json)
+    
+    mythic_json = {
+            "action": "post_response",
+            "responses": response_task,
+            "delegates": [
+                {
+                    "message": output.decode('cp850'),
+                    "uuid": "3b896b25-34b5-43ff-a531-0858dc350124",
+                    "c2_profile": "smb"
+                }
+            ]
+        }   
 
     return mythic_json

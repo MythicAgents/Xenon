@@ -76,5 +76,11 @@ class XenonTranslator(TranslationContainer):
         
         elif mythic_action_byte == MYTHIC_UPLOAD_CHUNKED: 
             response.Message = upload_to_mythic_format(mythic_action_data)
+            
+        elif mythic_action_byte == MYTHIC_UPLOAD_CHUNKED: 
+            response.Message = upload_to_mythic_format(mythic_action_data)
+            
+        elif mythic_action_byte == MYTHIC_P2P_CHECK_IN:
+            response.Message = p2p_checkin_to_mythic_format(mythic_action_data)
 
         return response

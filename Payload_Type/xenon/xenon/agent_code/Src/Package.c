@@ -320,7 +320,7 @@ BOOL PackageSend(PPackage package, PPARSER response)
     // Check payload UUID
     SIZE_T sizeUuid             = TASK_UUID_SIZE;
     PCHAR receivedPayloadUUID   = NULL; 
-    receivedPayloadUUID = ParserGetString(response, &sizeUuid);
+    receivedPayloadUUID         = ParserGetString(response, &sizeUuid);
     // Use memcmp to pass a strict size of bytes to compare
     if (memcmp(receivedPayloadUUID, xenonConfig->agentID, TASK_UUID_SIZE) != 0) {
         _err("Check-in payload UUID doesn't match what we have. Expected - %s", xenonConfig->agentID);
@@ -337,9 +337,13 @@ BOOL PackageSend(PPackage package, PPARSER response)
     bStatus = TRUE;
 
 end:
-    memset(pOutData, 0, sOutLen);
-    LocalFree(pOutData);
-    pOutData = NULL;
+
+    if ( pOutData != NULL )
+    {
+        memset(pOutData, 0, sOutLen);
+        LocalFree(pOutData);
+        pOutData = NULL;
+    }
 
     return bStatus;
 }
