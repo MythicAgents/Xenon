@@ -44,6 +44,16 @@ class XenonTranslator(TranslationContainer):
         elif mythic_action == "post_response":
             response.Message = post_response_to_agent_format(inputMsg.Message["responses"])
         
+        # TODO - Create function that formats 
+        # 1. byte indicating if there are delegates
+        # 2. size of delegates (how many links)
+        # 3. mythic_uuid 
+        # 4. len(msg) + raw_msg
+    
+        # Delegate Messages
+        if inputMsg.Message.get("delegates"):
+            logging.info(f"Delegate message found - {inputMsg.Message.get('delegates')}")
+        
         return response
 
 

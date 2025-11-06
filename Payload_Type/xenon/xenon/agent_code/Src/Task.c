@@ -370,11 +370,20 @@ VOID TaskRoutine()
     // Fills parser with todo tasks data
     BOOL bStatus = PackageSend(req, &tasks);
 
-
     if (bStatus == FALSE || &tasks == NULL)
         goto CLEANUP; 
 
-    // Does all tasks and sends responses to server
+    
+#if defined(INCLUDE_CMD_LINK)
+    /** TODO
+     * 
+     * [] Check response for delegate messages
+     * [] Send msgs to Link
+     */
+#endif
+
+
+        // Does all tasks and sends responses to server
     TaskProcess(&tasks);
     
 CLEANUP:

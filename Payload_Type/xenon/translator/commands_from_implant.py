@@ -160,7 +160,7 @@ def post_response_to_mythic_format(data):
     
     task_json = {
         "task_id": task_uuid.decode('cp850'),
-        "user_output":user_output,
+        "user_output": user_output,
         "status": status                # Include the status
     }
 
@@ -384,19 +384,27 @@ def p2p_checkin_to_mythic_format(data):
     
     logging.info(f"P2P Checkin Request - Task ID {task_uuid}")
     
-    # Get the task buffer
-    data = data[36:]
+    # Next 4 bytes are status from Linking
+    status_byte = int.from_bytes(data[0:4], byteorder='big')
+    data = data[4:]
+    if status_byte == 0:
+        status = "success"
+        user_output = "Linked!"
+    else:
+        status = "error"
+        error = ERROR_CODES.get(status_byte, {"name": "UNKNOWN_ERROR", "description": f"Error code {status_byte}"})
+        user_output += f"[!] {error['name']} : {error['description']}\n"
+    
+    # Rest of bytes are from Link Pipe
     output, data = get_bytes_with_size(data)  # The size doesn't include the status byte at the end or the error int32
     
-    # Prepend a response
-    # output_length = len(output)
-    
+    # Format response with Delegates
     response_task = []
     
     task_json = {
         "task_id": task_uuid.decode('cp850'),
-        "user_output": "Linked"
-        # "status": status                # Include the status
+        "user_output": user_output,
+        "status": status                # Include the status
     }
 
     task_json["completed"] = True

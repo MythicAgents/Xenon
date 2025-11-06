@@ -162,13 +162,15 @@ def post_response_to_agent_format(responses):
             data += b"\x00"
 
         # TODO - organize and make better for differnt types of responses.
-
+        
+        # DOWNLOADS
         # Download responses include a field for file_id
         file_id = response.get("file_id")
         if file_id:
             data += file_id.encode()
         
         
+        # UPLOADS
         # Currently a workaround for handling upload responses, since
         # they have additional fields in response that the agent needs
         
@@ -188,5 +190,20 @@ def post_response_to_agent_format(responses):
             raw_data = base64.b64decode(chunk_data)
             data += len(raw_data).to_bytes(4, "big")
             data += raw_data
+            
+        # DELEGATES
+        # P2P Linking is handled in Mythic through a JSON Field "delegates"
+        # delegate_msg = response.get("delegates")
+        # if delegate_msg:
+        #     num_of_delegates = len(delegate_msg)
+        #     logging.info(f"POST_RESPONSE contains {num_of_delegates} delegate message")
+        #     for msg in delegate_msg:
+        #         # Msg for Linked Agent
+        #         base64_msg = msg.get("message")
+        #         data += len(base64_msg).to_bytes(4, "big")
+        #         data += base64_msg.encode()
+        #         # Mythic UUID for delegate
+        #         uuid = msg.get("uuid")
+        #         data += uuid.encode()
 
     return data
