@@ -417,7 +417,7 @@ def p2p_checkin_to_mythic_format(data):
             "delegates": [
                 {
                     "message": output.decode('cp850'),
-                    "uuid": "3b896b25-34b5-43ff-a531-0858dc350124",
+                    "uuid": "57415",
                     "c2_profile": "smb"
                 }
             ]

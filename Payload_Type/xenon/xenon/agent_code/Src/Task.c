@@ -374,16 +374,36 @@ VOID TaskRoutine()
         goto CLEANUP; 
 
     
+    BOOL isDelegates = ParserGetByte(&tasks);
+    _dbg("Is Delegates? %d", isDelegates);
+
 #if defined(INCLUDE_CMD_LINK)
     /** TODO
      * 
      * [] Check response for delegate messages
      * [] Send msgs to Link
      */
+
+    /** New Packet Format
+     * 
+     * ( isDelegates? + NumOfDelegates + ( SizeOfDelegateMsg + UUID + BASE64_MESSAGE ) )
+     */
+    // BYTE isDelegates = ParserGetByte(tasks);
+    // BOOL isDelegates = ParserGetByte(&tasks);
+
+    _dbg("Is Delegates? %d", isDelegates);
+    if ( isDelegates ) 
+    {
+        if ( !LinkForward(&tasks) )
+        {
+            _err("Failed to forward messages to Link. ERROR : %d", GetLastError());
+        }
+    }
+
 #endif
 
 
-        // Does all tasks and sends responses to server
+    // Does all tasks and sends responses to server
     TaskProcess(&tasks);
     
 CLEANUP:

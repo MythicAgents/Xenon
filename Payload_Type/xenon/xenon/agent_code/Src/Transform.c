@@ -4,8 +4,9 @@
 */
 
 #include "Transform.h"
-
 #include  "Config.h"
+
+#ifdef HTTPX_TRANSPORT
 #include "Parser.h"
 #include "Utils.h"
 
@@ -478,3 +479,6 @@ void TransformDestroy(TRANSFORM* transform)
 {
 	ParserDestroy(transform->parser);
 }
+
+
+#endif // HTTPX_TRANSPORT

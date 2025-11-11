@@ -3,8 +3,10 @@
 #define TRANSFORM_H
 
 #include "Xenon.h"
-#include "Parser.h"
+#include "Config.h"
 
+#ifdef HTTPX_TRANSPORT
+#include "Parser.h"
 #include <windows.h>
  
 
@@ -30,5 +32,7 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
 BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recoveredDataLen, unsigned char* resProfile, int maxGet);
 
 void TransformDestroy(TRANSFORM* transform);
+
+#endif // HTTPX_TRANSPORT
 
 #endif

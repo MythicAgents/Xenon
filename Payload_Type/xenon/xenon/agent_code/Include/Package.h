@@ -8,6 +8,9 @@
 #define TASK_COMPLETE		0x95
 #define TASK_FAILED			0x99
 
+#define PIPE_BUFFER_MAX 0x10000
+#define MIN( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
+
 typedef struct
 {
 	PVOID buffer;
@@ -27,6 +30,7 @@ BOOL PackageAddFormatPrintf(PPackage package, BOOL copySize, char *fmt, ...);
 BOOL PackageSend(PPackage package, PPARSER response);
 VOID PackageError(PCHAR taskUuid, UINT32 errorCode);
 VOID PackageComplete(PCHAR taskUuid, PPackage package);
+BOOL PackageSendPipe(HANDLE hPipe, PVOID Msg, SIZE_T Length);
 VOID PackageDestroy(PPackage package);
 
 #endif

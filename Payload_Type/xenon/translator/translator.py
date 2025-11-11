@@ -36,13 +36,13 @@ class XenonTranslator(TranslationContainer):
         mythic_action = inputMsg.Message["action"]
         
         if mythic_action == "checkin":
-            response.Message = checkin_to_agent_format(inputMsg.Message["id"])
+            response_msg = checkin_to_agent_format(inputMsg.Message["id"])
         
         elif mythic_action == "get_tasking":
-            response.Message = get_tasking_to_agent_format(inputMsg.Message["tasks"])
+            response_msg = get_tasking_to_agent_format(inputMsg.Message["tasks"])
         
         elif mythic_action == "post_response":
-            response.Message = post_response_to_agent_format(inputMsg.Message["responses"])
+            response_msg = post_response_to_agent_format(inputMsg.Message["responses"])
         
         # TODO - Create function that formats 
         # 1. byte indicating if there are delegates
@@ -50,9 +50,19 @@ class XenonTranslator(TranslationContainer):
         # 3. mythic_uuid 
         # 4. len(msg) + raw_msg
     
-        # Delegate Messages
-        if inputMsg.Message.get("delegates"):
-            logging.info(f"Delegate message found - {inputMsg.Message.get('delegates')}")
+        # Add any Delegate messages to any response type except for checkins.
+        if mythic_action != "checkin":
+            if inputMsg.Message.get("delegates"):
+                delegates_msg = b"\x01" # True
+                delegates_msg += delegates_to_agent_format(inputMsg.Message.get("delegates"))
+                logging.info(f"Delegate message found - {inputMsg.Message.get('delegates')}")
+            else:
+                delegates_msg = b"\x00" # False
+        else:
+            delegates_msg = b""         # Blank
+        
+        # Final message
+        response.Message = delegates_msg + response_msg
         
         return response
 

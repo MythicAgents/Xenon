@@ -4,17 +4,16 @@
 */
 
 #include "TransportHttp.h"
-
 #include "Xenon.h"
 #include "Config.h"
 
+#ifdef HTTPX_TRANSPORT
 #include <winsock2.h>
 #include <ws2ipdef.h>
 #include <stdio.h>
 #include "Transform.h"
 
-/* This file is the the Mythic HTTPX profile */
-#ifdef HTTPX_TRANSPORT
+
 
 #define INTERNET_OPTION_SUPPRESS_SERVER_AUTH 	104
 

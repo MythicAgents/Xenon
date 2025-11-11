@@ -211,6 +211,32 @@ VOID PackageComplete(PCHAR taskUuid, PPackage package)
     PackageDestroy(data);
 }
 
+/**
+ * @brief Write the specified buffer to the specified pipe
+ * @param Handle handle to the pipe
+ * @param Buffer Message to write
+ * @param Length Size of message
+ * @return pipe write successful or not
+ */
+BOOL PackageSendPipe(HANDLE hPipe, PVOID Buffer, SIZE_T Length) 
+{
+    DWORD Written = 0;
+    DWORD Total   = 0;
+
+    do {
+        if ( !WriteFile(hPipe, Buffer + Total, MIN( ( Length - Total ), PIPE_BUFFER_MAX ), &Written , NULL) ) {
+            return FALSE;
+        }
+
+        Total += Written;
+    } while ( Total < Length );
+
+    _dbg("Finished. Sent %d bytes to SMB Comms channel.", Written);
+
+    return TRUE;
+}
+
+
 // Function to base64 encode the input package and modify it
 BOOL PackageBase64Encode(PPackage package)
 {

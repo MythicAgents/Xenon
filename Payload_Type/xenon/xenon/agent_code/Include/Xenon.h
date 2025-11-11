@@ -24,7 +24,7 @@ typedef struct _CALLBACK_NODE {
 
 // Linked-list for "linked agents"
 typedef struct _LINKS {
-    PCHAR  LinkId;                          // Link UUID
+    UINT32 LinkId;                          // Link Id
     PCHAR  PipeName;                        // Named pipe string
     HANDLE hPipe;                           // Handle to link's named pipe
     BOOL   Connected;                       // Is link Alive
@@ -63,6 +63,7 @@ typedef struct
 
 #if defined(SMB_TRANSPORT)
 
+    UINT32 SmbId;
     HANDLE SmbPipe;
     PCHAR  SmbPipename;
 
