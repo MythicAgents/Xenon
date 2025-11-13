@@ -360,6 +360,17 @@ BOOL PackageSend(PPackage package, PPARSER response)
             goto end;
     }
 
+    
+    _dbg("Decrypted Response");
+    print_bytes(response->Buffer, response->Length);
+    
+    // UINT32 hasDelegates = ParserGetInt32(response);
+    // BYTE hasDelegates = ParserGetByte(response);
+    // _dbg("Contains Delegates : %s", hasDelegates ? "TRUE" : "FALSE");
+
+    // if ( hasDelegates ) then NumOfDelegates
+    // for Msg in NumOfDelegates, 
+
     bStatus = TRUE;
 
 end:

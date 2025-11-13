@@ -190,26 +190,11 @@ def post_response_to_agent_format(responses):
             raw_data = base64.b64decode(chunk_data)
             data += len(raw_data).to_bytes(4, "big")
             data += raw_data
-            
-        # DELEGATES
-        # P2P Linking is handled in Mythic through a JSON Field "delegates"
-        # delegate_msg = response.get("delegates")
-        # if delegate_msg:
-        #     num_of_delegates = len(delegate_msg)
-        #     logging.info(f"POST_RESPONSE contains {num_of_delegates} delegate message")
-        #     for msg in delegate_msg:
-        #         # Msg for Linked Agent
-        #         base64_msg = msg.get("message")
-        #         data += len(base64_msg).to_bytes(4, "big")
-        #         data += base64_msg.encode()
-        #         # Mythic UUID for delegate
-        #         uuid = msg.get("uuid")
-        #         data += uuid.encode()
 
     return data
 
 
-def delegates_to_agent_format(delegates):
+def check_for_delegate_messages(inputMsg):
     """
     Process the "delegates" section of responses from Mythic. 
     
@@ -217,32 +202,81 @@ def delegates_to_agent_format(delegates):
         delegates (list): List of JSON containing results of delegates
 
     Returns:
-        bytes: Packed data for delegate messages. ( NumOfDelegates + ( ID + SizeOfMessage + BASE64_MESSAGE ) )
+        bytes: Packed data for delegate messages. ( hasDelegates + NumOfDelegates + ( UUID + SizeOfMessage + BASE64_MESSAGE ) )
     """
     
-    packer = Packer()
+    delegates = inputMsg.Message.get("delegates")
     
-    num_of_delegates = len(delegates)
-    packer.adduint32(int(num_of_delegates))
-    logging.info(f"[DELEGATES] NumOfDelegates : {num_of_delegates}")
-    
-    '''
-    {
-        'message': '<base64>', 
-        'uuid': '12345',            # UINT32 ID that Agent 2 made up
-        'c2_profile': 'smb', 
-        'mythic_uuid': '11ee5635-3a28-4758-80b6-7e90523aa5bf', 
-        'new_uuid': '11ee5635-3a28-4758-80b6-7e90523aa5bf'
-    }
-    '''
+    if delegates:
+        
+        #logging.info(f"Delegate message : {delegates}")
+        
+        # Contains Delegate
+        packed = b"\x01"
+        
+        # Number of delegate messages
+        num_of_delegates = len(delegates)
+        packed += num_of_delegates.to_bytes(4, "big")
+        logging.info(f"[DELEGATES] NumOfDelegates : {len(delegates)}")
 
-    for msg in delegates:
-        id = msg.get('uuid')
-        packer.adduint32(id)
-        logging.info(f"[DELEGATES] Delegate id : {id}")
+        # Iterate delegate messages
+        for msg in delegates:
+            logging.info(f"[NEW DELEGATE] Full Message - {msg}")
+            new_uuid = msg.get('new_uuid')
+            uuid = msg.get('uuid')
+            base64_msg = msg.get('message')
+            
+            # P2P Checkin Response
+            if new_uuid:
+                logging.info(f"[NEW DELEGATE] : {new_uuid}")
+                # Mythic UUID
+                packed += len(new_uuid).to_bytes(4, 'big') + new_uuid.encode()
+                # P2P msg
+                bytes = base64_msg.encode()
+                packed += len(bytes).to_bytes(4, "big") + bytes
+
+            
+            # P2P Tasking Response
+            else:
+                logging.info(f"[DELEGATE TASKING] : {uuid}")
+                # Mythic UUID
+                packed += len(uuid).to_bytes(4, 'big') + uuid.encode()
+                # P2P msg
+                bytes = base64_msg.encode()
+                packed += len(bytes).to_bytes(4, "big") + bytes
+
+            logging.info(f"[DELEGATES] Message : {base64_msg}")
+            
+            return packed
+    
+    else:
+        x = b"\x00"
+        logging.info(f"[NO DELEGATES] Response : {x}")
+        return b""  # False
         
-        base64_msg = msg.get('message')
-        packer.addstr(base64_msg)
-        logging.info(f"[DELEGATES] Message : {base64_msg}")
+        '''
+        P2P Checkin
         
-    return packer.getbuffer()
+        [
+            {
+                'message': '<base64>', 
+                'uuid': '12345',            # UINT32 ID that Agent 2 made up
+                'c2_profile': 'smb', 
+                'mythic_uuid': '8ea5353e-dbf8-46f4-9ab3-122cb7b48e54', 
+                'new_uuid': '8ea5353e-dbf8-46f4-9ab3-122cb7b48e54'
+            }
+        ]
+        ....
+        P2P Tasking
+        [
+            {
+                'message': '<base64>', 
+                'uuid': '8ea5353e-dbf8-46f4-9ab3-122cb7b48e54', 
+                'c2_profile': 'smb'
+            }
+        ]
+        '''
+        
+
+        
+    # return packer.getbuffer()

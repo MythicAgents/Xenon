@@ -1,11 +1,11 @@
-import logging, json, toml, os
+import logging, json, toml, os, random
 import traceback
 import pathlib
 from mythic_container.PayloadBuilder import *
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
 from distutils.dir_util import copy_tree
-import asyncio, os, tempfile, base64
+import asyncio, tempfile
 from .utils.agent_global_settings import PROCESS_INJECT_KIT
 import donut
 from ..utils.packer import serialize_int, serialize_bool, serialize_string, generate_raw_c2_transform_definitions
@@ -322,6 +322,7 @@ class XenonAgent(PayloadType):
 
             # SMB Specific
             if selected_profile == 'smb':
+                serialized_data += serialize_int(random.getrandbits(32))                            # Random P2P ID
                 serialized_data += serialize_string(f"\\\\.\\pipe\\{Config['pipename']}")           # \\.\pipe\<string>
                 
 

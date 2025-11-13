@@ -7,8 +7,6 @@
 #include "Parser.h"
 
 
-VOID NetworkInitMutex();
-
 BOOL NetworkRequest(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen);
 
 

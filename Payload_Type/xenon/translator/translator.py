@@ -36,33 +36,44 @@ class XenonTranslator(TranslationContainer):
         mythic_action = inputMsg.Message["action"]
         
         if mythic_action == "checkin":
-            response_msg = checkin_to_agent_format(inputMsg.Message["id"])
+            main_msg = checkin_to_agent_format(inputMsg.Message["id"])
         
         elif mythic_action == "get_tasking":
-            response_msg = get_tasking_to_agent_format(inputMsg.Message["tasks"])
+            main_msg = get_tasking_to_agent_format(inputMsg.Message["tasks"])
         
         elif mythic_action == "post_response":
-            response_msg = post_response_to_agent_format(inputMsg.Message["responses"])
+            main_msg = post_response_to_agent_format(inputMsg.Message["responses"])
         
         # TODO - Create function that formats 
         # 1. byte indicating if there are delegates
         # 2. size of delegates (how many links)
         # 3. mythic_uuid 
         # 4. len(msg) + raw_msg
+
+        logging.info(f"DEBUG RESPONSE: {mythic_action} - {inputMsg.Message}")
+        delegates_msg = check_for_delegate_messages(inputMsg)
     
         # Add any Delegate messages to any response type except for checkins.
-        if mythic_action != "checkin":
-            if inputMsg.Message.get("delegates"):
-                delegates_msg = b"\x01" # True
-                delegates_msg += delegates_to_agent_format(inputMsg.Message.get("delegates"))
-                logging.info(f"Delegate message found - {inputMsg.Message.get('delegates')}")
-            else:
-                delegates_msg = b"\x00" # False
-        else:
-            delegates_msg = b""         # Blank
+        # if mythic_action != "checkin":
+        #     delegates_msg = b""
+            
+        #     if inputMsg.Message.get("delegates"):
+        #         #delegates_msg = b"\x01" # True
+        #         delegates_msg += b"\x01" # True
+        #         delegates_msg += check_for_delegate_messages(inputMsg.Message.get("delegates"))
+        #         logging.info(f"Delegate message found - {inputMsg.Message.get('delegates')}")
+        #     else:
+        #         delegates_msg += b"\x00"    # False
+        # else:
+        #     delegates_msg = b"\x00"         # False
         
         # Final message
-        response.Message = delegates_msg + response_msg
+        final = delegates_msg + main_msg
+        
+        logging.info(f"C2 -> Agent : {final}")
+        
+        response.Message = delegates_msg + main_msg
+        # response.Message = main_msg
         
         return response
 

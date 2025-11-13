@@ -378,13 +378,13 @@ def p2p_checkin_to_mythic_format(data):
     }   
     """
     
-    # First 36 bytes are task UUID
+    # 36-bytes: Task UUID
     task_uuid = data[:36]
     data = data[36:]
     
     logging.info(f"P2P Checkin Request - Task ID {task_uuid}")
     
-    # Next 4 bytes are status from Linking
+    # 4-byte int: Task Result
     status_byte = int.from_bytes(data[0:4], byteorder='big')
     data = data[4:]
     if status_byte == 0:
@@ -394,6 +394,12 @@ def p2p_checkin_to_mythic_format(data):
         status = "error"
         error = ERROR_CODES.get(status_byte, {"name": "UNKNOWN_ERROR", "description": f"Error code {status_byte}"})
         user_output += f"[!] {error['name']} : {error['description']}\n"
+    
+    
+    # 4-byte int: Link ID
+    link_id = int.from_bytes(data[0:4], byteorder='big')
+    data = data[4:]
+    
     
     # Rest of bytes are from Link Pipe
     output, data = get_bytes_with_size(data)  # The size doesn't include the status byte at the end or the error int32
@@ -417,7 +423,7 @@ def p2p_checkin_to_mythic_format(data):
             "delegates": [
                 {
                     "message": output.decode('cp850'),
-                    "uuid": "57415",
+                    "uuid": str(link_id),
                     "c2_profile": "smb"
                 }
             ]

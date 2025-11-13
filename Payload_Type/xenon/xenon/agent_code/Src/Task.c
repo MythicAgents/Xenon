@@ -373,15 +373,16 @@ VOID TaskRoutine()
     if (bStatus == FALSE || &tasks == NULL)
         goto CLEANUP; 
 
-    
-    BOOL isDelegates = ParserGetByte(&tasks);
-    _dbg("Is Delegates? %d", isDelegates);
+    // print_bytes(tasks.Buffer, tasks.Length);
+    // BYTE isDelegates = ParserGetByte(&tasks);
+    // _dbg("Is Delegates? %x", isDelegates);
 
 #if defined(INCLUDE_CMD_LINK)
     /** TODO
      * 
      * [] Check response for delegate messages
-     * [] Send msgs to Link
+     * [] Forward delegates to Links
+     * [] Check 
      */
 
     /** New Packet Format
@@ -391,14 +392,14 @@ VOID TaskRoutine()
     // BYTE isDelegates = ParserGetByte(tasks);
     // BOOL isDelegates = ParserGetByte(&tasks);
 
-    _dbg("Is Delegates? %d", isDelegates);
-    if ( isDelegates ) 
-    {
-        if ( !LinkForward(&tasks) )
-        {
-            _err("Failed to forward messages to Link. ERROR : %d", GetLastError());
-        }
-    }
+    // if ( isDelegates ) 
+    // {
+    //     _dbg("DELEGATE FOUND - Forwarding");
+    //     if ( !LinkForward(&tasks) )
+    //     {
+    //         _err("Failed to forward messages to Link. ERROR : %d", GetLastError());
+    //     }
+    // }
 
 #endif
 

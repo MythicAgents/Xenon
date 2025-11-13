@@ -115,9 +115,11 @@ VOID XenonConfigure()
 
 #ifdef SMB_TRANSPORT
 
-    ULONG seed                     = GetTickCount();
-    // Named Pipe Comms
-    xenonConfig->SmbId             = PseudoRandomIntegerSubroutine(&seed, 100000);
+    // ULONG seed                     = GetTickCount();
+    // xenonConfig->SmbId             = PseudoRandomIntegerSubroutine(&seed, 100000);
+
+    // SMB Comms Channel
+    xenonConfig->SmbId             = ParserGetInt32(&ParserConfig);
     xenonConfig->SmbPipe           = NULL;
     xenonConfig->SmbPipename       = ParserStringCopy(&ParserConfig, &namedPipeLen);                     // allocates
 
@@ -145,7 +147,7 @@ VOID XenonConfigure()
 
 #ifdef SMB_TRANSPORT
 
-    _dbg("[SmbId]          = %d", xenonConfig->SmbId);
+    _dbg("[SmbId]          = [%x]", xenonConfig->SmbId);
     _dbg("[SmbPipename]    = %s", xenonConfig->SmbPipename);
     
 #endif
@@ -165,7 +167,7 @@ VOID XenonMain()
         - Start main beaconing routine
 */
 
-    NetworkInitMutex();     // Current workaround for avoiding race condition with global HINTERNET handles
+    //NetworkInitMutex();     // Current workaround for avoiding race condition with global HINTERNET handles
 
     // Set pointer to Stack allocated instance
     CONFIG_XENON xenon = { 0 };
