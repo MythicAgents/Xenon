@@ -209,7 +209,8 @@ BOOL CheckinSend(PPARSER output)
 
 
     bStatus = PackageSend(checkinData, output);      // Send the request, fill the parser output
-    if (!bStatus || !output)
+    // if (!bStatus || !output)
+    if (!bStatus)
     {
         _err("Failed to send package");
         goto cleanup;

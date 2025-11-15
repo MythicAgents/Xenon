@@ -320,8 +320,17 @@ BOOL PackageSend(PPackage package, PPARSER response)
     PBYTE pOutData      = NULL;
     SIZE_T sOutLen      = 0;
 
-    if (!NetworkRequest(package, &pOutData, &sOutLen))
+    if (!NetworkRequest(package, &pOutData, &sOutLen)) {
+        _err("Failed to send network packet!");
         return FALSE;
+    }
+
+    // TODO remove comment
+    // In the case where SMB receive doesnt return anything
+    if (pOutData == NULL || sOutLen == 0) {
+        _dbg("No response from server. Continuing...");
+        return TRUE;
+    }
 
     // Sometimes we don't care about the response data (post_response)
     // Check response pointer for NULL to skip processes the response.

@@ -270,7 +270,7 @@ BOOL LinkForward( PVOID Msg, SIZE_T Length )
 
 END:
 
-    return TRUE;
+    return Success;
 }
 
 
