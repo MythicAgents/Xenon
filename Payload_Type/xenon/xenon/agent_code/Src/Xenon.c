@@ -192,12 +192,21 @@ VOID XenonMain()
     //     return;
     // }
 
+    /*
+        TODO
+        - Remove retry sleep from HTTPX
+        - Move main sleep to here
+    */
+
     do {
         
         bStatus = CheckinSend(&data);
         
         if (!bStatus)
             _err("Failed checkin request.");
+
+        // TODO remove
+        SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);
 
     } while (data.Buffer == NULL);
     

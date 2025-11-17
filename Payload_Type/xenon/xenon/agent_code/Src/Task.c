@@ -365,48 +365,51 @@ VOID TaskRoutine()
     PPackage req = PackageInit(GET_TASKING, TRUE);
     PackageAddInt32(req, NUMBER_OF_TASKS);
 
-    PARSER tasks = { 0 };
+    /* Send get_tasking message to server */
+    PARSER  tasks   = { 0 };
+    BOOL    bStatus = PackageSend(req, &tasks);
+    if (bStatus == FALSE || tasks.Buffer == NULL) {
+        goto CLEANUP;
+    }
 
-    // Fills parser with todo tasks data
-    BOOL bStatus = PackageSend(req, &tasks);
 
-    if (bStatus == FALSE || &tasks == NULL)
-        goto CLEANUP; 
-
-    // print_bytes(tasks.Buffer, tasks.Length);
-    // BYTE isDelegates = ParserGetByte(&tasks);
-    // _dbg("Is Delegates? %x", isDelegates);
-
+    /* Check response for Delegate msgs */
+    BOOL isDelegates        = (BOOL)ParserGetByte(&tasks);
+    _dbg("isDelegates : %s", isDelegates ? "TRUE" : "FALSE");
 #if defined(INCLUDE_CMD_LINK)
-    /** TODO
-     * 
-     * [] Check response for delegate messages
-     * [] Forward delegates to Links
-     * [] Check 
-     */
+    PCHAR  P2pUuid          = NULL;
+    PCHAR  P2pMsg           = NULL;
+    SIZE_T P2pIdLen         = 0;
+    SIZE_T P2pMsgLen        = 0;
+    UINT32 NumOfDelegates   = 0;
+    if ( isDelegates ) 
+    {
+        NumOfDelegates  = ParserGetInt32(&tasks);
+        P2pUuid         = ParserGetString(&tasks, &P2pIdLen);
+        P2pMsg          = ParserStringCopy(&tasks, &P2pMsgLen);
 
-    /** New Packet Format
-     * 
-     * ( isDelegates? + NumOfDelegates + ( SizeOfDelegateMsg + UUID + BASE64_MESSAGE ) )
-     */
-    // BYTE isDelegates = ParserGetByte(tasks);
-    // BOOL isDelegates = ParserGetByte(&tasks);
+        _dbg("Package should contain : %d msgs.", NumOfDelegates);
+        _dbg("P2P New UUID           : %s", P2pUuid);
+        _dbg("P2P Raw Msg %d bytes   : %s", P2pMsgLen, P2pMsg);
+        /* Forward msg to intended Linked Agent */
+        LinkForward( P2pMsg, P2pMsgLen );
 
-    // if ( isDelegates ) 
-    // {
-    //     _dbg("DELEGATE FOUND - Forwarding");
-    //     if ( !LinkForward(&tasks) )
-    //     {
-    //         _err("Failed to forward messages to Link. ERROR : %d", GetLastError());
-    //     }
-    // }
-
+        // TODO Don't allocate for this
+        if (P2pMsg) LocalFree(P2pMsg);
+    }
 #endif
 
 
-    // Does all tasks and sends responses to server
+    /* Process all tasks, tasks send responses to Server */ 
     TaskProcess(&tasks);
+
     
+
+#if defined(INCLUDE_CMD_LINK)
+    LinkPush();
+#endif
+
+
 CLEANUP:
     // Cleanup
     PackageDestroy(req);

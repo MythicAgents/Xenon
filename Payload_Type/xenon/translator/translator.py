@@ -50,30 +50,15 @@ class XenonTranslator(TranslationContainer):
         # 3. mythic_uuid 
         # 4. len(msg) + raw_msg
 
-        logging.info(f"DEBUG RESPONSE: {mythic_action} - {inputMsg.Message}")
-        delegates_msg = check_for_delegate_messages(inputMsg)
+        delegates_msg = b""
+        
+        if mythic_action != "checkin":
+            logging.info(f"DEBUG RESPONSE: {mythic_action} - {inputMsg.Message}")
+            delegates_msg = check_for_delegate_messages(inputMsg)
     
-        # Add any Delegate messages to any response type except for checkins.
-        # if mythic_action != "checkin":
-        #     delegates_msg = b""
-            
-        #     if inputMsg.Message.get("delegates"):
-        #         #delegates_msg = b"\x01" # True
-        #         delegates_msg += b"\x01" # True
-        #         delegates_msg += check_for_delegate_messages(inputMsg.Message.get("delegates"))
-        #         logging.info(f"Delegate message found - {inputMsg.Message.get('delegates')}")
-        #     else:
-        #         delegates_msg += b"\x00"    # False
-        # else:
-        #     delegates_msg = b"\x00"         # False
-        
-        # Final message
-        final = delegates_msg + main_msg
-        
-        logging.info(f"C2 -> Agent : {final}")
-        
+             
+        logging.info(f"C2 -> Agent : {delegates_msg + main_msg}")
         response.Message = delegates_msg + main_msg
-        # response.Message = main_msg
         
         return response
 
@@ -113,5 +98,8 @@ class XenonTranslator(TranslationContainer):
             
         elif mythic_action_byte == MYTHIC_P2P_CHECK_IN:
             response.Message = p2p_checkin_to_mythic_format(mythic_action_data)
+            
+        elif mythic_action_byte == MYTHIC_P2P_MSG:
+            response.Message = p2p_to_mythic_format(mythic_action_data)
 
         return response

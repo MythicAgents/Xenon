@@ -12,9 +12,9 @@ typedef struct {
     PCHAR   Buffer;             // Holds pointer to current area of buffer
     UINT32  OriginalSize;       // Keep track of total size
     UINT32  Length;             // Used to keep track of where we are when parsing buffer
-
     BOOL    Endian;
 } PARSER, *PPARSER;
+
 
 VOID ParserNew(PPARSER parser, PBYTE Buffer, UINT32 size);
 PPARSER ParserAlloc(SIZE_T size);

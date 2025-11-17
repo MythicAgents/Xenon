@@ -13,14 +13,15 @@
 #define NUMBER_OF_TASKS     2       // Per request
 
 /* Message Format Options */
-#define GET_TASKING         0x00
-#define POST_RESPONSE       0x01
-#define CHECKIN             0xf1
+#define CHECKIN             0xA1
+#define GET_TASKING         0xA2
+#define POST_RESPONSE       0xA3
 // Special
 #define DOWNLOAD_INIT       0x02
 #define DOWNLOAD_CONTINUE   0x03
 #define UPLOAD_CHUNKED      0x04
 #define LINK_ADD            0x05
+#define LINK_MSG            0x06
 
 // General
 #define STATUS_CMD      0x37

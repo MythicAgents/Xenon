@@ -430,3 +430,56 @@ def p2p_checkin_to_mythic_format(data):
         }   
 
     return mythic_json
+
+
+def p2p_to_mythic_format(data):
+    """
+    P2P Agents have a specific JSON field in Mythic "delegates"
+    {
+        "action": "some action here",
+        "delegates": [
+            {
+                "message": "base64 agent message",
+                "uuid": "some uuid Agent1 made up",
+                "c2_profile": "ProfileName"
+            }
+        ]
+    }   
+    """
+
+    # 36-bytes: Payload ID
+    payload_uuid = data[:36]
+    data = data[36:]
+    
+    logging.info(f"P2P Message from Agent : [{payload_uuid}]")
+    
+    
+    # Rest of bytes are for Link agent
+    output, data = get_bytes_with_size(data)  # The size doesn't include the status byte at the end or the error int32
+    
+    # Format response with Delegates
+    response_task = []
+    
+    task_json = { 
+            "action": "get_tasking", 
+            "tasking_size": 0 
+        }
+        
+    response_task.append(task_json)
+    
+    # The only purpose of this message is to forward the delegate to Mythic
+    mythic_json = {
+            "action": "get_tasking",
+            "tasking_size": 0,          # We do a get_tasking with size 0 cause we don't actually want any tasks for the Agent 1
+            "delegates": [
+                {
+                    "message": output.decode('cp850'),
+                    "uuid": payload_uuid.decode('cp850'),
+                    "c2_profile": "smb"
+                }
+            ]
+        }
+    
+    return mythic_json
+    
+    

