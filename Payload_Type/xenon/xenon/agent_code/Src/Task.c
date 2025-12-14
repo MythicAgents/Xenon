@@ -404,7 +404,7 @@ VOID TaskRoutine()
     TaskProcess(&tasks);
 
     
-
+    /* Check all Links and push delegates to Server */
 #if defined(INCLUDE_CMD_LINK)
     LinkPush();
 #endif

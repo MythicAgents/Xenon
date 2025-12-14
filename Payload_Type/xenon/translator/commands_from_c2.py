@@ -194,7 +194,7 @@ def post_response_to_agent_format(responses):
     return data
 
 
-def check_for_delegate_messages(inputMsg):
+def delegates_to_agent_format(inputMsg):
     """
     Process the "delegates" section of responses from Mythic. 
     
@@ -209,13 +209,11 @@ def check_for_delegate_messages(inputMsg):
     
     if delegates:
         
-        logging.info("Packing delegate message:")
-        
+        # logging.info(f"\tHas Delegates.")
+
         # Contains Delegate
         packed = b"\x01"
-        
-        logging.info(f"\tBOOL isDelegates: {packed}")
-        
+                
         # Number of delegate messages
         num_of_delegates = len(delegates)
         packed += num_of_delegates.to_bytes(4, "big")
@@ -224,24 +222,22 @@ def check_for_delegate_messages(inputMsg):
 
         # Iterate delegate messages
         for msg in delegates:
-            logging.info(f"[NEW DELEGATE] JSON Message - {msg}")
             new_uuid = msg.get('new_uuid')
             uuid = msg.get('uuid')
             base64_msg = msg.get('message')
             
             # P2P Checkin Response
             if new_uuid:
-                logging.info(f"[NEW DELEGATE] : {new_uuid}")
                 # Mythic UUID
                 packed += len(new_uuid).to_bytes(4, 'big') + new_uuid.encode()
                 # P2P msg
                 bytes = base64_msg.encode()
                 packed += len(bytes).to_bytes(4, "big") + bytes
 
-                logging.info(f"\tNew UUID: {new_uuid}")
-                logging.info(f"\tRaw Msg: {base64_msg}")
+                #logging.info(f"\t[P2P Check-In Response] : {new_uuid} : {base64_msg}")
+                logging.info(f"\t[P2P Check-In Response]")
                 
-            
+                
             # P2P Tasking Response
             else:
                 # Mythic UUID
@@ -250,14 +246,15 @@ def check_for_delegate_messages(inputMsg):
                 bytes = base64_msg.encode()
                 packed += len(bytes).to_bytes(4, "big") + bytes
                 
-                logging.info(f"\tUUID: {uuid}")
-                logging.info(f"\tRaw Msg: {base64_msg}")
+                #logging.info(f"\t[P2P Post Response] : {uuid} : {base64_msg}")
+                logging.info(f"\t[P2P Post Response]")
+                
              
             return packed
     
     else:
         packed = b"\x00"
-        logging.info(f"\tBOOL isDelegates: {packed}")
+        logging.info(f"\tNo Delegates.")
         return packed
         
         '''

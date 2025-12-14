@@ -62,8 +62,12 @@ BOOL SmbSend(PPackage package)
 		}
 
 		/* Send the message to the named pipe */
-		if ( !PackageSendPipe(xenonConfig->SmbPipe, Send->buffer, Send->length) )
-			goto END;
+		if ( !PackageSendPipe(xenonConfig->SmbPipe, Send->buffer, Send->length) ) {
+            _err("Failed to send msg to pipe. ERROR : %d ", GetLastError());
+        }
+
+        /* Done here */
+        goto END;
 	}
 
 	/* Send if pipe is already initialized */
@@ -73,7 +77,8 @@ BOOL SmbSend(PPackage package)
         /* Means that the client disconnected/the pipe is closing. */
 		if ( error == ERROR_NO_DATA )
 		{
-			if ( xenonConfig->SmbPipe ) {
+			if ( xenonConfig->SmbPipe ) 
+            {
 				CloseHandle(xenonConfig->SmbPipe);
                 xenonConfig->SmbPipe = NULL;
 				goto END;
@@ -264,32 +269,5 @@ VOID SmbSecurityAttrFree( PSMB_PIPE_SEC_ATTR SmbSecAttr )
         SmbSecAttr->SecDec = NULL;
     }
 }
-
-/**
- * @brief Write the specified buffer to the specified pipe
- * @param Handle handle to the pipe
- * @param package buffer to write
- * @return pipe write successful or not
- */
-// BOOL PipeWrite(HANDLE hPipe, PVOID Msg, SIZE_T Length) 
-// {
-//     DWORD Written = 0;
-//     DWORD Total   = 0;
-
-//     do {
-//         if ( !WriteFile(hPipe, Msg + Total, MIN( ( Length - Total ), PIPE_BUFFER_MAX ), &Written , NULL) ) {
-//             return FALSE;
-//         }
-
-//         Total += Written;
-//     } while ( Total < Length );
-
-//     _dbg("Finished. Sent %d bytes to SMB Comms channel.", Written);
-
-//     return TRUE;
-// }
-
-
-
 
 #endif // SMB_TRANSPORT

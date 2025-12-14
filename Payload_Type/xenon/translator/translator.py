@@ -44,20 +44,17 @@ class XenonTranslator(TranslationContainer):
         elif mythic_action == "post_response":
             main_msg = post_response_to_agent_format(inputMsg.Message["responses"])
         
-        # TODO - Create function that formats 
-        # 1. byte indicating if there are delegates
-        # 2. size of delegates (how many links)
-        # 3. mythic_uuid 
-        # 4. len(msg) + raw_msg
-
+        # Any delegate messages coming from Mythic get prepended
         delegates_msg = b""
         
         if mythic_action != "checkin":
-            logging.info(f"DEBUG RESPONSE: {mythic_action} - {inputMsg.Message}")
-            delegates_msg = check_for_delegate_messages(inputMsg)
+            # logging.info(f"C2 --> Agent: {mythic_action} - {inputMsg.Message}")
+            delegates_msg = delegates_to_agent_format(inputMsg)
     
-             
-        logging.info(f"C2 -> Agent : {delegates_msg + main_msg}")
+    
+        # logging.info(f"[{mythic_action}] Agent -> C2 : {delegates_msg + main_msg}")
+        logging.info(f"[{mythic_action}] Agent -> C2 : {inputMsg.Message}")
+        
         response.Message = delegates_msg + main_msg
         
         return response

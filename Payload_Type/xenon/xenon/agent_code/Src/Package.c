@@ -344,7 +344,6 @@ BOOL PackageSend(PPackage package, PPARSER response)
     ////// Response Mythic package /////////
     ////////////////////////////////////////
     _dbg("\n\n===================RESPONSE======================\n");
-
     _dbg("Server -> Client message (length: %d bytes)", response->Length);
  
     if (!ParserBase64Decode(response)) {
@@ -358,7 +357,7 @@ BOOL PackageSend(PPackage package, PPARSER response)
     receivedPayloadUUID         = ParserGetString(response, &sizeUuid);
     // Use memcmp to pass a strict size of bytes to compare
     if (memcmp(receivedPayloadUUID, xenonConfig->agentID, TASK_UUID_SIZE) != 0) {
-        _err("Check-in payload UUID doesn't match what we have. Expected - %s", xenonConfig->agentID);
+        _err("Check-in payload UUID doesn't match what we have. Expected - %s : Received - %s", xenonConfig->agentID, receivedPayloadUUID);
         goto end;
     }
     
