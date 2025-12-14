@@ -152,6 +152,8 @@ BOOL LinkAdd( PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
         }
     }
 
+
+    /* Read the initial buffer */
     DWORD BytesAvailable = 0;
     do
     {

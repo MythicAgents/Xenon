@@ -66,7 +66,7 @@ BOOL SmbSend(PPackage package)
             _err("Failed to send msg to pipe. ERROR : %d ", GetLastError());
         }
 
-        /* Done here */
+        /* Skip to end */
         goto END;
 	}
 

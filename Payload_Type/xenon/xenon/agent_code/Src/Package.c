@@ -334,7 +334,7 @@ BOOL PackageSend(PPackage package, PPARSER response)
 
     // Sometimes we don't care about the response data (post_response)
     // Check response pointer for NULL to skip processes the response.
-    if (response == NULL) 
+    if (response == NULL)
         goto end;
 
     // Fill parser structure with data

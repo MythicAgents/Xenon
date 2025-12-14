@@ -197,7 +197,6 @@ VOID XenonMain()
         - Remove retry sleep from HTTPX
         - Move main sleep to here
     */
-
     do {
         
         bStatus = CheckinSend(&data);
