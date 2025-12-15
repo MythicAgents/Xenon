@@ -7,7 +7,7 @@
 #include "Parser.h"
 
 
-BOOL NetworkRequest(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen);
+BOOL NetworkRequest(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen, BOOL IsGetResponse);
 
 
 #endif

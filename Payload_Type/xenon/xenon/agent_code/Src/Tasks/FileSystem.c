@@ -54,7 +54,7 @@ VOID FileSystemPwd(PCHAR taskUuid, PPARSER arguments)
     PPackage data = PackageInit(0, FALSE);
     PackageAddString(data, dir, FALSE);
 
-    // success
+    // Success
     PackageComplete(taskUuid, data);
 
 end:

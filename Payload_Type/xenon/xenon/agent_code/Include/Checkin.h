@@ -13,5 +13,5 @@
 #pragma comment(lib, "netapi32.lib")
 
 
-BOOL CheckinSend(PPARSER output);
+BOOL CheckinSend();
 #endif
