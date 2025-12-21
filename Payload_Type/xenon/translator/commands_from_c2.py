@@ -159,18 +159,18 @@ def post_response_to_agent_format(responses):
         elif status == "error": 
             data += b"\x00"
         else:
-            data += b"\x00"
-
-        # TODO - organize and make better for differnt types of responses.
-        
-        # DOWNLOADS
+            data += b"\x0A"
+            
+# DOWNLOADS
         # Download responses include a field for file_id
         file_id = response.get("file_id")
         if file_id:
+            data += MYTHIC_DOWNLOAD_RESP.to_bytes(1, byteorder="big")
+            data += response.get("task_id").encode()
             data += file_id.encode()
-        
-        
-        # UPLOADS
+
+
+# UPLOADS
         # Currently a workaround for handling upload responses, since
         # they have additional fields in response that the agent needs
         

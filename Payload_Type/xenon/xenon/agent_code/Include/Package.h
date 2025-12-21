@@ -8,13 +8,16 @@
 #define TASK_COMPLETE		0x95
 #define TASK_FAILED			0x99
 
+#define MAX_REQUEST_LENGTH 0x300000 // 3 mb
 #define PIPE_BUFFER_MAX 0x10000
 #define MIN( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
 
-typedef struct
-{
+typedef struct _Package {
 	PVOID buffer;
 	SIZE_T length;
+	BOOL Sent;
+
+	struct Package* Next;	
 } Package, *PPackage;
 
 PPackage PackageInit(BYTE commandId, BOOL init);
@@ -30,7 +33,12 @@ BOOL PackageAddFormatPrintf(PPackage package, BOOL copySize, char *fmt, ...);
 BOOL PackageSend(PPackage package, PPARSER response);
 VOID PackageError(PCHAR taskUuid, UINT32 errorCode);
 VOID PackageComplete(PCHAR taskUuid, PPackage package);
+
+VOID PackageQueue(PPackage package);
+BOOL PackageSendAll(PPARSER response);
+
 BOOL PackageSendPipe(HANDLE hPipe, PVOID Msg, SIZE_T Length);
 VOID PackageDestroy(PPackage package);
+
 
 #endif

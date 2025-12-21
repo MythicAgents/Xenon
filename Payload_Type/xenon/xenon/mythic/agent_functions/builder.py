@@ -90,7 +90,7 @@ class XenonAgent(PayloadType):
             "callback_interval": 5,
             "killdate": "",
             "failover_threshold": 5,
-            "callback_jitter": 25,
+            "callback_jitter": 0,
             "encryption": False,
             "aes_key": "",
             "proxyEnabled": False,

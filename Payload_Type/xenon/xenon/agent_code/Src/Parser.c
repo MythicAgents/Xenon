@@ -4,8 +4,10 @@ Credits:
     @Cracked5pider
     https://github.com/HavocFramework/Talon/blob/main/Agent/Source/Parser.c
 */
-
 #include "Parser.h"
+
+#include "Xenon.h"
+#include "Crypto.h"
 
 VOID ParserNew(PPARSER parser, PBYTE Buffer, UINT32 size) 
 {
@@ -233,6 +235,39 @@ cleanup:
 
     return success;
 }
+
+
+// BOOL ParserDecrypt(PPARSER parser)
+// {
+//     _dbg("Decrypting package of %d bytes", parser->Length);
+
+//     if (!ParserBase64Decode(parser)) {
+//         _err("Base64 decoding failed");
+//         return FALSE;
+//     }
+
+//     // Check payload UUID
+//     SIZE_T sizeUuid             = TASK_UUID_SIZE;
+//     PCHAR receivedPayloadUUID   = NULL; 
+//     receivedPayloadUUID         = ParserGetString(parser, &sizeUuid);
+//     // Use memcmp to pass a strict size of bytes to compare
+//     if (memcmp(receivedPayloadUUID, xenonConfig->agentID, TASK_UUID_SIZE) != 0) {
+//         _err("Check-in payload UUID doesn't match what we have. Expected - %s : Received - %s", xenonConfig->agentID, receivedPayloadUUID);
+//         return FALSE;
+//     }
+        
+//     // Mythic AES decryption
+//     if (xenonConfig->isEncryption)
+//     {
+//         if (!CryptoMythicDecryptParser(parser))
+//             return FALSE;
+//     }
+
+//     _dbg("Decrypted Response");
+//     print_bytes(parser->Buffer, parser->Length);
+
+//     return TRUE;
+// }
 
 // Frees the data held in the parser
 VOID ParserDestroy(PPARSER parser) 

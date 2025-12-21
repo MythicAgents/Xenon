@@ -31,4 +31,6 @@ PCHAR ParserStringCopy(PPARSER parser, PSIZE_T size);
 BOOL ParserBase64Decode(PPARSER parser);
 VOID ParserDestroy( PPARSER parser );
 
+// BOOL ParserDecrypt(PPARSER parser);
+
 #endif

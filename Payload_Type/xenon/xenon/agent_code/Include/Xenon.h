@@ -10,7 +10,7 @@
 #include "Utils.h"
 #include "Checkin.h"
 #include "Config.h"
-
+#include "Tasks/Download.h"
 
 // Linked-list of callback hosts
 typedef struct _CALLBACK_NODE {
@@ -47,6 +47,8 @@ typedef struct
     PCHAR pipename;
     // Linked Agents
     PLINKS SmbLinks;
+    // Message Queue
+    PPackage PackageQueue;
 
 #if defined(HTTPX_TRANSPORT)
 
@@ -67,6 +69,13 @@ typedef struct
     UINT32 SmbId;
     HANDLE SmbPipe;
     PCHAR  SmbPipename;
+
+#endif
+
+#if defined(INCLUDE_CMD_DOWNLOAD)
+
+    // Download Queue
+    PFILE_DOWNLOAD DownloadQueue; 
 
 #endif
 

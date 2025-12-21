@@ -47,6 +47,10 @@ class XenonTranslator(TranslationContainer):
         # Any delegate messages coming from Mythic get prepended
         delegates_msg = b""
         
+        # TODO - Instead of adding delegates to beginning of response:
+        #   - Add delegate messages as another task DELEGATE_MSG
+        #   - On agent will dispatch task to write delegate msg to pipe
+        
         if mythic_action != "checkin":
             # logging.info(f"C2 --> Agent: {mythic_action} - {inputMsg.Message}")
             delegates_msg = delegates_to_agent_format(inputMsg)
@@ -72,31 +76,36 @@ class XenonTranslator(TranslationContainer):
         mythic_action_byte = agent_action_msg[0]
         mythic_action_data = agent_action_msg[1:]
 
+        # For msg in total msg packet do below:
+        # TODO: 
+        #   - Each function adds to overall format
+        #
+
         if mythic_action_byte == MYTHIC_CHECK_IN:
             response.Message = checkin_to_mythic_format(mythic_action_data)
         
-        elif mythic_action_byte == MYTHIC_GET_TASKING: 
+        elif mythic_action_byte == MYTHIC_GET_TASKING:
             response.Message = get_tasking_to_mythic_format(mythic_action_data)
         
-        elif mythic_action_byte == MYTHIC_POST_RESPONSE: 
-            response.Message = post_response_to_mythic_format(mythic_action_data)
+        elif mythic_action_byte == MYTHIC_POST_RESPONSE:
+            response.Message = post_response_handler(mythic_action_data)
         
-        elif mythic_action_byte == MYTHIC_INIT_DOWNLOAD: 
-            response.Message = download_init_to_mythic_format(mythic_action_data)
+        # elif mythic_action_byte == MYTHIC_POST_RESPONSE: 
+        #     response.Message = post_response_to_mythic_format(mythic_action_data)
         
-        elif mythic_action_byte == MYTHIC_CONT_DOWNLOAD: 
-            response.Message = download_cont_to_mythic_format(mythic_action_data)
+        # elif mythic_action_byte == MYTHIC_INIT_DOWNLOAD: 
+        #     response.Message = download_init_to_mythic_format(mythic_action_data)
         
-        elif mythic_action_byte == MYTHIC_UPLOAD_CHUNKED: 
-            response.Message = upload_to_mythic_format(mythic_action_data)
+        # elif mythic_action_byte == MYTHIC_CONT_DOWNLOAD: 
+        #     response.Message = download_cont_to_mythic_format(mythic_action_data)
+        
+        # elif mythic_action_byte == MYTHIC_UPLOAD_CHUNKED: 
+        #     response.Message = upload_to_mythic_format(mythic_action_data)
             
-        elif mythic_action_byte == MYTHIC_UPLOAD_CHUNKED: 
-            response.Message = upload_to_mythic_format(mythic_action_data)
+        # elif mythic_action_byte == MYTHIC_P2P_CHECK_IN:
+        #     response.Message = p2p_checkin_to_mythic_format(mythic_action_data)
             
-        elif mythic_action_byte == MYTHIC_P2P_CHECK_IN:
-            response.Message = p2p_checkin_to_mythic_format(mythic_action_data)
-            
-        elif mythic_action_byte == MYTHIC_P2P_MSG:
-            response.Message = p2p_to_mythic_format(mythic_action_data)
+        # elif mythic_action_byte == MYTHIC_P2P_MSG:
+        #     response.Message = p2p_to_mythic_format(mythic_action_data)
 
         return response

