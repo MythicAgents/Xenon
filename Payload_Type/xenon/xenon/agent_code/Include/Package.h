@@ -6,6 +6,7 @@
 #include "Parser.h"
 
 #define TASK_COMPLETE		0x95
+#define TASK_UPDATE			0x97
 #define TASK_FAILED			0x99
 
 #define MAX_REQUEST_LENGTH 0x300000 // 3 mb
@@ -32,6 +33,7 @@ BOOL PackageAddWString(PPackage package, PWCHAR data, BOOL copySize);
 BOOL PackageAddFormatPrintf(PPackage package, BOOL copySize, char *fmt, ...);
 BOOL PackageSend(PPackage package, PPARSER response);
 VOID PackageError(PCHAR taskUuid, UINT32 errorCode);
+VOID PackageUpdate(PCHAR taskUuid, PPackage package);
 VOID PackageComplete(PCHAR taskUuid, PPackage package);
 
 VOID PackageQueue(PPackage package);

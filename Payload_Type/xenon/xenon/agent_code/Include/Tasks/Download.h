@@ -23,8 +23,7 @@ typedef struct _FILE_DOWNLOAD {
 } FILE_DOWNLOAD, *PFILE_DOWNLOAD;
 
 
-BOOL DownloadUpdateFileUuid(PCHAR TaskUuid, PCHAR FileUuid);
-DWORD WINAPI DownloadThread(_In_ LPVOID lpTaskParamter);
+BOOL DownloadSync(PCHAR TaskUuid, PCHAR FileUuid);
 VOID DownloadPush();
 VOID Download(_In_ PCHAR taskUuid, _In_ PPARSER arguments);
 

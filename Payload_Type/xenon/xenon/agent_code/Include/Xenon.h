@@ -11,6 +11,7 @@
 #include "Checkin.h"
 #include "Config.h"
 #include "Tasks/Download.h"
+#include "Tasks/Upload.h"
 
 // Linked-list of callback hosts
 typedef struct _CALLBACK_NODE {
@@ -76,6 +77,13 @@ typedef struct
 
     // Download Queue
     PFILE_DOWNLOAD DownloadQueue; 
+
+#endif
+
+#if defined(INCLUDE_CMD_UPLOAD)
+
+    // Upload Queue
+    PFILE_UPLOAD UploadQueue;
 
 #endif
 

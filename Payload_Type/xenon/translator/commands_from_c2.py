@@ -152,6 +152,8 @@ def post_response_to_agent_format(responses):
     
     for response in responses:
         status = response["status"]
+        download = False
+        upload = False
         
         # Response codes
         if status == "success":
@@ -160,36 +162,51 @@ def post_response_to_agent_format(responses):
             data += b"\x00"
         else:
             data += b"\x0A"
-            
+        
+        # Download/Upload specific fields
+        file_id = response.get("file_id")
+        total_chunks = response.get("total_chunks")
+        chunk_num = response.get("chunk_num")
+        chunk_data = response.get("chunk_data")
+        
+        if file_id and chunk_data:
+            upload = True
+        elif file_id and not chunk_data:
+            download = True
+        
 # DOWNLOADS
         # Download responses include a field for file_id
-        file_id = response.get("file_id")
-        if file_id:
+        if download:
             data += MYTHIC_DOWNLOAD_RESP.to_bytes(1, byteorder="big")
             data += response.get("task_id").encode()
             data += file_id.encode()
 
-
 # UPLOADS
-        # Currently a workaround for handling upload responses, since
-        # they have additional fields in response that the agent needs
-        
-        total_chunks = response.get("total_chunks")
-        if total_chunks:
-            logging.info(f"[UPLOAD] total_chunks : {total_chunks}")
-            data += total_chunks.to_bytes(4, "big")
-        
-        chunk_num = response.get("chunk_num")
-        if chunk_num:
-            logging.info(f"[UPLOAD] chunk_num : {chunk_num}")
-            data += chunk_num.to_bytes(4, "big")
-        
-        chunk_data = response.get("chunk_data")
-        if chunk_data:
-            logging.info(f"[UPLOAD] chunk_data(bs64) : {len(chunk_data)} bytes")
-            raw_data = base64.b64decode(chunk_data)
-            data += len(raw_data).to_bytes(4, "big")
-            data += raw_data
+        elif upload:
+            data += MYTHIC_UPLOAD_RESP.to_bytes(1, byteorder="big")
+            data += response.get("task_id").encode()
+            
+            # Currently a workaround for handling upload responses, since
+            # they have additional fields in response that the agent needs
+            if total_chunks:
+                logging.info(f"[UPLOAD] total_chunks : {total_chunks}")
+                data += total_chunks.to_bytes(4, "big")
+            
+            if chunk_num:
+                logging.info(f"[UPLOAD] chunk_num : {chunk_num}")
+                data += chunk_num.to_bytes(4, "big")
+            
+            if chunk_data:
+                logging.info(f"[UPLOAD] chunk_data(bs64) : {len(chunk_data)} bytes")
+                raw_data = base64.b64decode(chunk_data)
+                data += len(raw_data).to_bytes(4, "big")
+                data += raw_data
+
+# NORMAL (nothing else needed)
+        else:
+            data += MYTHIC_NORMAL_RESP.to_bytes(1, byteorder="big")
+            data += response.get("task_id").encode()
+
 
     return data
 

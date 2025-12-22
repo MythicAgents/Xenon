@@ -259,9 +259,11 @@ def post_response_to_mythic_format(data):
     data = data[1:]
 
     if status_byte == 0x95:
-        status = "success"
+        status = "success"          # Succeeded
+    elif status_byte == 0x97:
+        status = None               # Still processing
     elif status_byte == 0x99:
-        status = "error"
+        status = "error"            # Failed
     else:
         status = "unknown"
 
@@ -306,7 +308,7 @@ def post_response_to_mythic_format(data):
             "task_id": task_uuid,
             "user_output": user_output,
             "status": status,
-            "completed": True,
+            "completed": status in ("success", "error")
         }
     
     return task_json, data

