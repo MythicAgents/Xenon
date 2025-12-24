@@ -25,6 +25,7 @@ typedef struct _CALLBACK_NODE {
 
 // Linked-list for "linked agents"
 typedef struct _LINKS {
+    CHAR   TaskUuid[37];                    // Track Task that started Link
     UINT32 LinkId;                          // Link Id
     PCHAR  AgentId;                         // Mythic Id
     PCHAR  PipeName;                        // Named pipe string

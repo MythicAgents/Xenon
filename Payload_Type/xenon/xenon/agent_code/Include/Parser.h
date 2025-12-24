@@ -29,8 +29,8 @@ PCHAR ParserGetDataPtr(PPARSER parser, UINT32 size);
 BOOL ParserStringCopySafe(PPARSER parser, char* buffer, PSIZE_T size);
 PCHAR ParserStringCopy(PPARSER parser, PSIZE_T size);
 BOOL ParserBase64Decode(PPARSER parser);
+BOOL ParserDecrypt(_Inout_ PPARSER parser);
 VOID ParserDestroy( PPARSER parser );
 
-// BOOL ParserDecrypt(PPARSER parser);
 
 #endif

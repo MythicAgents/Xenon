@@ -23,7 +23,7 @@ typedef struct _FILE_DOWNLOAD {
 } FILE_DOWNLOAD, *PFILE_DOWNLOAD;
 
 
-BOOL DownloadSync(PCHAR TaskUuid, PCHAR FileUuid);
+BOOL DownloadSync(_In_ PCHAR TaskUuid, _In_ PPARSER Response);
 VOID DownloadPush();
 VOID Download(_In_ PCHAR taskUuid, _In_ PPARSER arguments);
 

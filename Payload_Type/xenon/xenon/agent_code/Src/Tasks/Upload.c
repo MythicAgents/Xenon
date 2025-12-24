@@ -162,6 +162,8 @@ BOOL UploadSync(_In_ PCHAR TaskUuid, _Inout_ PPARSER Response)
     if (!TaskUuid || !Response)
         return FALSE;
 
+    UINT32 Status = ParserGetInt32(Response);
+
     /* Extract Upload Response Details */
     TotalChunks  = ParserGetInt32(Response);
     CurrentChunk = ParserGetInt32(Response);

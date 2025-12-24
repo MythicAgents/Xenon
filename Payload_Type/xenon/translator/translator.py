@@ -35,31 +35,21 @@ class XenonTranslator(TranslationContainer):
         # Handle different Mythic message types
         mythic_action = inputMsg.Message["action"]
         
+        logging.info(f"[{mythic_action}] C2 -> Agent : {inputMsg.Message} \n\n")
+        
         if mythic_action == "checkin":
             main_msg = checkin_to_agent_format(inputMsg.Message["id"])
         
         elif mythic_action == "get_tasking":
-            main_msg = get_tasking_to_agent_format(inputMsg.Message["tasks"])
+            # main_msg = get_tasking_to_agent_format(inputMsg)
+            main_msg = get_responses_to_agent_format(inputMsg)
         
-        elif mythic_action == "post_response":
-            main_msg = post_response_to_agent_format(inputMsg.Message["responses"])
+        # elif mythic_action == "post_response":
+        #     main_msg = post_response_to_agent_format(inputMsg)
         
-        # Any delegate messages coming from Mythic get prepended
-        delegates_msg = b""
+
         
-        # TODO - Instead of adding delegates to beginning of response:
-        #   - Add delegate messages as another task DELEGATE_MSG
-        #   - On agent will dispatch task to write delegate msg to pipe
-        
-        if mythic_action != "checkin":
-            # logging.info(f"C2 --> Agent: {mythic_action} - {inputMsg.Message}")
-            delegates_msg = delegates_to_agent_format(inputMsg)
-    
-    
-        # logging.info(f"[{mythic_action}] Agent -> C2 : {delegates_msg + main_msg}")
-        logging.info(f"[{mythic_action}] Agent -> C2 : {inputMsg.Message}")
-        
-        response.Message = delegates_msg + main_msg
+        response.Message = main_msg
         
         return response
 
@@ -79,17 +69,22 @@ class XenonTranslator(TranslationContainer):
         # For msg in total msg packet do below:
         # TODO: 
         #   - Each function adds to overall format
-        #
+        # 
 
         if mythic_action_byte == MYTHIC_CHECK_IN:
+            type = "checkin response"
             response.Message = checkin_to_mythic_format(mythic_action_data)
         
         elif mythic_action_byte == MYTHIC_GET_TASKING:
-            response.Message = get_tasking_to_mythic_format(mythic_action_data)
-        
-        elif mythic_action_byte == MYTHIC_POST_RESPONSE:
+            type = "get_tasking response"
             response.Message = post_response_handler(mythic_action_data)
         
+        # elif mythic_action_byte == MYTHIC_POST_RESPONSE:
+        #     type = "post_response response"
+        #     response.Message = post_response_handler(mythic_action_data)
+        
+        else:
+            type = f"UNKNOWN_RESPONSE: {mythic_action_byte}"
         # elif mythic_action_byte == MYTHIC_POST_RESPONSE: 
         #     response.Message = post_response_to_mythic_format(mythic_action_data)
         
@@ -108,4 +103,6 @@ class XenonTranslator(TranslationContainer):
         # elif mythic_action_byte == MYTHIC_P2P_MSG:
         #     response.Message = p2p_to_mythic_format(mythic_action_data)
 
+        logging.info(f"[{type}] Agent -> C2 : {response.Message} \n\n")
+        
         return response

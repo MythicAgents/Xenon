@@ -7,6 +7,7 @@ from struct import pack, calcsize
 MYTHIC_CHECK_IN = 0xA1
 MYTHIC_GET_TASKING = 0xA2
 MYTHIC_POST_RESPONSE = 0xA3
+MYTHIC_TASK_RESPONSE = 0xA4
 MYTHIC_INIT_DOWNLOAD = 0x02
 MYTHIC_CONT_DOWNLOAD = 0x03
 MYTHIC_UPLOAD_CHUNKED = 0x04
@@ -16,6 +17,7 @@ MYTHIC_P2P_MSG = 0x06
 MYTHIC_NORMAL_RESP = 0xAA
 MYTHIC_DOWNLOAD_RESP = 0xAB
 MYTHIC_UPLOAD_RESP = 0xAC
+MYTHIC_DELEGATE_RESP = 0xAD
 
 commands = {
     "status": 0x37,
@@ -45,7 +47,13 @@ commands = {
     "link": 0x90,
     "unlink": 0x91,
     
-    "exit": 0x80
+    "exit": 0x80,
+    
+    # Treating delegates as a task is easier for Agent
+    "normal_resp": 0xCA,
+    "p2p_resp": 0xCB,
+    "download_resp": 0xCC,
+    "upload_resp": 0xCD
 }
 
 def get_operator_command(command_name):

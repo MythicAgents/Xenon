@@ -16,6 +16,7 @@
 #define CHECKIN             0xA1
 #define GET_TASKING         0xA2
 #define POST_RESPONSE       0xA3
+#define TASK_RESPONSE       0xA4
 // Special
 #define DOWNLOAD_INIT       0x02
 #define DOWNLOAD_CONTINUE   0x03
@@ -59,11 +60,15 @@
 #define UNLINK_CMD      0x91
 // Agent
 #define EXIT_CMD        0x80
+// P2P
+#define P2P_MSG_CMD     0x92
 
 /* Response Types */
-#define NORMAL_RESP     0xAA
-#define DOWNLOAD_RESP   0xAB
-#define UPLOAD_RESP     0xAC
+#define NORMAL_RESP     0xCA
+#define LINK_RESP       0xCB
+#define DOWNLOAD_RESP   0xCC
+#define UPLOAD_RESP     0xCD
+
 
 
 typedef struct _TASK_PARAMETER {

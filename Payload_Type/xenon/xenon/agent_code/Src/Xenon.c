@@ -115,9 +115,6 @@ VOID XenonConfigure()
 
 #ifdef SMB_TRANSPORT
 
-    // ULONG seed                     = GetTickCount();
-    // xenonConfig->SmbId             = PseudoRandomIntegerSubroutine(&seed, 100000);
-
     // SMB Comms Channel
     xenonConfig->SmbId             = ParserGetInt32(&ParserConfig);
     xenonConfig->SmbPipe           = NULL;
@@ -199,7 +196,11 @@ VOID XenonMain()
 
     // Main beaconing loop
     while (TRUE)
+    {
+
         TaskRoutine();
+
+    }
 }
 
 VOID XenonUpdateUuid(_In_ PCHAR newUUID)

