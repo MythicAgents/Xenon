@@ -41,13 +41,7 @@ class XenonTranslator(TranslationContainer):
             main_msg = checkin_to_agent_format(inputMsg.Message["id"])
         
         elif mythic_action == "get_tasking":
-            # main_msg = get_tasking_to_agent_format(inputMsg)
             main_msg = get_responses_to_agent_format(inputMsg)
-        
-        # elif mythic_action == "post_response":
-        #     main_msg = post_response_to_agent_format(inputMsg)
-        
-
         
         response.Message = main_msg
         
@@ -66,11 +60,6 @@ class XenonTranslator(TranslationContainer):
         mythic_action_byte = agent_action_msg[0]
         mythic_action_data = agent_action_msg[1:]
 
-        # For msg in total msg packet do below:
-        # TODO: 
-        #   - Each function adds to overall format
-        # 
-
         if mythic_action_byte == MYTHIC_CHECK_IN:
             type = "checkin response"
             response.Message = checkin_to_mythic_format(mythic_action_data)
@@ -79,29 +68,8 @@ class XenonTranslator(TranslationContainer):
             type = "get_tasking response"
             response.Message = post_response_handler(mythic_action_data)
         
-        # elif mythic_action_byte == MYTHIC_POST_RESPONSE:
-        #     type = "post_response response"
-        #     response.Message = post_response_handler(mythic_action_data)
-        
         else:
             type = f"UNKNOWN_RESPONSE: {mythic_action_byte}"
-        # elif mythic_action_byte == MYTHIC_POST_RESPONSE: 
-        #     response.Message = post_response_to_mythic_format(mythic_action_data)
-        
-        # elif mythic_action_byte == MYTHIC_INIT_DOWNLOAD: 
-        #     response.Message = download_init_to_mythic_format(mythic_action_data)
-        
-        # elif mythic_action_byte == MYTHIC_CONT_DOWNLOAD: 
-        #     response.Message = download_cont_to_mythic_format(mythic_action_data)
-        
-        # elif mythic_action_byte == MYTHIC_UPLOAD_CHUNKED: 
-        #     response.Message = upload_to_mythic_format(mythic_action_data)
-            
-        # elif mythic_action_byte == MYTHIC_P2P_CHECK_IN:
-        #     response.Message = p2p_checkin_to_mythic_format(mythic_action_data)
-            
-        # elif mythic_action_byte == MYTHIC_P2P_MSG:
-        #     response.Message = p2p_to_mythic_format(mythic_action_data)
 
         logging.info(f"[{type}] Agent -> C2 : {response.Message} \n\n")
         

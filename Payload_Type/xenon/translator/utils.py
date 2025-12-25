@@ -71,61 +71,65 @@ def get_bytes_with_size(data):
     data = data[4:]
     return data[:size], data[size:]
 
+
+
 class Packer:
     """
-    Packed data into length-prefixed binary format.
+    Packed data into TLV format (big-endian)
 
     Reference: From Havoc framework https://github.com/HavocFramework/Modules/blob/main/Packer/packer.py
     """
+
     def __init__(self):
-        self.buffer : bytes = b''
-        self.size   : int   = 0
+        self.buffer: bytes = b''
+        self.size: int = 0
 
     def getbuffer(self):
-        return pack("<L", self.size) + self.buffer
+        # uint32 length prefix (big-endian)
+        return pack(">I", self.size) + self.buffer
 
     def addstr(self, s):
         if s is None:
             s = ''
         if isinstance(s, str):
-            s = s.encode("utf-8" )
-        fmt = "<L{}s".format(len(s) + 1)
-        self.buffer += pack(fmt, len(s)+1, s)
-        self.size   += calcsize(fmt)
+            s = s.encode("utf-8")
+        length = len(s) + 1
+        fmt = f">I{length}s"
+        self.buffer += pack(fmt, length, s)
+        self.size += calcsize(fmt)
 
     def addWstr(self, s):
         if s is None:
             s = ''
-        s = s.encode("utf-16_le")
-        fmt = "<L{}s".format(len(s) + 2)
-        self.buffer += pack(fmt, len(s)+2, s)
-        self.size   += calcsize(fmt)
+        s = s.encode("utf-16_be")
+        length = len(s) + 2
+        fmt = f">I{length}s"
+        self.buffer += pack(fmt, length, s)
+        self.size += calcsize(fmt)
 
     def addbytes(self, b):
         if b is None:
             b = b''
-        fmt = "<L{}s".format(len(b))
+        fmt = f">I{len(b)}s"
         self.buffer += pack(fmt, len(b), b)
-        self.size   += calcsize(fmt)
+        self.size += calcsize(fmt)
 
     def addbool(self, b):
-        fmt = '<I'
-        self.buffer += pack(fmt, 1 if b else 0)
-        self.size   += 4
+        self.buffer += pack(">B", 1 if b else 0)
+        self.size += 1
 
     def adduint32(self, n):
-        fmt = '<I'
-        self.buffer += pack(fmt, n)
-        self.size   += 4
+        self.buffer += pack(">I", n)
+        self.size += 4
 
-    def addint(self, dint):
-        self.buffer += pack("<i", dint)
-        self.size   += 4
+    def addint(self, n):
+        self.buffer += pack(">i", n)
+        self.size += 4
 
     def addshort(self, n):
-        fmt = '<h'
-        self.buffer += pack(fmt, n)
-        self.size   += 2
+        self.buffer += pack(">h", n)
+        self.size += 2
+
 
 
 # Common Windows error codes. Adding them as I go
