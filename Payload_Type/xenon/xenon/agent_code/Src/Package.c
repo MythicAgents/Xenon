@@ -267,6 +267,8 @@ BOOL PackageSendPipe(HANDLE hPipe, PVOID Buffer, SIZE_T Length)
     DWORD Written = 0;
     DWORD Total   = 0;
 
+    _dbg("Sending %d bytes to SMB, PIPE_BUFFER_MAX is %d", Length, PIPE_BUFFER_MAX);
+
     do {
         if ( !WriteFile(hPipe, Buffer + Total, MIN( ( Length - Total ), PIPE_BUFFER_MAX ), &Written , NULL) ) {
             _err("WriteFile failed. ERROR : %d", GetLastError());
@@ -483,6 +485,14 @@ VOID PackageQueue(PPackage package)
  */
 BOOL PackageSendAll(PPARSER response)
 {
+
+#ifdef HTTPX_TRANSPORT
+    #define MAX_PACKAGE_SIZE (0x300000 - sizeof(UINT32) - 1024) // 3 mb - 4 bytes - 1 kb
+#endif
+#ifdef SMB_TRANSPORT
+    #define MAX_PACKAGE_SIZE (40 * 1024)  // 40 kb raw - becomes ~60KB after b64encoding + SmbId
+#endif
+
     _dbg("Sending All Queued Packages to Server ...");
 
     PPackage Current  = NULL;
@@ -510,9 +520,9 @@ BOOL PackageSendAll(PPARSER response)
     /* Include as many packages as fit */
     while ( Current )
     {
-        if ( (Package->length + Current->length) > MAX_REQUEST_LENGTH )
+        if ( (Package->length + Current->length) > MAX_PACKAGE_SIZE )
         {
-            _dbg("[INFO] MAX_REQUEST_LENGTH reached, deferring remaining packages");
+            _dbg("[INFO] MAX_PACKAGE_SIZE reached, deferring remaining packages");
             break;
         }
 

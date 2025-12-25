@@ -9,7 +9,14 @@
 
 #ifdef INCLUDE_CMD_DOWNLOAD
 
-#define CHUNK_SIZE  512000      // 512 KB
+
+#ifdef HTTPX_TRANSPORT
+    #define CHUNK_SIZE  512000          // 512 KB
+#endif
+#ifdef SMB_TRANSPORT    
+    #define CHUNK_SIZE  (12 * 1024)     // 12 KB
+#endif
+
 
 /**
  * @brief Initialize a file download and return file UUID.
@@ -35,6 +42,8 @@ DWORD DownloadInit(_In_ PCHAR taskUuid, _Inout_ PFILE_DOWNLOAD File)
     // Calculate total chunks (rounded up)
     File->totalChunks = (DWORD)((File->fileSize.QuadPart + CHUNK_SIZE - 1) / CHUNK_SIZE);
     File->Initialized = FALSE;
+
+    _dbg("Queueing Download for file %s with %d chunks (chunk size: %d bytes)", File->filepath, File->totalChunks, CHUNK_SIZE);
 
     // Prepare package
     PPackage data = PackageInit(NULL, FALSE);

