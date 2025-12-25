@@ -168,7 +168,7 @@ BOOL NetworkSmbSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen, BOOL Is
     
 
     /* Wait/Read data from SMB Comms Channel */
-    bStatus = SmbRecieve(ppOutData, pOutLen);
+    // bStatus = SmbRecieve(ppOutData, pOutLen);
 
     // if ( IsGetResponse )
     // {
