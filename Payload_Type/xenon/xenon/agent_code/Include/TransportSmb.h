@@ -12,7 +12,6 @@
 #ifdef SMB_TRANSPORT
 
 // Localhost for little endian
-#define PIPE_BUFFER_MAX 0x10000
 #define LOCALHOST 0x0100007f
 #define MIN( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
 

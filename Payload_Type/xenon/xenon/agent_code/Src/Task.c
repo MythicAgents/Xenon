@@ -404,8 +404,8 @@ VOID TaskRoutine()
     {
         if ( Output.Buffer != NULL )
         {
-            _dbg("Response from Mythic");
-            print_bytes(Output.Buffer, Output.Length);
+            _dbg("Response from Mythic: %d bytes", Output.Length);
+            // print_bytes(Output.Buffer, Output.Length);
 
             // TaskProcessResponses(&Output);
 
@@ -430,7 +430,8 @@ VOID TaskRoutine()
 
                 ParserDecrypt(&Output);
 
-                print_bytes(Output.Buffer, Output.Length);
+                _dbg("Response from Mythic: %d bytes", Output.Length);
+                // print_bytes(Output.Buffer, Output.Length);
 
                 // TaskProcessResponses(&Output);
             }

@@ -9,7 +9,12 @@
 
 #ifdef INCLUDE_CMD_UPLOAD
 
-#define CHUNK_SIZE  512000      // 512 KB
+#ifdef HTTPX_TRANSPORT
+#define CHUNK_SIZE  512000          // 512 KB
+#endif
+#ifdef SMB_TRANSPORT
+#define CHUNK_SIZE  (12 * 1024)     // 12 KB
+#endif
 
 
 /**

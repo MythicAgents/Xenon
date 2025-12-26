@@ -9,14 +9,12 @@
 
 #ifdef INCLUDE_CMD_DOWNLOAD
 
-
 #ifdef HTTPX_TRANSPORT
-    #define CHUNK_SIZE  512000          // 512 KB
+#define CHUNK_SIZE  512000          // 512 KB
 #endif
-#ifdef SMB_TRANSPORT    
-    #define CHUNK_SIZE  (12 * 1024)     // 12 KB
+#ifdef SMB_TRANSPORT
+#define CHUNK_SIZE  (12 * 1024)     // 12 KB
 #endif
-
 
 /**
  * @brief Initialize a file download and return file UUID.

