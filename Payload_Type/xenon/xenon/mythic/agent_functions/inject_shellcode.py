@@ -232,19 +232,11 @@ class InjectShellcodeCommand(CommandBase):
                     stub_bytes = f.read()
                 prefixed_shellcode = stub_bytes + shellcode_contents.Content
                 
-                shellcode_file_resp = await SendMythicRPCFileCreate(
-                    MythicRPCFileCreateMessage(
-                        TaskID=taskData.Task.ID, 
-                        FileContents=prefixed_shellcode, 
-                        DeleteAfterFetch=True)
-                )
-                if shellcode_file_resp.Success:
-                    final_file_uuid = shellcode_file_resp.AgentFileId
-                else:
-                    raise Exception("Failed to register execute_assembly binary: " + shellcode_file_resp.Error)
-                
-                # Add final shellcode to args
-                taskData.args.add_arg("shellcode_file", final_file_uuid, parameter_group_info=[ParameterGroupInfo(
+                # Send shellcode bytes directly instead of file UUID
+                # This avoids needing to download the file in the agent
+                # Use TypedArray format to send raw bytes (same format as kit bytes)
+                shellcode_typed_array = [["bytes", prefixed_shellcode.hex()]]
+                taskData.args.add_arg("shellcode_bytes", shellcode_typed_array, type=ParameterType.TypedArray, parameter_group_info=[ParameterGroupInfo(
                     group_name="Existing"
                 )])
 
@@ -271,12 +263,11 @@ class InjectShellcodeCommand(CommandBase):
 
 
                 response.DisplayParams = "-File {} --method {}".format(
-                    taskData.args.get_arg("shellcode_name"),
-                    taskData.args.get_arg("method")
+                    shellcode_file_id,
+                    method
                 )
-                
-                taskData.args.remove_arg("shellcode_name")      # Don't need to send this to Agent
-                taskData.args.remove_arg("method")              # Don't need to send this to Agent
+
+                taskData.args.remove_arg("shellcode_file")
             
             # Debugging
             # logging.info(taskData.args.to_json())

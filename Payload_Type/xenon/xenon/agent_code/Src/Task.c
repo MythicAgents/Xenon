@@ -368,32 +368,6 @@ VOID TaskProcess(PPARSER tasks)
 
 VOID TaskRoutine()
 {
-    /* 
-        TODO 
-        
-        Create a Task Routine that:
-            [x] Only sends 1 request per loop
-            - Will work for both HTTPX & SMB
-    */
-
-    /*
-        1. Send all packages
-
-            HTTPX    
-            a. PackageSendAll       - submit task results and get_tasking
-
-            SMB
-            a. PackageSendAll(NULL) - submit task results
-            b. SmbReceive           - get new tasks
-            c. PackageDecrypt       - decrypt output
-
-        2. Process response
-        3. Add p2p msgs
-        4. Add download chunks
-
-    */
-
-
     /* Send Msgs in the Queue */
 
     PARSER Output = { 0 };
@@ -405,11 +379,6 @@ VOID TaskRoutine()
         if ( Output.Buffer != NULL )
         {
             _dbg("Response from Mythic: %d bytes", Output.Length);
-            // print_bytes(Output.Buffer, Output.Length);
-
-            // TaskProcessResponses(&Output);
-
-            // TaskDispatch(&Output);
         }
     }
 
@@ -431,9 +400,6 @@ VOID TaskRoutine()
                 ParserDecrypt(&Output);
 
                 _dbg("Response from Mythic: %d bytes", Output.Length);
-                // print_bytes(Output.Buffer, Output.Length);
-
-                // TaskProcessResponses(&Output);
             }
         }
     }

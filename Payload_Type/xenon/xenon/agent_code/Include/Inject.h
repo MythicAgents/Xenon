@@ -15,8 +15,8 @@ typedef struct _Arg {
     BOOL includeSize;
 } Arg;
 
-BOOL InjectCustomKit(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _In_ PCHAR InjectKit, _In_ SIZE_T kitLen, _Out_ PCHAR* outData);
-BOOL InjectDefault(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _Out_ PCHAR* outData);
+BOOL InjectCustomKit(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _In_ PCHAR InjectKit, _In_ SIZE_T kitLen, _Out_ PCHAR* outData, _Out_ SIZE_T* outLen);
+BOOL InjectDefault(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _Out_ PCHAR* outData, _Out_ SIZE_T* outLen);
 
 
 #endif // INCLUDE_CMD_INJECT_SHELLCODE && INCLUDE_CMD_INLINE_EXECUTE
