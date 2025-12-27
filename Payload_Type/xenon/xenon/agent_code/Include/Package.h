@@ -41,6 +41,7 @@ VOID PackageQueue(PPackage package);
 BOOL PackageSendAll(PPARSER response);
 
 BOOL PackageSendPipe(HANDLE hPipe, PVOID Msg, SIZE_T Length);
+BOOL PackageReadPipe(HANDLE hPipe, PBYTE* ppOutData, SIZE_T* pOutLen);
 VOID PackageDestroy(PPackage package);
 
 

