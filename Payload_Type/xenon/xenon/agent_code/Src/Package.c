@@ -372,11 +372,11 @@ BOOL PackageReadPipe(HANDLE hPipe, PBYTE* ppOutData, SIZE_T* pOutLen)
             memcpy(&tempValue, SizeHeaderBytes, sizeof(UINT32));
             MessageSize = BYTESWAP32(tempValue);
             
-            _dbg("Read size header: %d bytes (message size: %d)", Total, MessageSize);
+            _dbg("\t Message has a size of %d bytes", MessageSize);
 
             if ( MessageSize == 0 )
             {
-                _err("Message size is 0: %d", MessageSize);
+                _err("\t Message size is 0: %d", MessageSize);
                 return FALSE;
             }
 
@@ -384,7 +384,7 @@ BOOL PackageReadPipe(HANDLE hPipe, PBYTE* ppOutData, SIZE_T* pOutLen)
             Buffer = LocalAlloc(LPTR, MessageSize);
             if ( !Buffer )
             {
-                _err("Failed to allocate buffer for message (%d bytes)", MessageSize);
+                _err("\t Failed to allocate buffer for message (%d bytes)", MessageSize);
                 return FALSE;
             }
 
@@ -401,7 +401,7 @@ BOOL PackageReadPipe(HANDLE hPipe, PBYTE* ppOutData, SIZE_T* pOutLen)
                         /* Continue reading */
                         continue;
                     }
-                    _err("ReadFile failed reading message data. ERROR : %d", error);
+                    _err("\t ReadFile failed reading message data. ERROR : %d", error);
                     LocalFree(Buffer);
                     *ppOutData = NULL;
                     *pOutLen   = 0;
@@ -410,7 +410,7 @@ BOOL PackageReadPipe(HANDLE hPipe, PBYTE* ppOutData, SIZE_T* pOutLen)
 
                 if ( BytesRead == 0 )
                 {
-                    _err("ReadFile returned 0 bytes when reading message data (expected %d more bytes)", MessageSize - Total);
+                    _err("\t ReadFile returned 0 bytes when reading message data (expected %d more bytes)", MessageSize - Total);
                     LocalFree(Buffer);
                     *ppOutData = NULL;
                     *pOutLen   = 0;
@@ -422,11 +422,20 @@ BOOL PackageReadPipe(HANDLE hPipe, PBYTE* ppOutData, SIZE_T* pOutLen)
                 Total += BytesRead;
             } while ( Total < MessageSize );
         }
+        else
+        {
+            _dbg("\t Package size smaller than 4 bytes...");
+        }
+    }
+    else
+    {
+        _err("\t PeekNamedPipe failed with ERROR code : %d", GetLastError());
+        return FALSE;
     }
 
     
 
-    _dbg("Read complete message: %d bytes", Total);
+    _dbg("\t Read complete message: %d bytes", Total);
     
     /* Output */
     *ppOutData = Buffer;
@@ -586,18 +595,18 @@ VOID PackageQueue(PPackage package)
     }
 
 
-#ifdef SMB_TRANSPORT
-    /* TODO
-     * Create better solution handling individual package > PIPE_BUFFER_MAX
-    */
-    if ( (package->length + TASK_UUID_SIZE + sizeof(BYTE) + sizeof(UINT32)) > PIPE_BUFFER_MAX )
-    {
-        _err("Package size (%d bytes) exceeds PIPE_BUFFER_MAX (%d bytes). Discarding package...", package->length + TASK_UUID_SIZE + sizeof(BYTE) + sizeof(UINT32), PIPE_BUFFER_MAX);
-        package->Sent = TRUE;
-        return;
-    }
+// #ifdef SMB_TRANSPORT
+//     /* TODO
+//      * Create better solution handling individual package > PIPE_BUFFER_MAX
+//     */
+//     if ( (package->length + TASK_UUID_SIZE + sizeof(BYTE) + sizeof(UINT32)) > PIPE_BUFFER_MAX )
+//     {
+//         _err("Package size (%d bytes) exceeds PIPE_BUFFER_MAX (%d bytes). Discarding package...", package->length + TASK_UUID_SIZE + sizeof(BYTE) + sizeof(UINT32), PIPE_BUFFER_MAX);
+//         package->Sent = TRUE;
+//         return;
+//     }
 
-#endif
+// #endif
 
     /* If there are no queued packages, this is the first */
     if ( !xenonConfig->PackageQueue )
@@ -660,13 +669,13 @@ BOOL PackageSendAll(PPARSER response)
     /* Include as many packages as fit */
     while ( Current )
     {
-        if ( (Package->length + Current->length) > MAX_PACKAGE_SIZE )                       // TODO: Will the NEW PackageSendPipe logic work without this??
-        {
-            _dbg("[INFO] MAX_PACKAGE_SIZE reached, checking the next package");
+        // if ( (Package->length + Current->length) > MAX_PACKAGE_SIZE )                       // TODO: Will the NEW PackageSendPipe logic work without this??
+        // {
+        //     _dbg("[INFO] MAX_PACKAGE_SIZE reached, checking the next package");
 
-            Current = Current->Next;
-            continue;
-        }
+        //     Current = Current->Next;
+        //     continue;
+        // }
         
         _dbg("Adding package (%d bytes)", Current->length);
         PackageAddBytes(Package, Current->buffer, Current->length, FALSE);
