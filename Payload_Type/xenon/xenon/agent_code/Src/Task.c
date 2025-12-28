@@ -245,6 +245,11 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
     }// END OF CMDS
 }
 
+/**
+ * @brief Process the checkin response from the server
+ * @param [in] checkinResponseData PPARSER struct containing the checkin response
+ * @return BOOL success or not
+ */
 BOOL TaskCheckin(PPARSER checkinResponseData)
 {   
     if (checkinResponseData == NULL)
@@ -285,41 +290,12 @@ end:
     return bStatus;
 }
 
-// VOID TaskProcess(PPARSER tasks)
-// {
-//     // Determine the type of response from server (get_tasking, post_response, etc)
-//     BYTE typeResponse = ParserGetByte(tasks);
-    
-//     if (typeResponse != GET_TASKING)
-//     {
-//         _err("[NONE] Task not recognized!! Byte key -> %x\n\n", typeResponse);
-//         return;
-//     }
 
-//     UINT32 numTasks = ParserGetInt32(tasks);
-//     if ( numTasks ) {
-//         _dbg("[TASKING] Got %d tasks!", numTasks);
-//     }
-    
-//     for (UINT32 i = 0; i < numTasks; i++) 
-//     {       
-//         PARSER taskParser = { 0 };
-
-//         SIZE_T  sizeTask        = ParserGetInt32(tasks) - TASK_UUID_SIZE - 1;   // Subtract 36 (uuid) + 1 (task id)
-//         BYTE    taskId          = ParserGetByte(tasks);                         // Command ID
-//         SIZE_T  uuidLength      = TASK_UUID_SIZE;
-//         PCHAR   taskUuid        = ParserGetString(tasks, &uuidLength);          // Mythic task uuid
-//         PBYTE   taskBuffer      = ParserGetBytes(tasks, &sizeTask);             // Rest of data related to task
-        
-//         ParserNew(&taskParser, taskBuffer, sizeTask);
-        
-//         // Do the tasks synchronously 
-//         TaskDispatch(taskId, taskUuid, &taskParser);
-
-//         ParserDestroy(&taskParser);
-//     }
-// }
-
+/**
+ * @brief Process the tasks from the server
+ * @param [in] tasks PPARSER struct containing the tasks
+ * @return VOID
+ */
 VOID TaskProcess(PPARSER tasks)
 {
     BYTE    Type        = NULL;
@@ -366,6 +342,10 @@ VOID TaskProcess(PPARSER tasks)
 }
 
 
+/**
+ * @brief Main tasking loop
+ * @return VOID
+ */
 VOID TaskRoutine()
 {
     /* Send Msgs in the Queue */
@@ -414,8 +394,6 @@ VOID TaskRoutine()
         
         TaskProcess(&Output);
     }
-
-
 
     if (&Output != NULL) ParserDestroy(&Output);
     
