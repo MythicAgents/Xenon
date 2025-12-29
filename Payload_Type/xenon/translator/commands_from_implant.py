@@ -150,7 +150,8 @@ def post_response_handler(data):
                 mythic_delegates.extend(delegates)
                 
         else:
-            raise ValueError(f"Unknown response type: {response_type}")
+            logging.info(f"[UNKNOWN_RESPONSE]: {response_type}")
+            continue
 
         # Normalize to list
         if task_json is not None:
