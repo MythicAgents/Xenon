@@ -2,19 +2,14 @@ from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
 import logging
 
-class LinkArguments(TaskArguments):
+class UnlinkArguments(TaskArguments):
     def __init__(self, command_line, **kwargs):
         super().__init__(command_line, **kwargs)
         self.args = [
             CommandParameter(
-                name="named_pipe", 
+                name="payload_id", 
                 type=ParameterType.String, 
-                description="Named pipe to connect to."
-            ),
-            CommandParameter(
-                name="target", 
-                type=ParameterType.String, 
-                description="Host or IP address of pivot agent."
+                description="Payload UUID for the P2P Agent."
             )
         ]
 
@@ -26,15 +21,15 @@ class LinkArguments(TaskArguments):
     async def parse_dictionary(self, dictionary_arguments):
         self.load_args_from_dictionary(dictionary_arguments)
 
-class LinkCommand(CommandBase):
-    cmd = "link"
+class UnlinkCommand(CommandBase):
+    cmd = "unlink"
     needs_admin = False
-    help_cmd = "link [target] [named pipe]"      
-    description = "Connect to an SMB Link Agent."
+    help_cmd = "unlink [uuid]"      
+    description = "Disconnect from an SMB Link Agent."
     version = 1
     author = "@c0rnbread"
     attackmapping = []
-    argument_class = LinkArguments
+    argument_class = UnlinkArguments
     attributes = CommandAttributes(
         builtin=False,
         supported_os=[ SupportedOS.Windows ],
@@ -51,21 +46,9 @@ class LinkCommand(CommandBase):
             Success=True,
         )
         
-        named_pipe_string = f"\\\\{taskData.args.get_arg('target')}\\pipe\\{taskData.args.get_arg('named_pipe')}"       # \\<hostname>\pipe\<string>
         
-        taskData.args.set_arg("pipe_name", named_pipe_string)
-        
-
         # Set display parameters
-        response.DisplayParams = "{} {}".format(
-            taskData.args.get_arg("target"),
-            taskData.args.get_arg("named_pipe")
-        )
-
-        # Don't send these
-        taskData.args.remove_arg("target")
-        taskData.args.remove_arg("named_pipe")
-        
+        response.DisplayParams = "{}".format(taskData.args.get_arg("payload_id"))
         
         logging.info(f"Arguments: {taskData.args}")
         

@@ -104,6 +104,7 @@ def post_response_handler(data):
     """
     mythic_messages = []
     mythic_delegates = []
+    mythic_edges = []
 
     # Number of tasks to return to agent
     num_of_tasks = int.from_bytes(data[0:4], byteorder='big')
@@ -148,7 +149,12 @@ def post_response_handler(data):
             logging.info(f"[MYTHIC_P2P_MSG]")
             if delegates:
                 mythic_delegates.extend(delegates)
-                
+        
+        elif response_type == MYTHIC_P2P_REMOVE:
+            task_json, edges, data = p2p_remove_to_mythic_format(data)
+            logging.info(f"[MYTHIC_P2P_REMOVE]")
+            if edges:
+                mythic_edges.extend(edges)
         else:
             logging.info(f"[UNKNOWN_RESPONSE]: {response_type}")
             continue
@@ -165,17 +171,20 @@ def post_response_handler(data):
         "tasking_size": num_of_tasks,
         "responses": mythic_messages,
         # delegates
+        # edges
         
         # TODO
         # socks,
         # rpfwd,
-        # edges,
         # alerts,
         # interactive
     }
     
     if mythic_delegates:
         mythic_json["delegates"] = mythic_delegates
+    
+    if mythic_edges:
+        mythic_json["edges"] = mythic_edges
 
     return mythic_json
 
@@ -528,3 +537,46 @@ def p2p_to_mythic_format(data):
     logging.info(f"[P2P] IMPLANT -> C2: \n\t message: {output.decode('cp850')}, \n\t mythic_uuid: {payload_uuid.decode('cp850')}, \n\t c2_profile: smb")
         
     return task_json, delegates, data
+
+
+def p2p_remove_to_mythic_format(data):
+    """
+    Handle P2P Remove message from Parent Agent.
+    """
+    task_json = None
+
+    # 1-byte: BOOL: Is this from a Task?
+    is_from_task = data[0]
+    data = data[1:]
+
+    if is_from_task:
+        # 36-bytes: Task UUID
+        task_uuid = data[:36]
+        data = data[36:]
+
+    # 36-bytes: Parent Agent UUID
+    parent_uuid = data[:36]
+    data = data[36:]
+
+    # 36-bytes: P2P Agent UUID
+    p2p_uuid = data[:36]
+    data = data[36:]
+
+    if is_from_task:
+        task_json = {
+            "task_id": task_uuid.decode('cp850'),
+            "user_output": f"[+] Unlinked Agent [{p2p_uuid.decode('cp850')}]",
+            "status": "success",
+            "completed": True
+        }
+
+    edges = [
+        {
+            "source": parent_uuid.decode('cp850'),
+            "destination": p2p_uuid.decode('cp850'),
+            "action": "remove",
+            "c2_profile": "smb"
+        }
+    ]
+
+    return task_json, edges, data

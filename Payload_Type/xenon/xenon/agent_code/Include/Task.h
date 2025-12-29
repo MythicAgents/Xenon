@@ -23,6 +23,7 @@
 #define UPLOAD_CHUNKED      0x04
 #define LINK_ADD            0x05
 #define LINK_MSG            0x06
+#define LINK_REMOVE         0x07
 
 // General
 #define STATUS_CMD      0x37
