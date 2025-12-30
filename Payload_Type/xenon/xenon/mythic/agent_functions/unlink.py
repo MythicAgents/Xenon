@@ -77,7 +77,7 @@ class UnlinkArguments(TaskArguments):
 class UnlinkCommand(CommandBase):
     cmd = "unlink"
     needs_admin = False
-    help_cmd = "unlink [uuid]"      
+    help_cmd = "unlink [Display Id]"      
     description = "Disconnect from an SMB Link Agent."
     version = 1
     author = "@c0rnbread"
