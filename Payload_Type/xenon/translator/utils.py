@@ -138,6 +138,7 @@ ERROR_CODES = {
     1111: {'description': 'Mythic download initialization failed.', 'name': 'MYTHIC_ERROR_DOWNLOAD'},
     1112: {'description': 'Unknown error occurred during Mythic upload.', 'name': 'MYTHIC_ERROR_UPLOAD'},
     1113: {'description': 'Unknown error occurred during BOF execution.', 'name': 'MYTHIC_ERROR_BOF'},
+    1114: {'description': 'Agent failed to find P2P Agent.', 'name': 'ERROR_LINK_NOT_FOUND'},
     0: {'description': 'The operation completed successfully.',
      'name': 'ERROR_SUCCESS'},
     1: {'description': 'Incorrect function.', 'name': 'ERROR_INVALID_FUNCTION'},

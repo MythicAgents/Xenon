@@ -477,7 +477,12 @@ BOOL LinkRemove( PCHAR P2pUuid )
 
     _dbg("Unlinking P2P Agent [%s]", P2pUuid);
 
-    LinkRemove(P2pUuid);
+    if ( !LinkRemove(P2pUuid) )
+    {
+        _err("Failed to find P2P Agent [%s]", P2pUuid);
+        PackageError(taskUuid, ERROR_LINK_NOT_FOUND);
+        return;
+    }
 
     /* Send P2P Remove Msg */
     PPackage locals = PackageInit(NULL, FALSE);
