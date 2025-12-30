@@ -7,14 +7,31 @@ class LinkArguments(TaskArguments):
         super().__init__(command_line, **kwargs)
         self.args = [
             CommandParameter(
-                name="named_pipe", 
+                name="target",
+                display_name="Target",
                 type=ParameterType.String, 
-                description="Named pipe to connect to."
+                description="Host or IP address of pivot agent.",
+                parameter_group_info=[
+                    ParameterGroupInfo(
+                        required=True,
+                        group_name="Default",
+                        ui_position=1
+                    )
+                ]
+                
             ),
             CommandParameter(
-                name="target", 
+                name="named_pipe",
+                display_name="Named Pipe",
                 type=ParameterType.String, 
-                description="Host or IP address of pivot agent."
+                description="Named pipe to connect to.",
+                parameter_group_info=[
+                    ParameterGroupInfo(
+                        required=True,
+                        group_name="Default",
+                        ui_position=2
+                    )
+                ]
             )
         ]
 
