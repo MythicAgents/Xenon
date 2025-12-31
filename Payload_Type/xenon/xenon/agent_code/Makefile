@@ -23,7 +23,7 @@ debug_dll: artifact_x64-debug.dll
 
 # Executable Target
 artifact_x64.exe: $(SRC_FILES)
-	$(CC) $^ -o $@ $(CFLAGS) -D_EXE $(LFLAGS)
+	$(CC) $^ -o $@ $(CFLAGS) -D_EXE $(LFLAGS) -mwindows
 
 artifact_x64-debug.exe: $(SRC_FILES)
 	$(CC) $^ -o $@ $(CFLAGS) -D_EXE $(LFLAGS) $(DFLAGS)
