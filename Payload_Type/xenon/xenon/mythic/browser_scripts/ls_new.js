@@ -3,15 +3,48 @@ function(task, responses) {
         const combined = responses.reduce((prev, cur) => prev + cur, "");
         return { 'plaintext': combined };
     } else if (responses.length > 0) {
-        // Parse the output data
-        const output = responses.reduce((prev, cur) => prev + cur, "").split("\n").filter(line => line.trim() !== "");
-        if (output.length <= 2) {
-            return { 'plaintext': "No directory contents found." };
+        // Get all lines (including empty ones) to preserve structure
+        const allLines = responses.reduce((prev, cur) => prev + cur, "").split("\n");
+        
+        // Always preserve the first two lines (prefix from translator)
+        // These are: "[+] agent called home, sent: X bytes" and "[+] received output:"
+        const prefixLines = [];
+        if (allLines.length > 0) {
+            prefixLines.push(allLines[0]);
+        }
+        if (allLines.length > 1) {
+            prefixLines.push(allLines[1]);
+        }
+        
+        // Find the actual path line (should contain backslash or look like a Windows path)
+        // Skip the first two prefix lines and empty lines
+        let pathLine = null;
+        let pathIndex = -1;
+        for (let i = 2; i < allLines.length; i++) {
+            const line = allLines[i].trim();
+            if (line === "") continue;
+            // Path line typically contains backslash and ends with * or is a directory path
+            if (line.includes("\\") || (line.includes("/") && !line.startsWith("[+]"))) {
+                pathLine = line;
+                pathIndex = i;
+                break;
+            }
+        }
+        
+        if (!pathLine) {
+            // If we can't find a path, return the original output
+            return { 'plaintext': allLines.join("\n") };
         }
 
-        // Extract path and rows
-        const pathLine = output[1];
-        const dataLines = output.slice(2);
+        // Extract data lines (tab-separated values) - everything after the path line
+        const dataLines = allLines.slice(pathIndex + 1).filter(line => {
+            // Data lines should have tabs (type\tsize\tdate\tname)
+            return line.includes("\t");
+        });
+        
+        if (dataLines.length === 0) {
+            return { 'plaintext': allLines.join("\n") };
+        }
 
         // Format date from MM/DD/YY HH:MM:SS to MM/DD/YYYY HH:MM AM/PM
         function formatDate(dateTimeStr) {
@@ -53,8 +86,20 @@ function(task, responses) {
             return formatted;
         }
 
-        // Build plaintext output like Cobalt Strike (no table borders)
+        // Build plaintext output - start with prefix lines
         let outputLines = [];
+        
+        // Add prefix lines first (always preserve these)
+        prefixLines.forEach(line => {
+            outputLines.push(line);
+        });
+        
+        // Add empty line after prefix if there are prefix lines
+        if (prefixLines.length > 0) {
+            outputLines.push("");
+        }
+        
+        // Add formatted directory listing
         outputLines.push(`Contents of ${pathLine}`);
         outputLines.push("");
 
