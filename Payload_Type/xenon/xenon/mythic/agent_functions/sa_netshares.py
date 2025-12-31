@@ -19,7 +19,18 @@ class SaNetsharesArguments(TaskArguments):
                 default_value="",
                 description="Host to enumerate shares",
                 parameter_group_info=[ParameterGroupInfo(
-                    required=False
+                    required=False,
+                    ui_position=1
+                )]
+            ),
+            CommandParameter(
+                name="asAdmin", 
+                type=ParameterType.Boolean, 
+                default_value=False,
+                description="Enumerate admin shares",
+                parameter_group_info=[ParameterGroupInfo(
+                    required=False,
+                    ui_position=2
                 )]
             )
         ]
@@ -54,8 +65,12 @@ class SaNetsharesAlias(CoffCommandBase):
         file_name = "netshares.x64.o"
         arguments = [
             [
-                "string", 
+                "wchar", 
                 taskData.args.get_arg("hostname")
+            ],
+            [
+                "int32",
+                1 if taskData.args.get_arg("asAdmin") else 0
             ]
         ]
         

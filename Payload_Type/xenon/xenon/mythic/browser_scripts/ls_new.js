@@ -13,45 +13,75 @@ function(task, responses) {
         const pathLine = output[1];
         const dataLines = output.slice(2);
 
-        // Prepare the table structure
-        const formattedResponse = {
-            headers: [
-                { plaintext: "Type", type: "string", width: 60, disableSort: true },
-                { plaintext: "Size", type: "string", width: 80, disableSort: true },
-                { plaintext: "Date Modified", type: "string", fillWidth: true },
-                { plaintext: "Name", type: "string", fillWidth: true }
-            ],
-            title: `Contents of ${pathLine}`,
-            rows: []
-        };
+        // Format date from MM/DD/YY HH:MM:SS to MM/DD/YYYY HH:MM AM/PM
+        function formatDate(dateTimeStr) {
+            const parts = dateTimeStr.split(" ");
+            if (parts.length !== 2) return dateTimeStr;
+            
+            const [datePart, timePart] = parts;
+            const [month, day, year] = datePart.split("/");
+            const [hour, minute, second] = timePart.split(":");
+            
+            // Convert 2-digit year to 4-digit (assuming 2000s)
+            const fullYear = year.length === 2 ? "20" + year : year;
+            
+            // Convert 24-hour to 12-hour format
+            let hour24 = parseInt(hour);
+            const ampm = hour24 >= 12 ? "PM" : "AM";
+            hour24 = hour24 % 12;
+            if (hour24 === 0) hour24 = 12;
+            
+            return `${month.padStart(2, "0")}/${day.padStart(2, "0")}/${fullYear}  ${hour24.toString().padStart(2, "0")}:${minute.padStart(2, "0")} ${ampm}`;
+        }
 
-        // Format rows for table
+        // Format size - convert bytes to b/kb/mb/gb format (only for files)
+        function formatSize(sizeStr) {
+            const size = parseInt(sizeStr);
+            if (isNaN(size)) return sizeStr;
+            
+            let formatted;
+            if (size < 1024) {
+                formatted = size + "b";
+            } else if (size < 1024 * 1024) {
+                formatted = Math.round(size / 1024) + "kb";
+            } else if (size < 1024 * 1024 * 1024) {
+                formatted = Math.round(size / (1024 * 1024)) + "mb";
+            } else {
+                formatted = Math.round(size / (1024 * 1024 * 1024)) + "gb";
+            }
+            
+            return formatted;
+        }
+
+        // Build plaintext output like Cobalt Strike (no table borders)
+        let outputLines = [];
+        outputLines.push(`Contents of ${pathLine}`);
+        outputLines.push("");
+
+        // Format each line with proper column spacing
+        // Format: Date/Time    <TYPE>    Size    Name
+        // Example: 03/31/2025  12:32 PM    <FILE>    295kb       azure-groups.txt
+        // Example: 10/23/2024  12:33 PM    <DIR>                     Contacts
         dataLines.forEach(line => {
             const parts = line.split("\t");
             if (parts.length === 4) {
                 const [type, size, modified, name] = parts;
-                formattedResponse.rows.push({
-                    Type: {
-                        plaintext: type === "D" ? "Directory" : "File",
-                        cellStyle: {},
-                    },
-                    Size: {
-                        plaintext: type === "D" ? "-" : size + " bytes",
-                        cellStyle: {},
-                    },
-                    "Date Modified": {
-                        plaintext: modified,
-                        cellStyle: {},
-                    },
-                    Name: {
-                        plaintext: name,
-                        cellStyle: {},
-                    }
-                });
+                const dateStr = formatDate(modified);
+                const typeStr = type === "D" ? "<DIR>" : "<FILE>";
+                const sizeStr = type === "D" ? "" : formatSize(size);
+                
+                // Column widths and spacing
+                const dateWidth = 20;  // MM/DD/YYYY  HH:MM AM/PM
+                const typeWidth = 6;   // <FILE> or <DIR>
+                const sizeWidth = 12;  // Right-aligned size column (e.g., "295kb")
+                
+                // Format the line: Date    Type    Size    Name
+                const paddedSize = sizeStr.padStart(sizeWidth, " ");
+                outputLines.push(`${dateStr.padEnd(dateWidth, " ")}    ${typeStr.padEnd(typeWidth, " ")}    ${paddedSize}       ${name}`);
             }
         });
 
-        return { table: [formattedResponse] };
+        return { 'plaintext': outputLines.join("\n") };
     } else {
         return { 'plaintext': "No response yet from agent..." };
     }
