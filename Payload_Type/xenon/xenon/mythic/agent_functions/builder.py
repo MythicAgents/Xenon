@@ -53,7 +53,7 @@ class XenonAgent(PayloadType):
             name = "default_pipename",
             parameter_type=BuildParameterType.String,
             default_value="xenon",
-            description="Default Pipe Name: String to use for named pipes.",
+            description="Default Pipe Name: Value of the named pipe to use for spawn & inject commands.",
         )
         
     ]
@@ -101,6 +101,7 @@ class XenonAgent(PayloadType):
             "pipename": ""
         }
         stdout_err = ""
+        
         for c2 in self.c2info:
             
             # We will assume they've only selected one C2 profile
@@ -528,12 +529,31 @@ class XenonAgent(PayloadType):
                     StepStdout="Successfully compiled payload",
                     StepSuccess=True
                 ))
+                
+                
+                
                 # send back payload file
                 resp.payload = open(output_path, 'rb').read()
                 resp.build_message = 'Xenon successfully built!'
                 resp.status = BuildStatus.Success
                 resp.build_stdout = stdout_err
                 resp.status = BuildStatus.Success
+                # Update filename
+                output_type = self.get_parameter('output_type')
+                is_debug = "_debug" if self.get_parameter('debug') == True else ""
+                if output_type == 'exe':
+                    file_extension = '.exe'
+                elif output_type == 'dll':
+                    file_extension = '.dll'
+                elif output_type == 'shellcode':
+                    file_extension = '.bin'
+                else:
+                    file_extension = '.exe'  # Default fallback
+                
+                # Generate filename: xenon_<transport>_<debug>.<extension>
+                updated_filename = f"xenon_{selected_profile}{is_debug}{file_extension}"
+                resp.updated_filename = updated_filename
+                logging.info(f"[+] Output filename set to: {updated_filename}")
             # alert: Compiling failed
             else:
                 await SendMythicRPCPayloadUpdatebuildStep(MythicRPCPayloadUpdateBuildStepMessage(

