@@ -31,6 +31,8 @@ pre = "<b>1. </b>"
 | `download`     | `download -path <file path>`                           | Download a file off the target system (supports UNC path). |
 | `upload`       | `upload (modal)`                                            | Upload a file to the target machine by selecting a file from your computer. |
 | `status`         | `status`                                              | List C2 connection hosts and their status. |
+| `link`           | `link <target> <named pipe>`                          | Connect to an SMB Link Agent. |
+| `unlink`         | `unlink <Display Id>`                                 | Disconnect from an SMB Link Agent. |
 | `register_process_inject_kit`       | `register_process_inject_kit (pops modal)`                                            | Register a custom BOF to use for process injection (CS compatible). See documentation for requirements. |
 | `exit`         | `exit`                                              | Task the implant to exit. |
 
