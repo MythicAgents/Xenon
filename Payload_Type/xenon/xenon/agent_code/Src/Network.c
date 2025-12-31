@@ -167,30 +167,6 @@ BOOL NetworkSmbSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen, BOOL Is
     bStatus = SmbSend(package);
     
 
-    /* Wait/Read data from SMB Comms Channel */
-    // bStatus = SmbRecieve(ppOutData, pOutLen);
-
-    // if ( IsGetResponse )
-    // {
-    //     do {
-
-    //         bStatus = SmbRecieve(ppOutData, pOutLen);
-
-    //         if ( bStatus )
-    //         {
-    //             if ( *ppOutData == NULL && *pOutLen == 0 )
-    //             {
-    //                 SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);
-    //             } 
-    //             else 
-    //             {
-    //                 break;
-    //             }
-    //         }
-
-    //     } while ( TRUE );
-    // }
-    
     return bStatus;
 }
 

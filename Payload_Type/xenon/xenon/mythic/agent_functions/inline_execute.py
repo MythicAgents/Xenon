@@ -4,6 +4,7 @@ from mythic_container.MythicRPC import *
 from ..utils.packer import serialize_int, serialize_bool, serialize_string
 
 import logging, sys
+import base64
 
 logging.basicConfig(level=logging.INFO)
 
@@ -172,14 +173,19 @@ class InlineExecuteCommand(CommandBase):
         
         try:
             groupName = taskData.args.get_parameter_group_name()
+            bof_file_id = None
+            bof_filename = None
+            
             if groupName == "New":
+                # Get file_id from the uploaded file
                 file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
                     TaskID=taskData.Task.ID,
                     AgentFileID=taskData.args.get_arg("bof_file")
                 ))
                 if file_resp.Success:
                     if len(file_resp.Files) > 0:
-                        pass
+                        bof_file_id = file_resp.Files[0].AgentFileId
+                        bof_filename = file_resp.Files[0].Filename
                     else:
                         raise Exception("Failed to find that file")
                 else:
@@ -194,20 +200,40 @@ class InlineExecuteCommand(CommandBase):
                 ))
                 if file_resp.Success:
                     if len(file_resp.Files) > 0:
-                        logging.info(f"Found existing BOF file replacing with file_id : {file_resp.Files[0].AgentFileId}")
-                        taskData.args.add_arg("bof_file", file_resp.Files[0].AgentFileId)
+                        bof_file_id = file_resp.Files[0].AgentFileId
+                        bof_filename = file_resp.Files[0].Filename
                         taskData.args.remove_arg("bof_name")    # Don't need this anymore
-                        
-                        # Set display parameters
-                        response.DisplayParams = "-bof_file {} -bof_arguments {}".format(
-                            file_resp.Files[0].Filename,
-                            taskData.args.get_arg("bof_arguments")
-                        )
-
                     elif len(file_resp.Files) == 0:
                         raise Exception("Failed to find the named file. Have you uploaded it before? Did it get deleted?")
                 else:
                     raise Exception("Error from Mythic trying to search files:\n" + str(file_resp.Error))
+            
+            # Download the BOF file bytes
+            if bof_file_id:
+                bof_contents = await SendMythicRPCFileGetContent(
+                    MythicRPCFileGetContentMessage(AgentFileId=bof_file_id)
+                )
+                
+                if not bof_contents.Success:
+                    raise Exception("Failed to fetch BOF file from Mythic (ID: {})".format(bof_file_id))
+                
+                # Send BOF bytes as to packer as base64
+                bof_data_b64 = base64.b64encode(bof_contents.Content).decode('utf-8')
+                taskData.args.add_arg("bof_data", bof_data_b64, parameter_group_info=[ParameterGroupInfo(
+                    group_name=groupName
+                )])
+                
+                # Remove the file_id argument since we're sending bytes directly
+                taskData.args.remove_arg("bof_file")
+                
+                # Set display parameters
+                response.DisplayParams = "-bof_file {} -bof_arguments {}".format(
+                    bof_filename,
+                    taskData.args.get_arg("bof_arguments")
+                )
+            else:
+                raise Exception("Failed to get BOF file ID")
+                
         except Exception as e:
             raise Exception("Error from Mythic: " + str(sys.exc_info()[-1].tb_lineno) + " : " + str(e))
         

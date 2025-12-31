@@ -87,7 +87,7 @@ class XenonAgent(PayloadType):
             # httpx settings
             "callback_domains": [],
             "domain_rotation": "fail-over",
-            "callback_interval": 5,
+            "callback_interval": 1,
             "killdate": "",
             "failover_threshold": 5,
             "callback_jitter": 0,

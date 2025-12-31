@@ -160,7 +160,8 @@ char* BeaconDataExtract(datap* parser, int* size) {
     }
     memcpy(&length, parser->buffer, 4);
     parser->buffer += 4;
-
+    // Swap endianness - data is packed in big-endian (network byte order)
+    length = swap_endianess(length);
     outdata = parser->buffer;
     if (outdata == NULL) {
         return NULL;
