@@ -103,6 +103,21 @@ function(task, responses) {
         outputLines.push(`Contents of ${pathLine}`);
         outputLines.push("");
 
+        // Column widths for alignment
+        const dateWidth = 20;  // MM/DD/YYYY  HH:MM AM/PM
+        const typeWidth = 6;   // <FILE> or <DIR>
+        const sizeWidth = 12;  // Right-aligned size column (e.g., "295kb")
+        
+        // Column separator
+        const columnSeparator = "    ";  // 4 spaces between columns
+        
+        // Add column headers
+        const headerLine = `Date/Time`.padEnd(dateWidth, " ") + columnSeparator + `Type`.padEnd(typeWidth, " ") + columnSeparator + `Size`.padEnd(sizeWidth, " ") + columnSeparator + `Name`;
+        const separatorLine = `=`.repeat(dateWidth) + columnSeparator + `=`.repeat(typeWidth) + columnSeparator + `=`.repeat(sizeWidth) + columnSeparator + `=`.repeat(50);
+        
+        outputLines.push(headerLine);
+        outputLines.push(separatorLine);
+
         // Format each line with proper column spacing
         // Format: Date/Time    <TYPE>    Size    Name
         // Example: 03/31/2025  12:32 PM    <FILE>    295kb       azure-groups.txt
@@ -115,14 +130,9 @@ function(task, responses) {
                 const typeStr = type === "D" ? "<DIR>" : "<FILE>";
                 const sizeStr = type === "D" ? "" : formatSize(size);
                 
-                // Column widths and spacing
-                const dateWidth = 20;  // MM/DD/YYYY  HH:MM AM/PM
-                const typeWidth = 6;   // <FILE> or <DIR>
-                const sizeWidth = 12;  // Right-aligned size column (e.g., "295kb")
-                
                 // Format the line: Date    Type    Size    Name
                 const paddedSize = sizeStr.padStart(sizeWidth, " ");
-                outputLines.push(`${dateStr.padEnd(dateWidth, " ")}    ${typeStr.padEnd(typeWidth, " ")}    ${paddedSize}       ${name}`);
+                outputLines.push(`${dateStr.padEnd(dateWidth, " ")}${columnSeparator}${typeStr.padEnd(typeWidth, " ")}${columnSeparator}${paddedSize}${columnSeparator}${name}`);
             }
         });
 
