@@ -102,8 +102,10 @@ class Packer:
     def addWstr(self, s):
         if s is None:
             s = ''
-        s = s.encode("utf-16_be")
-        length = len(s) + 2
+        s = s.encode("utf-16le")
+        # Add null terminator (2 bytes for UTF-16)
+        s += b'\x00\x00'
+        length = len(s)
         fmt = f">I{length}s"
         self.buffer += pack(fmt, length, s)
         self.size += calcsize(fmt)

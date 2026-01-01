@@ -131,6 +131,7 @@ int BeaconDataInt(datap* parser) {
         return 0;
     }
     memcpy(&fourbyteint, parser->buffer, 4);
+    fourbyteint = swap_endianess(fourbyteint);
     parser->buffer += 4;
     parser->length -= 4;
     return (int)fourbyteint;
@@ -142,6 +143,7 @@ short BeaconDataShort(datap* parser) {
         return 0;
     }
     memcpy(&retvalue, parser->buffer, 2);
+    retvalue = swap_endianess(retvalue);
     parser->buffer += 2;
     parser->length -= 2;
     return (short)retvalue;

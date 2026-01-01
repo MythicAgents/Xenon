@@ -83,7 +83,7 @@ class InlineExecuteAssemblyArguments(TaskArguments):
                 display_name="patchexit",
                 type=ParameterType.Boolean,
                 description="Patches System.Environment.Exit to prevent Beacon process from exiting",
-                default_value=False,
+                default_value=True,
                 parameter_group_info=[
                     ParameterGroupInfo(
                         required=False, group_name="Default", ui_position=3,
@@ -99,7 +99,7 @@ class InlineExecuteAssemblyArguments(TaskArguments):
                 display_name="amsi",
                 type=ParameterType.Boolean,
                 description="Bypass AMSI by patching clr.dll instead of amsi.dll to avoid common detections",
-                default_value=False,
+                default_value=True,
                 parameter_group_info=[
                     ParameterGroupInfo(
                         required=False, group_name="Default", ui_position=4,
@@ -115,7 +115,7 @@ class InlineExecuteAssemblyArguments(TaskArguments):
                 display_name="etw",
                 type=ParameterType.Boolean,
                 description="Bypass ETW by EAT Hooking advapi32.dll!EventWrite to point to a function that returns right away",
-                default_value=False,
+                default_value=True,
                 parameter_group_info=[
                     ParameterGroupInfo(
                         required=False, group_name="Default", ui_position=5,
@@ -315,7 +315,6 @@ class InlineExecuteAssemblyCommand(CoffCommandBase):
                     "int32",
                     taskData.args.get_arg("etw") # BOOL
                 ]
-                
             ]
             
             # Debugging
