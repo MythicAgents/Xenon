@@ -6,14 +6,30 @@ class CpArguments(TaskArguments):
         super().__init__(command_line, **kwargs)
         self.args = [
             CommandParameter(
-                name="existing_file", 
+                name="existing_file",
+                cli_name="Source",
                 type=ParameterType.String, 
-                description="Source path to copy file"
+                description="Source path to copy file",
+                parameter_group_info=[
+                    ParameterGroupInfo(
+                        required=True,
+                        group_name="Default",
+                        ui_position=1
+                    )
+                ]
             ),
             CommandParameter(
                 name="new_file", 
+                cli_name="Destination",
                 type=ParameterType.String, 
-                description="Destination path to copy file"
+                description="Destination path to copy file",
+                parameter_group_info=[
+                    ParameterGroupInfo(
+                        required=True,
+                        group_name="Default",
+                        ui_position=2
+                    )
+                ]
             )
         ]
 
