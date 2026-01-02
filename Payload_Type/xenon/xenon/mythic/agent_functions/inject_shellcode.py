@@ -223,6 +223,9 @@ class InjectShellcodeCommand(CommandBase):
                         MythicRPCFileGetContentMessage(AgentFileId=shellcode_file_id)
                     )
                 
+                # Delete shellcode file from Mythic
+                
+                
                 if not shellcode_contents.Success:
                     raise Exception("Failed to fetch find file from Mythic (ID: {})".format(shellcode_file_id))
                 

@@ -9,7 +9,12 @@
   <img src="images/cs-token-and-ps.png" width="90%" /><br />
 </div>
 
-> :warning: Xenon is in an early state of release. It is not opsec safe and likely contains memory leaks and other issues causing crashes. Test thoroughly if planning to use in a live environment.
+> :warning: Xenon is in an early state of release. It is not opsec safe and could contain memory issues causing crashes. Test thoroughly if planning to use in a live environment.
+
+
+### OPSEC Disclaimer
+Xenon makes no claims about evasion. In fact it is not OPSEC safe. There are many OPSEC improvements that need to be made to the agent. The main purpose of the project was to learn C and Windows internals better, not create the next FUD implant.
+
 
 ## Quick Start
 Installing Xenon on an already existing Mythic server is very easy. If you do not have a Mythic server set up yet, to do that go to [Mythic project page](https://github.com/its-a-feature/Mythic/).
@@ -31,9 +36,6 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 - Malleable C2 Profiles w/ [httpx](https://github.com/MythicC2Profiles/httpx)
 - Compatible with CS BOFs
 - Compatible with CS Process Inject Kits
-
-### OPSEC Disclaimer
-Xenon makes no claims about evasion. In fact it is not OPSEC safe. There are many OPSEC improvements that need to be made to the agent. The main purpose of the project was to learn C and Windows internals better, not create the next FUD implant.
 
 
 ## Supported Commands
@@ -121,7 +123,6 @@ Xenon currently supports these features of the HTTPX profile:
 * Message transforms netbios and netbiosu
 * Adding an arbitrary `Host` header
 * POST request payload location (only body is supported)
-* Multiple URI connection strings (only uses first one for now)
 
 > [!WARNING]
 > If you try to use unsupported httpx features in your malleable profile config, it will either **not work** or **break stuff**.
@@ -241,6 +242,11 @@ Here's an example of a malleable profile for HTTP(S) traffic:
     }
 ```
 
+### [SMB Profile](https://github.com/MythicC2Profiles/smb)
+Xenon agents can be generated with the SMB comms profile to link agents in a peer-to-peer way.
+
+
+
 ## Roadmap
 If you have suggestions/requests open an issue or you can message me on discord.
 
@@ -248,10 +254,12 @@ If you have suggestions/requests open an issue or you can message me on discord.
 - [X] `execute_assembly` command
 - [ ] `powershell` command
 - [ ] Lateral movement related commands
+- [ ] Socks5 proxy
 
 ### Bugs
 - [X] Work on memory issues (duplicate buffers etc)
-- [ ] Fix initial install files not found 
+- [X] Fix initial install files not found
+- [ ] Issues executing BOFs compiled with MSVC
 
 
 ## Credits
