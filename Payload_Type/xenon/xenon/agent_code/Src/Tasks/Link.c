@@ -12,7 +12,6 @@
 /**
  * @brief Link current Agent to an SMB Agent.
  * 
- * @ref 
  * @return VOID
  */
 VOID Link(PCHAR taskUuid, PPARSER arguments)
@@ -73,7 +72,6 @@ END:
  /**
  * @brief Add a new SMB pivot link to Agent.
  * 
- * @ref Based on Havoc - https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/Pivot.c
  * @return BOOL  
  */
 BOOL LinkAdd( PCHAR TaskUuid, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen, UINT32* LinkId)
@@ -453,7 +451,6 @@ BOOL LinkRemove( PCHAR P2pUuid )
 /**
  * @brief UnLink current Agent from an SMB Agent.
  * 
- * @ref  
  * @return VOID
  */
  VOID UnLink(PCHAR taskUuid, PPARSER arguments)

