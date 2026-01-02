@@ -111,7 +111,7 @@ def pack_typed_list(param_list: list) -> bytes:
         param_list: List of (type, value) tuples
     """
 
-    logging.info(f"[Typed List Args] {param_list}")
+    # logging.info(f"[Typed List Args] {param_list}")
 
     typed_packer = Packer()
 
