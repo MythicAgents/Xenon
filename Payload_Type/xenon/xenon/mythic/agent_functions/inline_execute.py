@@ -43,6 +43,25 @@ class InlineExecuteArguments(TaskArguments):
                 ]
             ),
             CommandParameter(
+                name="bof_entrypoint",
+                display_name="Entrypoint",
+                type=ParameterType.String,
+                description="The entrypoint to the BOF. If not provided, the first function in the BOF will be used.",
+                default_value="go",
+                parameter_group_info=[
+                    ParameterGroupInfo(
+                        required=False, 
+                        group_name="Default", 
+                        ui_position=2,
+                    ),
+                    ParameterGroupInfo(
+                        required=False,
+                        group_name="New",
+                        ui_position=2,
+                    ),
+                ]
+            ),
+            CommandParameter(
                 name="bof_arguments",
                 cli_name="Arguments",
                 display_name="Arguments",
@@ -78,7 +97,7 @@ class InlineExecuteArguments(TaskArguments):
 
     async def parse_dictionary(self, dictionary_arguments):
          # Allowed argument keys
-        expected_args = {"bof_arguments", "bof_file", "bof_name"}
+        expected_args = {"bof_arguments", "bof_file", "bof_name", "bof_entrypoint"}
 
         # Check if dictionary contains only allowed keys
         invalid_keys = set(dictionary_arguments.keys()) - expected_args
@@ -225,6 +244,7 @@ class InlineExecuteCommand(CommandBase):
                 
                 # Remove the file_id argument since we're sending bytes directly
                 taskData.args.remove_arg("bof_file")
+                taskData.args.remove_arg("bof_entrypoint") # Hardcoded in Agent for now
                 
                 # Set display parameters
                 response.DisplayParams = "-bof_file {} -bof_arguments {}".format(

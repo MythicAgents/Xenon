@@ -125,18 +125,19 @@ def pack_typed_list(param_list: list) -> bytes:
         
         item_type, item_value = item
         
-        if item_type == "int16":
+        # Normalize aliases to canonical types
+        if item_type in ("int16", "s", "-s"):
             typed_packer.addshort(int(item_value))
-        elif item_type == "int32":
+        elif item_type in ("int32", "i", "-i"):
             typed_packer.adduint32(int(item_value))
         elif item_type == "bytes":
             # Convert hex string to bytes
             typed_packer.addbytes(bytes.fromhex(item_value))
-        elif item_type == "string":
+        elif item_type in ("string", "z", "-z"):
             typed_packer.addstr(item_value)
-        elif item_type == "wchar":
+        elif item_type in ("wchar", "Z", "-Z"):
             typed_packer.addWstr(item_value)
-        elif item_type == "base64":
+        elif item_type in ("base64", "b", "-b"):
             try:
                 decoded = base64.b64decode(item_value)
                 typed_packer.addstr(decoded)
