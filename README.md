@@ -82,7 +82,7 @@ To use forge with Xenon you just have to install the container:
 sudo -E ./mythic-cli install github https://github.com/MythicAgents/forge.git
 ```
 
-Then just "enable" the commands by checking the  from within your callbacks!
+Then just "enable" the commands by checking the icon ✅ from within your callbacks!
 
 ```
 forge_collections -collectionName SharpCollection
