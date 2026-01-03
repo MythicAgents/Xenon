@@ -5,6 +5,10 @@
 
 #include <windows.h>
 
+#if defined(HTTPX_TRANSPORT)
+
 VOID StrategyRotate(_In_ BOOL isConnectionSuccess, _Inout_ int* attempts);
+
+#endif  //HTTPX_TRANSPORT
 
 #endif

@@ -6,22 +6,26 @@
 #include "Parser.h"
 #include "Config.h"
 
-#ifdef INCLUDE_CMD_DOWNLOAD
+#ifdef INCLUDE_CMD_UPLOAD
 
 #define MAX_PATH 0x2000
 
 typedef struct _FILE_UPLOAD {
+    BOOL Initialized;           // Has download been started in Mythic
     HANDLE hFile;               // File handle
+    CHAR TaskUuid[37];          // Track task UUID
     CHAR fileUuid[37];          // File UUID (36 + 1 for null terminator)
-    PCHAR filepath[MAX_PATH];   // Path to the file
-    UINT32 totalChunks;          // Total number of chunks
+    CHAR filepath[MAX_PATH];    // Path to the file
+    UINT32 totalChunks;         // Total number of chunks
     UINT32 currentChunk;        // Current chunk number
     LARGE_INTEGER fileSize;     // Size of the file
+
+    struct FILE_UPLOAD* Next;
 } FILE_UPLOAD, *PFILE_UPLOAD;
 
 VOID Upload(_In_ PCHAR taskUuid, _In_ PPARSER arguments);
 
-DWORD WINAPI UploadThread(_In_ LPVOID lpTaskParamter);
+BOOL UploadSync(_In_ PCHAR TaskUuid, _Inout_ PPARSER Response);
 
 #endif //INCLUDE_CMD_DOWNLOAD
 

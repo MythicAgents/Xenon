@@ -8,6 +8,7 @@ loader.bin
 .vscode
 main
 .idea
+.bin
 
 # Mythic stuff
 rabbitmq_config.json

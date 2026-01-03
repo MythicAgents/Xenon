@@ -85,7 +85,7 @@ class MimikatCommand(CoffCommandBase):
     attackmapping = []
     argument_class = MimikatzArguments
     attributes = CommandAttributes(
-        dependencies=["inject_shellcode"],
+        dependencies=["inject_shellcode", "inline_execute"],
         alias=True
     )
     
