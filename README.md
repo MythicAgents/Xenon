@@ -34,7 +34,7 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 ## Features
 - Modular command inclusion
 - Malleable C2 Profiles w/ [httpx](https://github.com/MythicC2Profiles/httpx)
-- Compatible with CS BOFs
+- Uses [forge](https://github.com/MythicAgents/forge) for BOF and C# Assembly
 - Compatible with CS Process Inject Kits
 
 
@@ -69,28 +69,38 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 
 ---
 
-### Module Commands (BOFs)
-These are optional commands that call `inline_execute` under the hood with specific BOFs.
+### Forge
+Forge is a command augmentation container that I highly recommend you use for extending Xenon's capabilities.
+It includes support out of the box for:
+    - @Flangvik's [SharpCollection](https://github.com/Flangvik/SharpCollection)
+    - Sliver's [Armory](https://github.com/sliverarmory/armory)
 
-**Some** BOFs from the [CS-Situational-Awareness-BOF](https://github.com/trustedsec/CS-Situational-Awareness-BOF) collection have been added.
-Credits to [@trustedsec](https://github.com/trustedsec) for these.
+To use forge with Xenon you just have to install the container:
+```
+sudo -E ./mythic-cli install github https://github.com/MythicAgents/forge.git
+```
 
-| Command                  | Usage                                                         | Description |
-|--------------------------|---------------------------------------------------------------|-------------|
-| `sa_adcs_enum`          | `sa_adcs_enum`                                               | **[SituationalAwareness]** Enumerate CAs and templates in the AD using Win32 functions. |
-| `sa_arp`                | `sa_arp`                                                    | **[SituationalAwareness]** List ARP table. |
-| `sa_driversigs`         | `sa_driversigs`                                            | **[SituationalAwareness]** Enumerate installed services' image paths to check signing certs against known AV/EDR vendors. |
-| `sa_get_password_policy` | `sa_get_password_policy [hostname]`                        | **[SituationalAwareness]** Get the configured password policy and lockouts for the target server or domain. |
-| `sa_ipconfig`           | `sa_ipconfig`                                              | **[SituationalAwareness]** List IPv4 address, hostname, and DNS server. |
-| `sa_ldapsearch`         | `sa_ldapsearch [query] [opt: attribute] [opt: results_limit] [opt: DC hostname or IP] [opt: Distinguished Name]` | **[SituationalAwareness]** Execute LDAP searches. Specify `*,ntsecuritydescriptor` as an attribute parameter for all attributes and base64 encoded ACL of objects (useful for BOFHound). |
-| `sa_list_firewall_rules`| `sa_list_firewall_rules`                                   | **[SituationalAwareness]** List Windows firewall rules. |
-| `sa_listmods`           | `sa_listmods [opt: pid]`                                   | **[SituationalAwareness]** List process modules (DLLs). Targets the current process if no PID is specified. Complements `sa_driversigs` for AV/EDR injection detection. |
-| `sa_netshares`          | `sa_netshares [hostname]`                                 | **[SituationalAwareness]** List shared resources on the local or remote computer. |
-| `sa_netstat`            | `sa_netstat`                                             | **[SituationalAwareness]** List active TCP and UDP connections. |
-| `sa_netuser`            | `sa_netuser [username] [opt: domain]`                    | **[SituationalAwareness]** Get detailed information about a specific user. |
-| `sa_nslookup`           | `sa_nslookup [hostname] [opt:dns server] [opt: record type]` | **[SituationalAwareness]** Perform a DNS query. Supports specifying a custom DNS server and record type (e.g., A, AAAA, ANY). |
-| `sa_probe`              | `sa_probe [host] [port]`                                 | **[SituationalAwareness]** Check if a specific port is open. |
-| `sa_whoami`             | `sa_whoami`                                             | **[SituationalAwareness]** List `whoami /all`. |
+Then just "enable" the commands by checking the  from within your callbacks!
+
+```
+forge_collections -collectionName SharpCollection
+
+forge_collections -collectionName SliverArmory
+```
+
+#### SharpCollection Assemblies
+
+![SharpCollection Forge 1](images/forge-sharpcollection-1.png)
+
+![SharpCollection Forge 2](images/forge-sharpcollection-2.png)
+
+#### Sliver Armory BOFs
+
+![Sliver Armory Forge 1](images/forge-sliverarmory-1.png)
+
+![Sliver Armory Forge 2](images/forge-sliverarmory-2.png)
+
+
 
 ### Post-Ex Commands (PEs)
 These are post-ex commands that follow the classic **fork & run** style injection. They use either a separate portable executable (DLL or EXE) converted to PIC with `donut-shellcode` (OPSEC warning!).
