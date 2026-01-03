@@ -72,8 +72,9 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 ### Forge
 Forge is a command augmentation container that I highly recommend you use for extending Xenon's capabilities.
 It includes support out of the box for:
-    - @Flangvik's [SharpCollection](https://github.com/Flangvik/SharpCollection)
-    - Sliver's [Armory](https://github.com/sliverarmory/armory)
+
+* @Flangvik's [SharpCollection](https://github.com/Flangvik/SharpCollection)
+* Sliver's [Armory](https://github.com/sliverarmory/armory)
 
 To use forge with Xenon you just have to install the container:
 ```
