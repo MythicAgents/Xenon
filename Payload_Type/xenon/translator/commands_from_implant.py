@@ -83,97 +83,201 @@ Key	            Key Len (bytes)	    Type
 ------------------------------------------
 Number tasks	4	                Uint32
 '''
-def get_tasking_to_mythic_format(data):
+# def get_tasking_to_mythic_format(data):
+#     """
+#     Process a Agent -> Mythic get_tasking message
+#     """
+#     numTasks = int.from_bytes(data[0:4], byteorder='big')
+#     data = data[4:]
+    
+#     mythic_json = { 
+#             "action": "get_tasking", 
+#             "tasking_size": numTasks 
+#         }
+    
+#     return mythic_json, data
+
+
+def post_response_handler(data):
     """
-    Parse get_tasking message from Agent and return JSON in Mythic format.
+    Process one or more Agent -> Mythic post_response messages
     """
-    numTasks = int.from_bytes(data[0:4], byteorder='big')
-    mythic_json = { 
-            "action": "get_tasking", 
-            "tasking_size": numTasks 
-        }
+    mythic_messages = []
+    mythic_delegates = []
+    mythic_edges = []
+
+    # Number of tasks to return to agent
+    num_of_tasks = int.from_bytes(data[0:4], byteorder='big')
+    data = data[4:]
+
+
+    while len(data) > 0:
+        if len(data) < 1:
+            break
+
+        response_type = data[0]
+        data = data[1:]
+    
+        if response_type == MYTHIC_TASK_RESPONSE:
+            result = post_response_to_mythic_format(data)
+            if result is None:
+                logging.error("post_response_to_mythic_format returned None")
+                break
+            task_json, data = result
+            logging.info(f"[MYTHIC_TASK_RESPONSE]")
+            
+        elif response_type == MYTHIC_INIT_DOWNLOAD:
+            task_json, data = download_init_to_mythic_format(data)
+            logging.info(f"[MYTHIC_INIT_DOWNLOAD]")
+            
+        elif response_type == MYTHIC_CONT_DOWNLOAD:
+            task_json, data = download_cont_to_mythic_format(data)
+            logging.info(f"[MYTHIC_CONT_DOWNLOAD]")
+            
+        elif response_type == MYTHIC_UPLOAD_CHUNKED:
+            task_json, data = upload_to_mythic_format(data)
+            logging.info(f"[MYTHIC_UPLOAD_CHUNKED]")
+
+        elif response_type == MYTHIC_P2P_CHECK_IN:
+            task_json, delegates, data = p2p_checkin_to_mythic_format(data)
+            logging.info(f"[MYTHIC_P2P_CHECK_IN]")
+            if delegates:
+                mythic_delegates.extend(delegates)
+
+        elif response_type == MYTHIC_P2P_MSG:
+            task_json, delegates, data = p2p_to_mythic_format(data)
+            logging.info(f"[MYTHIC_P2P_MSG]")
+            if delegates:
+                mythic_delegates.extend(delegates)
+        
+        elif response_type == MYTHIC_P2P_REMOVE:
+            task_json, edges, data = p2p_remove_to_mythic_format(data)
+            logging.info(f"[MYTHIC_P2P_REMOVE]")
+            if edges:
+                mythic_edges.extend(edges)
+        else:
+            logging.info(f"[UNKNOWN_RESPONSE]: {response_type}")
+            continue
+
+        # Normalize to list
+        if task_json is not None:
+            if isinstance(task_json, list):
+                mythic_messages.extend(task_json)
+            else:
+                mythic_messages.append(task_json)
+
+    mythic_json = {
+        "action": "get_tasking",
+        "tasking_size": num_of_tasks,
+        "responses": mythic_messages,
+        # delegates
+        # edges
+        
+        # TODO
+        # socks,
+        # rpfwd,
+        # alerts,
+        # interactive
+    }
+    
+    if mythic_delegates:
+        mythic_json["delegates"] = mythic_delegates
+    
+    if mythic_edges:
+        mythic_json["edges"] = mythic_edges
+
     return mythic_json
 
 
-
-# Handle post_response from agent
-'''
-------------------------------------------
-Key	            Key Len (bytes)	    Type
-------------------------------------------
-Number Resp	    4	                Uint32
-UUID Resp 1	    36	                Str (char*)
-Size Output R1	4	                Uint32
-Output R1	    Size Output	        Bytes
-Status R1	    1	                Int
-'''
 def post_response_to_mythic_format(data):
     """
-    Parse post_response message from Agent and return JSON in Mythic format.
-    {
-        "action": "post_response",
-        "responses": {
-                        "task_id": 0x00,
-                        "user_output": b'',
-                        "status": "success|error"
-                    }
-    }
+    Process simple post response message -> Mythic format
+    
+    :param data: Raw data from Agent
     """
 
-    response_task = []
-    
-    # Check the last byte for status
-    status_byte = data[-1]
-    status = "error" if status_byte == 0x99 else "success" if status_byte == 0x95 else "unknown"
-    
-    # Add any error codes
-    if status == "error":
-        # Get the Windows Error code from last 4 bytes
-        error_code_bytes = data[-5:-1]
-        error_code = int.from_bytes(error_code_bytes, byteorder='big')
-        
-        logging.info(f"ERROR CODE - bytes: {error_code_bytes} code: {error_code}")
-        logging.info(f"RAW BYTES - {data}")
-    
-    logging.info(f"POST_RESPONSE status : {(hex(status_byte))} = {status} ")
- 
-    # Next 36 bytes are task uuid
-    task_uuid = data[:36]
+    # --- Task UUID ---
+    if len(data) < 36:
+        logging.error("Remaining buffer too small for task UUID")
+        return None, data
 
-    # Get the task buffer
+    task_uuid = data[:36].decode("cp850")
     data = data[36:]
-    output, data = get_bytes_with_size(data)  # The size doesn't include the status byte at the end or the error int32
     
-    # Prepend a response
+
+    # --- Output Buffer ---
+    if len(data) < 4:
+        logging.error("Remaining buffer too small for output buffer length")
+        return None, data
+    
+    output, data = get_bytes_with_size(data)
     output_length = len(output)
+
     
-    # Create the response message for the operator
-    if output_length > 1:
-        user_output = f"[+] agent called home, sent: {output_length} bytes\n[+] received output: \n\n{output.decode('cp850')}"
+    # --- Status Byte ---
+    if len(data) < 1:
+        logging.error("Missing status byte")
+        # Return error response instead of None
+        task_json = {
+            "task_id": task_uuid,
+            "user_output": "[!] Error: Missing status byte in response",
+            "status": "error",
+            "completed": True
+        }
+        return task_json, data
+        
+    status_byte = data[0]
+    data = data[1:]
+
+    if status_byte == 0x95:
+        status = "success"          # Succeeded
+    elif status_byte == 0x97:
+        status = None               # Still processing
+    elif status_byte == 0x99:
+        status = "error"            # Failed
     else:
-        user_output = f"[+] agent called home, sent: {output_length} bytes\n"    
-    
-    # Add errors here after that stuff above
+        status = "unknown"
+
+    error_code = None
+
+    # --- Optional Error Code ---
     if status == "error":
-        error = ERROR_CODES.get(error_code, {"name": "UNKNOWN_ERROR", "description": f"Error code {error_code}"})
-        user_output += f"[!] {error['name']} : {error['description']}\n"
-    
+        if len(data) < 4:
+            logging.info("Missing error code for error status")
+            error_code = 0  # Default to 0 if missing
+        else:
+            error_code_bytes = data[:4]
+            data = data[4:]
+            error_code = int.from_bytes(error_code_bytes, byteorder="big")
+
+    # --- Operator Output ---
+    if output_length > 0:
+        user_output = (
+            f"[+] agent called home, sent: {output_length} bytes\n"
+            f"[+] received output:\n\n{output.decode('cp850', errors='ignore')}"
+        )
+    else:
+        user_output = "[+] agent called home, no output\n"
+
+    if status == "error":
+        error = ERROR_CODES.get(
+            error_code,
+            {
+                "name": "UNKNOWN_ERROR",
+                "description": f"Error code {error_code}",
+            },
+        )
+        user_output += f"\n[!] {error['name']} : {error['description']}"
+
     task_json = {
-        "task_id": task_uuid.decode('cp850'),
-        "user_output":user_output,
-        "status": status                # Include the status
-    }
-
-    task_json["completed"] = True
+            "task_id": task_uuid,
+            "user_output": user_output,
+            "status": status,
+            "completed": status in ("success", "error")
+        }
     
-    response_task.append(task_json)
-    
-    mythic_json = {
-            "action": "post_response",
-            "responses": response_task
-        }   
+    return task_json, data
 
-    return mythic_json
 
 
 def download_init_to_mythic_format(data):
@@ -205,18 +309,12 @@ def download_init_to_mythic_format(data):
     total_chunks = int.from_bytes(data[0:4], byteorder='big')
     data = data[4:]
     
-    logging.info(f"total_chunks : {total_chunks}", )
-        
     # Retrieve full path of file
     full_path, data = get_bytes_with_size(data)
-    
-    logging.info(f"full_path : {full_path.decode('cp850')}")
     
     # Retrive chunk size of file chunks
     chunk_size = int.from_bytes(data[0:4], byteorder='big')
     data = data[4:]
-
-    logging.info(f"chunk_size : {chunk_size}")
 
     response_task = []
 
@@ -229,21 +327,15 @@ def download_init_to_mythic_format(data):
             "chunk_size": chunk_size
             }
     }
-    response_task.append(task_json)
     
-    mythic_json = {
-            "action": "post_response",
-            "responses": response_task
-        }   
-
-    logging.info(mythic_json)
-
-    return mythic_json
+    logging.info(f"[DOWNLOAD_INIT] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t total_chunks:{total_chunks}, \n\t full_path:{full_path.decode('cp850')}, \n\t chunk_size:{chunk_size}")
+    
+    return task_json, data
 
 
 def download_cont_to_mythic_format(data):
     """
-    Parse download initialize message from Agent and return JSON in Mythic format.
+    Parse download chunk message from Agent and return JSON in Mythic format.
     {
         "action": "post_response", 
         "responses": [
@@ -263,11 +355,11 @@ def download_cont_to_mythic_format(data):
     # First 36 bytes are task UUID
     task_uuid = data[:36]
     data = data[36:]
-    
+
     # Retrieve current chunk
     chunk_num = int.from_bytes(data[0:4], byteorder='big')
     data = data[4:]
-        
+
     # Retrieve UUID from previous response
     file_id = data[:36]
     data = data[36:]
@@ -279,7 +371,7 @@ def download_cont_to_mythic_format(data):
     # Retrieve chunk size
     chunk_size = int.from_bytes(data[0:4], byteorder='big')
     data = data[4:]
-
+    
     response_task = []
 
     task_json = {
@@ -291,14 +383,10 @@ def download_cont_to_mythic_format(data):
             "chunk_size": chunk_size
             }
     }
-    response_task.append(task_json)
     
-    mythic_json = {
-            "action": "post_response",
-            "responses": response_task
-        }   
-
-    return mythic_json
+    logging.info(f"[DOWNLOAD_CHUNK] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t chunk_num:{chunk_num}, \n\t file_id:{file_id.decode('cp850')}, \n\t chunk_size:{chunk_size}, \n\tchunk_data:{chunk_data}")
+    
+    return task_json, data
 
 
 def upload_to_mythic_format(data):
@@ -350,13 +438,145 @@ def upload_to_mythic_format(data):
             "chunk_size": chunk_size
             }
     }
-    response_task.append(task_json)
     
-    mythic_json = {
-            "action": "post_response",
-            "responses": response_task
-        }   
+    logging.info(f"[UPLOAD] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t chunk_num:{chunk_num}, \n\t file_id:{file_id.decode('cp850')}, \n\t full_path:{full_path.decode('cp850')}, \n\t chunk_size:{chunk_size}")
+    
+    return task_json, data
 
-    logging.info(f"[UPLOAD] IMPLANT -> C2: task_id:{task_uuid.decode('cp850')}, chunk_num:{chunk_num}, file_id:{file_id.decode('cp850')}, full_path:{full_path.decode('cp850')}, chunk_size:{chunk_size}")
 
-    return mythic_json
+def p2p_checkin_to_mythic_format(data):
+    """
+    P2P Agents have a specific JSON field in Mythic "delegates"
+    {
+        "action": "some action here",
+        "delegates": [
+            {
+                "message": "base64 agent message",
+                "uuid": "some uuid Agent1 made up",
+                "c2_profile": "ProfileName"
+            }
+        ]
+    }   
+    """
+    
+    # 36-bytes: Task UUID
+    task_uuid = data[:36]
+    data = data[36:]
+    
+    # 4-byte int: Task Result
+    status_byte = int.from_bytes(data[0:4], byteorder='big')
+    data = data[4:]
+    if status_byte == 0:
+        status = "success"
+        user_output = "[+] Established link to agent"
+    else:
+        status = "error"
+        error = ERROR_CODES.get(status_byte, {"name": "UNKNOWN_ERROR", "description": f"Error code {status_byte}"})
+        user_output += f"[!] {error['name']} : {error['description']}\n"
+    
+    # 4-byte int: Link ID
+    link_id = int.from_bytes(data[0:4], byteorder='big')
+    data = data[4:]
+    
+    # Rest of bytes are from Link Pipe
+    output, data = get_bytes_with_size(data)
+    
+    task_json = {
+        "task_id": task_uuid.decode('cp850'),
+        "user_output": user_output,
+        "status": status,                # Include the status
+        "completed": status in ("success", "error")
+    }
+    
+    delegates = [
+        {
+            "message": output.decode('cp850'),
+            "uuid": str(link_id),               # Randomly generated by SMB Agent
+            "c2_profile": "smb"
+        }
+    ]
+    
+    logging.info(f"[P2P_CHECKIN] IMPLANT -> C2: \n\t message: {output.decode('cp850')}, \n\t uuid: {str(link_id)}, \n\t c2_profile: smb")
+    
+    return task_json, delegates, data
+
+
+def p2p_to_mythic_format(data):
+    """
+    P2P Agents have a specific JSON field in Mythic "delegates"
+    {
+        "action": "some action here",
+        "delegates": [
+            {
+                "message": "base64 agent message",
+                "uuid": "some uuid Agent1 made up",
+                "c2_profile": "ProfileName"
+            }
+        ]
+    }   
+    """
+
+    # 36-bytes: Payload ID
+    payload_uuid = data[:36]
+    data = data[36:]
+    
+    # Rest of bytes are for Link agent
+    output, data = get_bytes_with_size(data)  # The size doesn't include the status byte at the end or the error int32
+    
+    task_json = None
+
+    delegates = [
+        {
+            "message": output.decode('cp850'),
+            # Use 'mythic_uuid' now that it is set
+            "uuid": payload_uuid.decode('cp850'),
+            "c2_profile": "smb"
+        }
+    ]
+    
+    logging.info(f"[P2P] IMPLANT -> C2: \n\t message: {output.decode('cp850')}, \n\t mythic_uuid: {payload_uuid.decode('cp850')}, \n\t c2_profile: smb")
+        
+    return task_json, delegates, data
+
+
+def p2p_remove_to_mythic_format(data):
+    """
+    Handle P2P Remove message from Parent Agent.
+    """
+    task_json = None
+
+    # 1-byte: BOOL: Is this from a Task?
+    is_from_task = data[0]
+    data = data[1:]
+
+    if is_from_task:
+        # 36-bytes: Task UUID
+        task_uuid = data[:36]
+        data = data[36:]
+
+    # 36-bytes: Parent Agent UUID
+    parent_uuid = data[:36]
+    data = data[36:]
+
+    # 36-bytes: P2P Agent UUID
+    p2p_uuid = data[:36]
+    data = data[36:]
+
+    if is_from_task:
+        task_json = {
+            "task_id": task_uuid.decode('cp850'),
+            "user_output": f"[+] Unlinked Agent [{p2p_uuid.decode('cp850')}]",
+            "status": "success",
+            "completed": True
+        }
+
+    edges = [
+        {
+            "source": parent_uuid.decode('cp850'),
+            "destination": p2p_uuid.decode('cp850'),
+            "action": "remove",
+            "c2_profile": "smb"
+        }
+    ]
+
+    return task_json, edges, data

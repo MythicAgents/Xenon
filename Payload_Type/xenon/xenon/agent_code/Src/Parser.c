@@ -4,8 +4,10 @@ Credits:
     @Cracked5pider
     https://github.com/HavocFramework/Talon/blob/main/Agent/Source/Parser.c
 */
-
 #include "Parser.h"
+
+#include "Xenon.h"
+#include "Crypto.h"
 
 VOID ParserNew(PPARSER parser, PBYTE Buffer, UINT32 size) 
 {
@@ -186,7 +188,9 @@ BOOL ParserStringCopySafe(PPARSER parser, char* buffer, PSIZE_T size)
 // Base64 decode parser data and adjusts size
 BOOL ParserBase64Decode(PPARSER parser)
 {
-    BOOL success = FALSE;
+    BOOL success                    = FALSE;
+    unsigned char *decoded_buffer   = NULL;
+    SIZE_T decoded_length           = 0;
 
     if (parser == NULL || parser->Buffer == NULL) {
         _err("Invalid input parser");
@@ -196,9 +200,9 @@ BOOL ParserBase64Decode(PPARSER parser)
     ///////////////////////////////////
     //    Base64 Decode Parser //////
     ///////////////////////////////////
-    SIZE_T decoded_length = calculate_base64_decoded_size((const char*)parser->Buffer, parser->Length);  // Calculate exact size of decoded data
+    decoded_length = calculate_base64_decoded_size((const char*)parser->Buffer, parser->Length);  // Calculate exact size of decoded data
     
-    unsigned char *decoded_buffer = (unsigned char *)malloc(decoded_length);
+    decoded_buffer = (unsigned char *)malloc(decoded_length);
     if (!decoded_buffer) {
         _err("Memory allocation failed for base64 decoded buffer");
         goto cleanup;
@@ -230,6 +234,50 @@ cleanup:
         free(decoded_buffer);
 
     return success;
+}
+
+
+
+/**
+ * @brief Decode & Decrypt a message returning a parser
+ * 
+ * @return OUT parser
+ */
+BOOL ParserDecrypt(_Inout_ PPARSER parser)
+{
+    PCHAR  MsgUuid  = NULL;
+    SIZE_T IdLen    = TASK_UUID_SIZE;
+
+    if ( parser->Buffer == NULL || parser->Length == 0 )
+        return FALSE;
+
+
+    if ( !ParserBase64Decode(parser) ) 
+    {
+        _err("Failed to base64 decode buffer");
+        return FALSE;
+    }
+
+    /* Validate Mythic UUID against Agent */
+    MsgUuid = ParserGetString(parser, &IdLen);
+
+    if ( memcmp(MsgUuid, xenonConfig->agentID, TASK_UUID_SIZE) != 0 ) 
+    {
+        _err("Msg UUID does NOT match current Agent ID. \n\t Expected - %s : \n\t Received - %s", xenonConfig->agentID, MsgUuid);
+        return FALSE;
+    }
+    
+
+    if ( xenonConfig->isEncryption )
+    {
+        if ( !CryptoMythicDecryptParser(parser) )
+        {
+            _err("Failed to decrypt buffer.");
+            return FALSE;
+        }
+    }
+
+    return TRUE;
 }
 
 // Frees the data held in the parser

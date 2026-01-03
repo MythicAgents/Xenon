@@ -128,6 +128,7 @@ class ExecuteAssemblyCommand(CoffCommandBase):
     argument_class = ExecuteAssemblyArguments
     attributes = CommandAttributes(
         builtin=False,
+        dependencies=["inline_execute", "inject_shellcode"],
         supported_os=[ SupportedOS.Windows ],
         suggested_command=False
     )

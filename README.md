@@ -9,7 +9,12 @@
   <img src="images/cs-token-and-ps.png" width="90%" /><br />
 </div>
 
-> :warning: Xenon is in an early state of release. It is not opsec safe and likely contains memory leaks and other issues causing crashes. Test thoroughly if planning to use in a live environment.
+> :warning: Xenon is in an early state of release. It is not opsec safe and could contain memory issues causing crashes. Test thoroughly if planning to use in a live environment.
+
+
+### OPSEC Disclaimer
+Xenon makes no claims about evasion. In fact it is not OPSEC safe. There are many OPSEC improvements that need to be made to the agent. The main purpose of the project was to learn C and Windows internals better, not create the next FUD implant.
+
 
 ## Quick Start
 Installing Xenon on an already existing Mythic server is very easy. If you do not have a Mythic server set up yet, to do that go to [Mythic project page](https://github.com/its-a-feature/Mythic/).
@@ -28,12 +33,10 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 
 ## Features
 - Modular command inclusion
-- Malleable C2 Profiles w/ [httpx](https://github.com/MythicC2Profiles/httpx)
-- Compatible with CS BOFs
+- Malleable C2 Profiles
+- Supported comms: [httpx](https://github.com/MythicC2Profiles/httpx) and [smb](https://github.com/MythicC2Profiles/smb)
+- Uses [forge](https://github.com/MythicAgents/forge) for BOF modules and SharpCollections
 - Compatible with CS Process Inject Kits
-
-### OPSEC Disclaimer
-Xenon makes no claims about evasion. In fact it is not OPSEC safe. There are many OPSEC improvements that need to be made to the agent. The main purpose of the project was to learn C and Windows internals better, not create the next FUD implant.
 
 
 ## Supported Commands
@@ -60,33 +63,53 @@ Xenon makes no claims about evasion. In fact it is not OPSEC safe. There are man
 | `download`     | `download -path <file path>`                           | Download a file off the target system (supports UNC path). |
 | `upload`       | `upload (modal)`                                            | Upload a file to the target machine by selecting a file from your computer. |
 | `status`         | `status`                                              | List C2 connection hosts and their status. |
+| `link`           | `link <target> <named pipe>`                          | Connect to an SMB Link Agent. |
+| `unlink`         | `unlink <Display Id>`                                 | Disconnect from an SMB Link Agent. |
 | `register_process_inject_kit`       | `register_process_inject_kit (pops modal)`                                            | Register a custom BOF to use for process injection (CS compatible). See documentation for requirements. |
 | `exit`         | `exit`                                              | Task the implant to exit. |
 
 ---
 
-### Module Commands (BOFs)
-These are optional commands that call `inline_execute` under the hood with specific BOFs.
+### Forge
+Forge is a command augmentation container that I highly recommend you use for extending Xenon's capabilities.
+It includes support out of the box for:
 
-**Some** BOFs from the [CS-Situational-Awareness-BOF](https://github.com/trustedsec/CS-Situational-Awareness-BOF) collection have been added.
-Credits to [@trustedsec](https://github.com/trustedsec) for these.
+* @Flangvik's [SharpCollection](https://github.com/Flangvik/SharpCollection)
+* Sliver's [Armory](https://github.com/sliverarmory/armory)
+
+To use forge with Xenon you just have to install the container:
+```
+sudo -E ./mythic-cli install github https://github.com/MythicAgents/forge.git
+```
+
+Then just "enable" the commands by checking the  from within your callbacks!
+
+```
+forge_collections -collectionName SharpCollection
+
+forge_collections -collectionName SliverArmory
+```
+
+#### SharpCollection Assemblies
+
+![SharpCollection Forge 1](images/forge-sharpcollection-1.png)
+
+![SharpCollection Forge 2](images/forge-sharpcollection-2.png)
+
+#### Sliver Armory BOFs
+
+![Sliver Armory Forge 1](images/forge-sliverarmory-1.png)
+
+![Sliver Armory Forge 2](images/forge-sliverarmory-2.png)
+
+
+
+### Post-Ex Commands (PEs)
+These are post-ex commands that follow the classic **fork & run** style injection. They use either a separate portable executable (DLL or EXE) converted to PIC with `donut-shellcode` (OPSEC warning!).
 
 | Command                  | Usage                                                         | Description |
 |--------------------------|---------------------------------------------------------------|-------------|
-| `sa_adcs_enum`          | `sa_adcs_enum`                                               | **[SituationalAwareness]** Enumerate CAs and templates in the AD using Win32 functions. |
-| `sa_arp`                | `sa_arp`                                                    | **[SituationalAwareness]** List ARP table. |
-| `sa_driversigs`         | `sa_driversigs`                                            | **[SituationalAwareness]** Enumerate installed services' image paths to check signing certs against known AV/EDR vendors. |
-| `sa_get_password_policy` | `sa_get_password_policy [hostname]`                        | **[SituationalAwareness]** Get the configured password policy and lockouts for the target server or domain. |
-| `sa_ipconfig`           | `sa_ipconfig`                                              | **[SituationalAwareness]** List IPv4 address, hostname, and DNS server. |
-| `sa_ldapsearch`         | `sa_ldapsearch [query] [opt: attribute] [opt: results_limit] [opt: DC hostname or IP] [opt: Distinguished Name]` | **[SituationalAwareness]** Execute LDAP searches. Specify `*,ntsecuritydescriptor` as an attribute parameter for all attributes and base64 encoded ACL of objects (useful for BOFHound). |
-| `sa_list_firewall_rules`| `sa_list_firewall_rules`                                   | **[SituationalAwareness]** List Windows firewall rules. |
-| `sa_listmods`           | `sa_listmods [opt: pid]`                                   | **[SituationalAwareness]** List process modules (DLLs). Targets the current process if no PID is specified. Complements `sa_driversigs` for AV/EDR injection detection. |
-| `sa_netshares`          | `sa_netshares [hostname]`                                 | **[SituationalAwareness]** List shared resources on the local or remote computer. |
-| `sa_netstat`            | `sa_netstat`                                             | **[SituationalAwareness]** List active TCP and UDP connections. |
-| `sa_netuser`            | `sa_netuser [username] [opt: domain]`                    | **[SituationalAwareness]** Get detailed information about a specific user. |
-| `sa_nslookup`           | `sa_nslookup [hostname] [opt:dns server] [opt: record type]` | **[SituationalAwareness]** Perform a DNS query. Supports specifying a custom DNS server and record type (e.g., A, AAAA, ANY). |
-| `sa_probe`              | `sa_probe [host] [port]`                                 | **[SituationalAwareness]** Check if a specific port is open. |
-| `sa_whoami`             | `sa_whoami`                                             | **[SituationalAwareness]** List `whoami /all`. |
+| `mimikatz`          | `mimikatz [args]`                                               | Execute mimikatz in a remote process. |
 
 
 ## Supported C2 Profiles
@@ -98,7 +121,7 @@ I really wanted to support the HTTPX C2 Profile, since it allows the operator to
 Xenon currently supports these features of the HTTPX profile:
 
 * Callback Domains (array of values)
-* Domain Rotation (fail-over and round-robin)
+* Domain Rotation (fail-over, round-robin, random)
 * Domain Fallback Threshold (for fail-over how many failed attempts before moving to the next)
 * Callback Jitter and Sleep intervals
 * Agent Message and Server Response configurations provided via JSON or TOML files at Build time that offer:
@@ -112,9 +135,10 @@ Xenon currently supports these features of the HTTPX profile:
 * Message transforms netbios and netbiosu
 * Adding an arbitrary `Host` header
 * POST request payload location (only body is supported)
-* Multiple URI connection strings (only uses first one for now)
 
-If you try to use these in your malleable profile config, it will either **not work** or **break stuff**.
+> [!WARNING]
+> If you try to use unsupported httpx features in your malleable profile config, it will either **not work** or **break stuff**.
+
 
 Here's an example of a malleable profile for HTTP(S) traffic:
 
@@ -230,15 +254,24 @@ Here's an example of a malleable profile for HTTP(S) traffic:
     }
 ```
 
+### [SMB Profile](https://github.com/MythicC2Profiles/smb)
+Xenon agents can be generated with the SMB comms profile to link agents in a peer-to-peer way.
+
+
+
 ## Roadmap
 If you have suggestions/requests open an issue or you can message me on discord.
 
-- [ ] Work on memory issues (duplicate buffers etc)
-- [ ] `execute_assembly` command
-- [ ] Lateral movement related commands
+### Features
+- [X] `execute_assembly` command
 - [ ] `powershell` command
+- [ ] Lateral movement related commands
+- [ ] Socks5 proxy
 
-
+### Bugs
+- [X] Work on memory issues (duplicate buffers etc)
+- [X] Fix initial install files not found
+- [ ] Issues executing BOFs compiled with MSVC
 
 
 ## Credits

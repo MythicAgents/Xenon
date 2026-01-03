@@ -104,6 +104,7 @@ class RegisterProcessInjectKitCommand(CommandBase):
     argument_class = RegisterProcessInjectKitArguments
     attributes = CommandAttributes(
         builtin=False,
+        dependencies=["inject_shellcode", "inline_execute"],
         supported_os=[ SupportedOS.Windows ],
         suggested_command=False
     )

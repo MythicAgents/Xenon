@@ -4,12 +4,21 @@ from struct import pack, calcsize
 
 
 # Mythic messages
-MYTHIC_CHECK_IN = 0xf1
-MYTHIC_GET_TASKING = 0x00
-MYTHIC_POST_RESPONSE = 0x01
+MYTHIC_CHECK_IN = 0xA1
+MYTHIC_GET_TASKING = 0xA2
+MYTHIC_POST_RESPONSE = 0xA3
+MYTHIC_TASK_RESPONSE = 0xA4
 MYTHIC_INIT_DOWNLOAD = 0x02
 MYTHIC_CONT_DOWNLOAD = 0x03
 MYTHIC_UPLOAD_CHUNKED = 0x04
+MYTHIC_P2P_CHECK_IN = 0x05
+MYTHIC_P2P_MSG = 0x06
+MYTHIC_P2P_REMOVE = 0x07
+# Mythic Responses
+MYTHIC_NORMAL_RESP = 0xAA
+MYTHIC_DOWNLOAD_RESP = 0xAB
+MYTHIC_UPLOAD_RESP = 0xAC
+MYTHIC_DELEGATE_RESP = 0xAD
 
 commands = {
     "status": 0x37,
@@ -35,8 +44,17 @@ commands = {
     "getuid": 0x70, 
     "steal_token": 0x71, 
     "make_token": 0x72, 
-    "rev2self": 0x73, 
-    "exit": 0x80
+    "rev2self": 0x73,
+    "link": 0x90,
+    "unlink": 0x91,
+    
+    "exit": 0x80,
+    
+    # Treating delegates as a task is easier for Agent
+    "normal_resp": 0xCA,
+    "p2p_resp": 0xCB,
+    "download_resp": 0xCC,
+    "upload_resp": 0xCD
 }
 
 def get_operator_command(command_name):
@@ -54,61 +72,67 @@ def get_bytes_with_size(data):
     data = data[4:]
     return data[:size], data[size:]
 
+
+
 class Packer:
     """
-    Packed data into length-prefixed binary format.
+    Packed data into TLV format (big-endian)
 
     Reference: From Havoc framework https://github.com/HavocFramework/Modules/blob/main/Packer/packer.py
     """
+
     def __init__(self):
-        self.buffer : bytes = b''
-        self.size   : int   = 0
+        self.buffer: bytes = b''
+        self.size: int = 0
 
     def getbuffer(self):
-        return pack("<L", self.size) + self.buffer
+        # uint32 length prefix (big-endian)
+        return pack(">I", self.size) + self.buffer
 
     def addstr(self, s):
         if s is None:
             s = ''
         if isinstance(s, str):
-            s = s.encode("utf-8" )
-        fmt = "<L{}s".format(len(s) + 1)
-        self.buffer += pack(fmt, len(s)+1, s)
-        self.size   += calcsize(fmt)
+            s = s.encode("utf-8")
+        length = len(s) + 1
+        fmt = f">I{length}s"
+        self.buffer += pack(fmt, length, s)
+        self.size += calcsize(fmt)
 
     def addWstr(self, s):
         if s is None:
             s = ''
-        s = s.encode("utf-16_le")
-        fmt = "<L{}s".format(len(s) + 2)
-        self.buffer += pack(fmt, len(s)+2, s)
-        self.size   += calcsize(fmt)
+        s = s.encode("utf-16le")
+        # Add null terminator (2 bytes for UTF-16)
+        s += b'\x00\x00'
+        length = len(s)
+        fmt = f">I{length}s"
+        self.buffer += pack(fmt, length, s)
+        self.size += calcsize(fmt)
 
     def addbytes(self, b):
         if b is None:
             b = b''
-        fmt = "<L{}s".format(len(b))
+        fmt = f">I{len(b)}s"
         self.buffer += pack(fmt, len(b), b)
-        self.size   += calcsize(fmt)
+        self.size += calcsize(fmt)
 
     def addbool(self, b):
-        fmt = '<I'
-        self.buffer += pack(fmt, 1 if b else 0)
-        self.size   += 4
+        self.buffer += pack(">B", 1 if b else 0)
+        self.size += 1
 
     def adduint32(self, n):
-        fmt = '<I'
-        self.buffer += pack(fmt, n)
-        self.size   += 4
+        self.buffer += pack(">I", n)
+        self.size += 4
 
-    def addint(self, dint):
-        self.buffer += pack("<i", dint)
-        self.size   += 4
+    def addint(self, n):
+        self.buffer += pack(">i", n)
+        self.size += 4
 
     def addshort(self, n):
-        fmt = '<h'
-        self.buffer += pack(fmt, n)
-        self.size   += 2
+        self.buffer += pack(">h", n)
+        self.size += 2
+
 
 
 # Common Windows error codes. Adding them as I go
@@ -116,6 +140,7 @@ ERROR_CODES = {
     1111: {'description': 'Mythic download initialization failed.', 'name': 'MYTHIC_ERROR_DOWNLOAD'},
     1112: {'description': 'Unknown error occurred during Mythic upload.', 'name': 'MYTHIC_ERROR_UPLOAD'},
     1113: {'description': 'Unknown error occurred during BOF execution.', 'name': 'MYTHIC_ERROR_BOF'},
+    1114: {'description': 'Agent failed to find P2P Agent.', 'name': 'ERROR_LINK_NOT_FOUND'},
     0: {'description': 'The operation completed successfully.',
      'name': 'ERROR_SUCCESS'},
     1: {'description': 'Incorrect function.', 'name': 'ERROR_INVALID_FUNCTION'},

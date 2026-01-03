@@ -9,17 +9,22 @@
 #define ERROR_MYTHIC_DOWNLOAD   1111
 #define ERROR_MYTHIC_UPLOAD     1112
 #define ERROR_MYTHIC_BOF        1113
+#define ERROR_LINK_NOT_FOUND    1114
 
-#define NUMBER_OF_TASKS     2       // Per request
+#define NUMBER_OF_TASKS     5       // Per request
 
-// Mythic C2 tasks
-#define GET_TASKING         0x00
-#define POST_RESPONSE       0x01
-#define CHECKIN             0xf1
+/* Message Format Options */
+#define CHECKIN             0xA1
+#define GET_TASKING         0xA2
+#define POST_RESPONSE       0xA3
+#define TASK_RESPONSE       0xA4
 // Special
 #define DOWNLOAD_INIT       0x02
 #define DOWNLOAD_CONTINUE   0x03
 #define UPLOAD_CHUNKED      0x04
+#define LINK_ADD            0x05
+#define LINK_MSG            0x06
+#define LINK_REMOVE         0x07
 
 // General
 #define STATUS_CMD      0x37
@@ -52,8 +57,19 @@
 #define STEAL_TOKEN_CMD 0x71
 #define MAKE_TOKEN_CMD  0x72
 #define REV2SELF_CMD    0x73
+// Tunnel / Connector
+#define LINK_CMD        0x90
+#define UNLINK_CMD      0x91
 // Agent
 #define EXIT_CMD        0x80
+// P2P
+#define P2P_MSG_CMD     0x92
+
+/* Response Types */
+#define NORMAL_RESP     0xCA
+#define LINK_RESP       0xCB
+#define DOWNLOAD_RESP   0xCC
+#define UPLOAD_RESP     0xCD
 
 
 

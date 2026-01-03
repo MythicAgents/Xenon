@@ -7,7 +7,9 @@ class ShellArguments(TaskArguments):
         super().__init__(command_line, **kwargs)
         self.args = [
             CommandParameter(
-                name="command", 
+                name="command",
+                display_name="Command",
+                cli_name="Command",
                 type=ParameterType.String, 
                 description="Command to run"
             ),
@@ -24,10 +26,10 @@ class ShellArguments(TaskArguments):
 class ShellCommand(CommandBase):
     cmd = "shell"
     needs_admin = False
-    help_cmd = "shell {command}"
-    description = "This runs {command} in a terminal."
+    help_cmd = "shell <command>"
+    description = "This runs <command> in a terminal."
     version = 1
-    author = "@RedTeamSNCF"
+    author = "@c0rnbread"
     attackmapping = ["T1059"]
     argument_class = ShellArguments
     attributes = CommandAttributes(
@@ -45,6 +47,12 @@ class ShellCommand(CommandBase):
             TaskID=taskData.Task.ID,
             Success=True,
         )
+
+        # Set display parameters
+        response.DisplayParams = "{}".format(
+            taskData.args.get_arg("command")
+        )
+
         return response
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
