@@ -479,14 +479,23 @@ class XenonAgent(PayloadType):
                 else:
                     command = "make exe"
                     output_path = f"{agent_build_path.name}/artifact_x64.exe"
-            # Dll or Shellcode
-            elif self.get_parameter('output_type') == 'dll' or self.get_parameter('output_type') == 'shellcode':
+            # Dll
+            elif self.get_parameter('output_type') == 'dll':
                 if self.get_parameter('debug') == True:
                     command = "make debug_dll"
                     output_path = f"{agent_build_path.name}/artifact_x64-debug.dll"
                 else:
                     command = "make dll"
                     output_path = f"{agent_build_path.name}/artifact_x64.dll"
+            # Shellcode
+            elif self.get_parameter('output_type') == 'shellcode':
+                if self.get_parameter('debug') == True:
+                    command = "make debug_shellcode"
+                    output_path = f"{agent_build_path.name}/artifact_x64-debug.sc.dll"
+                else:
+                    command = "make shellcode"
+                    output_path = f"{agent_build_path.name}/artifact_x64.sc.dll"
+            
             
             # Make command
             proc = await asyncio.create_subprocess_shell(command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=agent_build_path.name)
@@ -504,12 +513,52 @@ class XenonAgent(PayloadType):
                 logging.info(f"[+] Compiled agent written to {output_path}")
             
             
-            # If shellcode, run donut on the Dll above
+            # For Shellcode, link with Crystal Palace loader
             if self.get_parameter('output_type') == 'shellcode':
-                bin_file = f"{agent_build_path.name}/loader.bin"
-                # Use donut-shellcode here
-                export_function = self.get_parameter('dll_export_function')
-                donut.create(file=output_path, output=bin_file, arch=3, bypass=1, method=export_function)
+                # /root/Xenon/Payload_Type/xenon/xenon/agent_code/Loader/udrl
+                
+                # Compile UDRL Object
+                command = "make"
+                udrl_path = agent_build_path.name + "/Loader/udrl"
+                
+                proc = await asyncio.create_subprocess_shell(command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=udrl_path)
+                stdout, stderr = await proc.communicate()
+                stdout_err = ""
+                if proc.returncode != 0:
+                    build_success = False
+                    logging.error(f"Command failed with exit code {proc.returncode}")
+                    logging.error(f"[stderr]: {stderr.decode()}")
+                    stdout_err += f'[stderr]\n{stderr.decode()}' + "\n" + command
+                else:
+                    logging.info(f"[stdout]: {stdout.decode()}")
+                    stdout_err += f'\n[stdout]\n{stdout.decode()}\n'
+
+                    logging.info(f"[+] Compiled UDRL written to {udrl_path}/bin/loader.x64.o")
+                
+                # Link with Crystal Palace
+                bin_file = f"{agent_build_path.name}/out.x64.bin"
+                command = f"./link {udrl_path}/loader.spec {output_path} {bin_file}"
+                crystal_palace_path = agent_build_path.name + "/Loader/dist"
+                
+                proc = await asyncio.create_subprocess_shell(command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=crystal_palace_path)
+                stdout, stderr = await proc.communicate()
+                stdout_err = ""
+                if proc.returncode != 0:
+                    build_success = False
+                    logging.error(f"Command failed with exit code {proc.returncode}")
+                    logging.error(f"[stderr]: {stderr.decode()}")
+                    stdout_err += f'[stderr]\n{stderr.decode()}' + "\n" + command
+                else:
+                    logging.info(f"[stdout]: {stdout.decode()}")
+                    stdout_err += f'\n[stdout]\n{stdout.decode()}\n'
+
+                    logging.info(f"[+] Linker converted DLL to PIC written to {bin_file}")
+                
+                
+                # bin_file = f"{agent_build_path.name}/loader.bin"
+                # # Use donut-shellcode here
+                # export_function = self.get_parameter('dll_export_function')
+                # donut.create(file=output_path, output=bin_file, arch=3, bypass=1, method=export_function)
    
                 if os.path.exists(bin_file):
                     # Shellcode is new output file path

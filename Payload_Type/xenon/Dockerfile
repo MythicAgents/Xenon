@@ -5,7 +5,8 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     mingw-w64 \
     nasm \
-    make 
+    make \
+    openjdk-11-jdk
 
 RUN python3 -m pip install toml donut-shellcode
 
