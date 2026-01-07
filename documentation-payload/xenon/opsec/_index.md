@@ -16,6 +16,44 @@ They are compatible with Cobalt Strike's Process Injection Kits.
 | `mimikatz`          | `mimikatz [args]`                                               | Execute mimikatz on the host. (e.g., mimikatz sekurlsa::logonpasswords) OPSEC Warning: Uses donut shellcode. |
 | `execute_assembly` | `execute_assembly -Assembly [SharpUp.exe] [-Arguments [assembly arguments]]` | Execute a .NET Assembly in a remote processes and retrieve the output. OPSEC Warning: Uses donut shellcode. |
 
+## User-Defined Reflective Loader (UDRL)
+In previous versions, Xenon used donut-shellcode to generate shellcode from its DLL output type. That has changed.
+Now by default, Xenon uses a simple reflective DLL loader based on the [Crystal Palace](https://tradecraftgarden.org/crystalpalace.html) linker created by Raphael Mudge.
+
+Additionally, operators can now define their own reflective DLL loader during the build process for the `shellcode` output type. The loader must be based on the Crystal Palace linker.
+
+Once enabled and uploaded, Mythic will:
+1. Compile the Xenon agent DLL
+2. Unzip the UDRL
+3. Compile the UDRL with `make`
+4. Use the Crystal Palace linker to create a PIC blob (UDRL + DLL)
+
+### How to use
+
+The loader must be uploaded as a ZIP file. Your loader must follow a basic format with at least the following:
+- `Makefile` - default build command as `make`
+- `loader.spec`
+- Any source files needed to build the loader
+
+An example of a directory tree for the simple loader that comes with Xenon looks like this:
+```
+.
+├── Makefile
+├── libtcg.x64.zip
+├── loader.spec
+└── src
+    ├── loaddll.c
+    ├── loader.c
+    ├── loaderdefs.h
+    └── tcg.h
+```
+
+### Development
+If you want to modify/create your own reflective loader I highly recommend watching the overview videos [here](https://tradecraftgarden.org/videos.html).
+
+[Rasta Mouse](https://github.com/rasta-mouse) also has some great resources more specifically for Cobalt Strike [here](https://github.com/rasta-mouse/Crystal-Kit).
+
+
 ## Process Injection Kit
 You can read about Cobalt Strike's Process Injection Kit [here](https://www.cobaltstrike.com/blog/process-injection-update-in-cobalt-strike-4-5).
 It allows the operator to modify the default behavior for Fork & Run post-ex commands. This provided the flexibility needed and allowed operators to Bring Your Own Process Injection.

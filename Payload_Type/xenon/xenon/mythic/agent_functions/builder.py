@@ -584,7 +584,7 @@ class XenonAgent(PayloadType):
                     logging.info(f"[stdout]: {stdout.decode()}")
                     stdout_err += f'\n[stdout]\n{stdout.decode()}\n'
 
-                    logging.info(f"[+] Compiled UDRL written to {udrl_path}/bin/loader.x64.o")
+                    logging.info(f"[+] Compiled UDRL written to {udrl_path}")
                 
                 # Link with Crystal Palace
                 bin_file = f"{agent_build_path.name}/out.x64.bin"

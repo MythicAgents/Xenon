@@ -12,10 +12,12 @@ Xenon is a Cobalt Strike-like Windows agent built for the Mythic C2 framework. T
 
 ### Highlighted Agent Features
 
-- Modular command inclusion reducing payload size
-- Malleable C2 Profiles with the httpx profile
-- Compatible with Cobalt Strike post-exploitation Beacon Object Files (BOF)
-- Support for CS Process Injection Kit
+- Modular command inclusion
+- Malleable C2 Profiles
+- Supported comms: httpx and smb
+- Uses forge for BOF modules and SharpCollections
+- User-Defined Reflective Dll Loaders (based on Crystal Palace)
+- Compatible with CS Process Inject Kits
 
   
 ## Authors
