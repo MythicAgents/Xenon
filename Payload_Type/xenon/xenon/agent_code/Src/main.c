@@ -54,8 +54,10 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
 
             /* Console for debugging DLL */
             #if !defined(_SHELLCODE) && defined(_DEBUG)
+            
                 AllocConsole();
                 freopen( "CONOUT$", "w", stdout );
+            
             #endif
             
             hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)XenonMain, NULL, 0, NULL);

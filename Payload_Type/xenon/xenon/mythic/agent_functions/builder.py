@@ -1,4 +1,4 @@
-import logging, json, toml, os, random
+import logging, json, toml, os, random, zipfile
 import traceback
 import pathlib
 from mythic_container.PayloadBuilder import *
@@ -25,37 +25,64 @@ class XenonAgent(PayloadType):
     translation_container = "XenonTranslator"
     build_parameters = [
         BuildParameter(
+            name = "debug",
+            parameter_type=BuildParameterType.Boolean,
+            default_value="false",
+            description="Debug: Enable debugging console and symbols in payload.",
+            ui_position=1
+        ),
+        BuildParameter(
             name = "output_type",
             parameter_type=BuildParameterType.ChooseOne,
             choices=[ "exe", "dll", "shellcode"],
             default_value="exe",
             description="Output type: shellcode, dynamic link library, executable",
-        ),
-        BuildParameter(
-            name = "debug",
-            parameter_type=BuildParameterType.Boolean,
-            default_value="false",
-            description="Debug: Includes debugging console and symbols in agent. Don't use for real",
-        ),
-        BuildParameter(
-            name = "dll_export_function",
-            parameter_type=BuildParameterType.String,
-            default_value="DllRegisterServer",
-            description="Dll Export Function: The name of the exported function when using the DLL payload type. (e.g., rundll32.exe xenon.dll,MyExportFunction)",
-        ),
-        BuildParameter(
-            name = "spawnto_process",
-            parameter_type=BuildParameterType.String,
-            default_value="svchost.exe",
-            description="Spawnto Process: Process name to use for spawn & inject commands.",
+            ui_position=2
         ),
         BuildParameter(
             name = "default_pipename",
             parameter_type=BuildParameterType.String,
             default_value="xenon",
-            description="Default Pipe Name: Value of the named pipe to use for spawn & inject commands.",
+            description="Default Pipe Name: Value of the named pipe to use for spawn & inject commands. (e.g., execute_assembly)",
+            ui_position=3
+        ),
+        BuildParameter(
+            name = "spawnto_process",
+            parameter_type=BuildParameterType.String,
+            default_value="svchost.exe",
+            description="Spawnto Process: Process name to use for spawn & inject commands. Must be in C:\\Windows\\System32\\",
+            ui_position=4
+        ),
+        BuildParameter(
+            name = "dll_export_function",
+            parameter_type=BuildParameterType.String,
+            default_value="DllRegisterServer",
+            description="Dll Export Function: Used for Dll execution with rundll32. (e.g., rundll32.exe xenon.dll,DllRegisterServer)",
+            hide_conditions=[
+                HideCondition(name="output_type", operand=HideConditionOperand.NotEQ, value="dll")
+            ],
+            ui_position=5
+        ),
+        BuildParameter(
+            name = "custom_udrl",
+            parameter_type=BuildParameterType.Boolean,
+            default_value="false",
+            description="User-Defined Reflective Loader: Define your own RDL for agent execution. Must be based on Crystal Palace - See docs for details.",
+            hide_conditions=[
+                HideCondition(name="output_type", operand=HideConditionOperand.NotEQ, value="shellcode")
+            ],
+            ui_position=6
+        ),
+        BuildParameter(
+            name = "udrl_file",
+            parameter_type=BuildParameterType.File,
+            # default_value="xenon",
+            description="Crystal UDRL: ZIP or TAR must follow specified format - See docs for details.",
+            hide_conditions=[
+                HideCondition(name="custom_udrl", operand=HideConditionOperand.NotEQ, value=True)
+            ],
+            ui_position=7
         )
-        
     ]
     agent_path = pathlib.Path(".") / "xenon" / "mythic"
     # agent_icon_path = agent_path / "agent_functions" / "xenon_agent.svg"
@@ -515,11 +542,35 @@ class XenonAgent(PayloadType):
             
             # For Shellcode, link with Crystal Palace loader
             if self.get_parameter('output_type') == 'shellcode':
-                # /root/Xenon/Payload_Type/xenon/xenon/agent_code/Loader/udrl
+                
+                # Custom UDRL
+                if self.get_parameter('custom_udrl') == True:
+                    custom_udrl_path = os.path.join(agent_build_path.name, "Loader", "custom")            # agent_code/Loader/custom
+                    zip_path = os.path.join(agent_build_path.name, "Loader", "custom", "loader.zip")      # agent_code/Loader/custom/loader.zip
+                    
+                    os.makedirs(custom_udrl_path, exist_ok=True)
+                                        
+                    udrl_bundle_file_id = self.get_parameter('udrl_file')
+                    logging.info(f"UDRL File ID: {udrl_bundle_file_id}")
+                    # Get zip data and write to disk
+                    udrl_bundle_contents = await SendMythicRPCFileGetContent(
+                        MythicRPCFileGetContentMessage(AgentFileId=udrl_bundle_file_id)
+                    )
+                    with open(zip_path, "wb") as f:
+                        f.seek(0)
+                        f.write(udrl_bundle_contents.Content)
+                        f.truncate()
+                    # Unzip
+                    with zipfile.ZipFile(zip_path, 'r') as z:
+                        z.extractall(custom_udrl_path)
+                    
+                    udrl_path = custom_udrl_path
+                # Use Default Loader
+                else:
+                    udrl_path = agent_build_path.name + "/Loader/udrl"
                 
                 # Compile UDRL Object
                 command = "make"
-                udrl_path = agent_build_path.name + "/Loader/udrl"
                 
                 proc = await asyncio.create_subprocess_shell(command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=udrl_path)
                 stdout, stderr = await proc.communicate()
