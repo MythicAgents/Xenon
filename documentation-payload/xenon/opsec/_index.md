@@ -49,9 +49,9 @@ An example of a directory tree for the simple loader that comes with Xenon looks
 ```
 
 ### Development
-If you want to modify/create your own reflective loader I highly recommend watching the overview videos [here](https://tradecraftgarden.org/videos.html).
+If you want to modify/create your own reflective loader I highly recommend watching the overview videos from Raphael [here](https://tradecraftgarden.org/videos.html).
 
-[Rasta Mouse](https://github.com/rasta-mouse) also has some great resources more specifically for Cobalt Strike [here](https://github.com/rasta-mouse/Crystal-Kit).
+[Rasta Mouse](https://github.com/rasta-mouse) also has some great resources more specifically for Cobalt Strike in [Crystal-Kit](https://github.com/rasta-mouse/Crystal-Kit).
 
 
 ## Process Injection Kit
