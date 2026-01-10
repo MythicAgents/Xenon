@@ -8,18 +8,21 @@ DFLAGS = -D_DEBUG
 SRC_FILES := Src/*.c Src/Tasks/*.c
 
 # Build Targets
-all: exe dll
+all: exe dll shellcode
 
 exe: artifact_x64.exe
 
 dll: artifact_x64.dll
 
-debug: debug_exe debug_dll
+shellcode: artifact_x64.sc.dll
+
+debug: debug_exe debug_dll debug_shellcode
 
 debug_exe: artifact_x64-debug.exe
 
 debug_dll: artifact_x64-debug.dll
 
+debug_shellcode: artifact_x64-debug.sc.dll
 
 # Executable Target
 artifact_x64.exe: $(SRC_FILES)
@@ -35,6 +38,12 @@ artifact_x64.dll: $(SRC_FILES)
 artifact_x64-debug.dll: $(SRC_FILES)
 	$(CC) $^ -o $@ -shared -D_DLL $(CFLAGS) $(LFLAGS) $(DFLAGS)
 
+# Shellcode (DLL)
+artifact_x64.sc.dll: $(SRC_FILES)
+	$(CC) $^ -o $@ -shared -D_SHELLCODE $(CFLAGS) $(LFLAGS)
+
+artifact_x64-debug.sc.dll: $(SRC_FILES)
+	$(CC) $^ -o $@ -shared -D_SHELLCODE $(CFLAGS) $(LFLAGS) $(DFLAGS)
 
 # Clean up
 clean:

