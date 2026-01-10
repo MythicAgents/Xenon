@@ -536,7 +536,7 @@ class XenonAgent(PayloadType):
             # For Shellcode, link with Crystal Palace loader
             if self.get_parameter('output_type') == 'shellcode':
                 
-                # Custom UDRL
+                # Use Custom UDRL
                 if self.get_parameter('custom_udrl') == True:
                     custom_udrl_path = os.path.join(agent_build_path.name, "Loader", "custom")            # agent_code/Loader/custom
                     zip_path = os.path.join(agent_build_path.name, "Loader", "custom", "loader.zip")      # agent_code/Loader/custom/loader.zip

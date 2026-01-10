@@ -30,7 +30,26 @@ Once enabled and uploaded, Mythic will:
 
 ### How to use
 
-The loader must be uploaded as a ZIP file. Your loader must follow a basic format with at least the following:
+Find the default Crystal Palace RDL that comes with Xenon [here](https://github.com/nickswink/crystal-simple-loader).
+
+> [!IMPORTANT]
+> To use your own crystal palace RDL you must zip the source and upload.
+
+```bash
+# Clone basic loader
+git clone https://github.com/nickswink/crystal-simple-loader.git
+
+cd crystal-simple-loader
+
+# << Make your changes >>
+
+# Zip directory
+zip -r loader.zip .
+
+# Upload loader.zip during Xenon build process
+```
+
+As stated before, the loader must be uploaded as a ZIP file. Your loader must follow a basic format with at least the following:
 - `Makefile` - default build command as `make`
 - `loader.spec`
 - Any source files needed to build the loader
@@ -47,6 +66,42 @@ An example of a directory tree for the simple loader that comes with Xenon looks
     ├── loaderdefs.h
     └── tcg.h
 ```
+
+#### Makefile
+This is an example makefile from the Crystal Palace RDL examples. 
+```makefile
+CC_64=x86_64-w64-mingw32-gcc
+
+all: bin/loader.x64.o
+
+bin:
+	mkdir bin
+
+bin/loader.x64.o: bin
+	$(CC_64) -DWIN_X64 -shared -Wall -Wno-pointer-arith -c src/loader.c -o bin/loader.x64.o
+
+clean:
+	rm -f bin/*
+```
+
+#### Spec File
+The `loader.spec` file is a key linker file specific to Crystal Palace. It tells the Crystal Palace linker details about how to create our PIC.
+```yaml
+x64:
+	load "bin/loader.x64.o"       # read the loader COFF
+		make pic +gofirst          # turn it into PIC and ensure the go function is at the start
+		dfr "resolve" "ror13"      # use ror13 with the resolve method for resolving dfr functions
+		mergelib "libtcg.x64.zip"  # merge the shared library
+
+		# read the dll being provided
+		push $DLL
+		# link it to the "dll" section in the loader
+		link "dll"
+
+		# export the final pic
+		export
+```
+
 
 ### Development
 If you want to modify/create your own reflective loader I highly recommend watching the overview videos from Raphael [here](https://tradecraftgarden.org/videos.html).

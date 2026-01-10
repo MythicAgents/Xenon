@@ -36,6 +36,7 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 - Malleable C2 Profiles
 - Supported comms: [httpx](https://github.com/MythicC2Profiles/httpx) and [smb](https://github.com/MythicC2Profiles/smb)
 - Uses [forge](https://github.com/MythicAgents/forge) for BOF modules and SharpCollections
+- User-Defined Reflective Dll Loaders (based on Crystal Palace)
 - Compatible with CS Process Inject Kits
 
 
