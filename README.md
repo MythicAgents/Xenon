@@ -6,7 +6,7 @@
   <p><i>Xenon is a Cobalt Strike-like Windows agent for Mythic, created by <a href="https://github.com/nickswink">@c0rnbread</a>.</i></p>
   <br />
 
-  <img src="images/cs-token-and-ps.png" width="90%" /><br />
+  <img src="images/ps-v3.png" width="90%" /><br />
 </div>
 
 > :warning: Xenon is in an early state of release. It is not opsec safe and could contain memory issues causing crashes. Test thoroughly if planning to use in a live environment.
