@@ -1,0 +1,1 @@
+java -Dcrystalpalace.verbose=false -jar crystalpalace.jar run "$@"

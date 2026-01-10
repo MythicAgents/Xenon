@@ -2,6 +2,8 @@ __pycache__/
 .DS_Store
 # Shellcode
 loader.bin
+out.x64.bin
+out.x86.bin
 # Python virtual environment
 .venv
 .vs
@@ -15,4 +17,3 @@ rabbitmq_config.json
 mythic_go_services.bin
 Payload_Type/xenon/xenon/agent_code/*.exe
 Payload_Type/xenon/xenon/agent_code/*.dll
-#Payload_Type/xenon/xenon/agent_code/*.o
