@@ -5,7 +5,6 @@
 #include "Parser.h"
 #include "Task.h"
 #include "Config.h"
-#include "Mythic.h"
 #include "Inject.h"
 #include "BeaconCompatibility.h"
 #include "Tasks/InlineExecute.h"
