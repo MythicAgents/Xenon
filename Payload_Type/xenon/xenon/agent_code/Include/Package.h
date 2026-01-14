@@ -11,6 +11,7 @@
 
 #define MAX_REQUEST_LENGTH  0x300000    // 3 mb
 #define PIPE_BUFFER_MAX 	0x10000     // 64 kb
+#define TCP_BUFFER_MAX 	0x10000     // 64 kb
 
 #define MIN( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
 
@@ -42,6 +43,10 @@ BOOL PackageSendAll(PPARSER response);
 
 BOOL PackageSendPipe(HANDLE hPipe, PVOID Msg, SIZE_T Length);
 BOOL PackageReadPipe(HANDLE hPipe, PBYTE* ppOutData, SIZE_T* pOutLen);
+
+BOOL PackageSendTcp(SOCKET sock, PVOID Msg, SIZE_T Length);
+BOOL PackageReadTcp(SOCKET sock, PBYTE* ppOutData, SIZE_T* pOutLen);
+
 VOID PackageDestroy(PPackage package);
 
 

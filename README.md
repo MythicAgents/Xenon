@@ -34,7 +34,7 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 ## Features
 - Modular command inclusion
 - Malleable C2 Profiles
-- Supported comms: [httpx](https://github.com/MythicC2Profiles/httpx) and [smb](https://github.com/MythicC2Profiles/smb)
+- Supported comms: [httpx](https://github.com/MythicC2Profiles/httpx), [smb](https://github.com/MythicC2Profiles/smb), [tcp](https://github.com/MythicC2Profiles/tcp)
 - Uses [forge](https://github.com/MythicAgents/forge) for BOF modules and SharpCollections
 - User-Defined Reflective Dll Loaders (based on Crystal Palace)
 - Compatible with CS Process Inject Kits
@@ -64,8 +64,8 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 | `download`     | `download -path <file path>`                           | Download a file off the target system (supports UNC path). |
 | `upload`       | `upload (modal)`                                            | Upload a file to the target machine by selecting a file from your computer. |
 | `status`         | `status`                                              | List C2 connection hosts and their status. |
-| `link`           | `link <target> <named pipe>`                          | Connect to an SMB Link Agent. |
-| `unlink`         | `unlink <Display Id>`                                 | Disconnect from an SMB Link Agent. |
+| `link`           | `link <target> [<named pipe>\|<tcp_port>]`                          | Connect to an SMB/TCP Link Agent. |
+| `unlink`         | `unlink <Display Id>`                                 | Disconnect from an SMB/TCP Link Agent. |
 | `register_process_inject_kit`       | `register_process_inject_kit (pops modal)`                                            | Register a custom BOF to use for process injection (CS compatible). See documentation for requirements. |
 | `exit`         | `exit`                                              | Task the implant to exit. |
 
@@ -258,7 +258,8 @@ Here's an example of a malleable profile for HTTP(S) traffic:
 ### [SMB Profile](https://github.com/MythicC2Profiles/smb)
 Xenon agents can be generated with the SMB comms profile to link agents in a peer-to-peer way.
 
-
+### [TCP Profile](https://github.com/MythicC2Profiles/tcp)
+Xenon agents can be generated with the TCP comms profile to link agents in a peer-to-peer way.
 
 ## Roadmap
 If you have suggestions/requests open an issue or you can message me on discord.

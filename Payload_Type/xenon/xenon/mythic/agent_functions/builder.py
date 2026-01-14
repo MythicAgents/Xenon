@@ -20,7 +20,7 @@ class XenonAgent(PayloadType):
     wrapped_payloads = []
     note = """A Cobalt Strike-like agent for Windows targets. Version: v0.0.3"""
     supports_dynamic_loading = True
-    c2_profiles = ["httpx", "smb"]
+    c2_profiles = ["httpx", "smb", "tcp"]
     mythic_encrypts = True
     translation_container = "XenonTranslator"
     build_parameters = [
@@ -118,7 +118,9 @@ class XenonAgent(PayloadType):
             "proxy_user": "",
             "proxy_pass": "",
             # SMB only
-            "pipename": ""
+            "pipename": "",
+            # TCP only
+            "port": ""
         }
         stdout_err = ""
         
@@ -346,6 +348,11 @@ class XenonAgent(PayloadType):
             if selected_profile == 'smb':
                 serialized_data += serialize_int(random.getrandbits(32))                            # Random P2P ID
                 serialized_data += serialize_string(f"\\\\.\\pipe\\{Config['pipename']}")           # \\.\pipe\<string>
+            # SMB Specific
+            if selected_profile == 'tcp':
+                serialized_data += serialize_int(random.getrandbits(32))                   # Random P2P ID
+                serialized_data += serialize_string("0.0.0.0")                             # 0.0.0.0
+                serialized_data += serialize_int(int(Config["port"]))                      # 50005
                 
 
             # Convert to hex string format for C macro
@@ -358,7 +365,7 @@ class XenonAgent(PayloadType):
                 content = f.read()
                 
                 # Set the selected transport profile
-                profile_define_string = f"{selected_profile.upper()}_TRANSPORT"     # HTTPX_TRANSPORT | SMB_TRANSPORT
+                profile_define_string = f"{selected_profile.upper()}_TRANSPORT"     # HTTPX_TRANSPORT | SMB_TRANSPORT | TCP_TRANSPORT
                 content = content.replace("%C2_PROFILE%", profile_define_string)
 
                 # Stamp in hex byte array

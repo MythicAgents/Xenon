@@ -15,7 +15,10 @@
 #ifdef SMB_TRANSPORT
 #define CHUNK_SIZE  (12 * 1024)     // 12 KB
 #endif
-
+#ifdef TCP_TRANSPORT
+#define CHUNK_SIZE  (12 * 1024)     // 12 KB
+#endif
+VOID DownloadFree(_In_ PFILE_DOWNLOAD File);
 /**
  * @brief Initialize a file download and return file UUID.
  * 

