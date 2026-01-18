@@ -27,9 +27,22 @@ class LinkArguments(TaskArguments):
                 description="Named pipe to connect to.",
                 parameter_group_info=[
                     ParameterGroupInfo(
-                        required=True,
+                        required=False,
                         group_name="Default",
                         ui_position=2
+                    )
+                ]
+            ),
+            CommandParameter(
+                name="tcp_port",
+                display_name="TCP Port",
+                type=ParameterType.Number, 
+                description="TCP port to connect to.",
+                parameter_group_info=[
+                    ParameterGroupInfo(
+                        required=False,
+                        group_name="Default",
+                        ui_position=3
                     )
                 ]
             )
@@ -46,8 +59,8 @@ class LinkArguments(TaskArguments):
 class LinkCommand(CommandBase):
     cmd = "link"
     needs_admin = False
-    help_cmd = "link [target] [named pipe]"      
-    description = "Connect to an SMB Link Agent."
+    help_cmd = "link [target] [named pipe|tcp port]"      
+    description = "Connect to an SMB/TCP Link Agent."
     version = 1
     author = "@c0rnbread"
     attackmapping = []
@@ -67,23 +80,44 @@ class LinkCommand(CommandBase):
             TaskID=taskData.Task.ID,
             Success=True,
         )
-        
-        named_pipe_string = f"\\\\{taskData.args.get_arg('target')}\\pipe\\{taskData.args.get_arg('named_pipe')}"       # \\<hostname>\pipe\<string>
-        
-        taskData.args.set_arg("pipe_name", named_pipe_string)
-        
 
-        # Set display parameters
-        response.DisplayParams = "{} {}".format(
-            taskData.args.get_arg("target"),
-            taskData.args.get_arg("named_pipe")
-        )
+        named_pipe = taskData.args.get_arg('named_pipe')
+        
+        if ((named_pipe != "") and (named_pipe != None)):
+            named_pipe_string = f"\\\\{taskData.args.get_arg('target')}\\pipe\\{taskData.args.get_arg('named_pipe')}"       # \\<hostname>\pipe\<string>
+            
+            taskData.args.add_arg("type", 1, ParameterType.Number)
+            taskData.args.set_arg("pipe_name", named_pipe_string)
+            
 
-        # Don't send these
-        taskData.args.remove_arg("target")
-        taskData.args.remove_arg("named_pipe")
-        
-        
+            # Set display parameters
+            response.DisplayParams = "{} {}".format(
+                taskData.args.get_arg("target"),
+                taskData.args.get_arg("named_pipe")
+            )
+
+            # Don't send these
+            taskData.args.remove_arg("target")
+            taskData.args.remove_arg("named_pipe")
+            taskData.args.remove_arg("tcp_port")
+        else:
+            target = taskData.args.get_arg("target")
+            tcp_port = taskData.args.get_arg("tcp_port")
+            
+            taskData.args.remove_arg("target")
+            taskData.args.remove_arg("named_pipe")
+            taskData.args.remove_arg("tcp_port")
+            
+            taskData.args.add_arg("type", 2, ParameterType.Number)
+            taskData.args.add_arg("target", target)
+            taskData.args.add_arg("tcp_port", tcp_port, ParameterType.Number)
+            
+            # Set display parameters
+            response.DisplayParams = "{} {}".format(
+                taskData.args.get_arg("target"),
+                taskData.args.get_arg("tcp_port")
+            )
+
         logging.info(f"Arguments: {taskData.args}")
         
         return response

@@ -89,7 +89,7 @@ BOOL InjectCustomKit(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _In_ PCHAR Inject
 	BOOL ignoreToken = FALSE;
     PPackage temp = PackageInit(NULL, FALSE);
     PackageAddShort(temp, (USHORT)ignoreToken);                         // +2 bytes
-    PackageAddInt32_LE(temp, bufferLen);                           		//  +4 bytes little-endian
+    PackageAddInt32(temp, bufferLen);                           		//  +4 bytes little-endian
     PackageAddBytes(temp, buffer, bufferLen, FALSE);     				//  +sizeof(shellcode) bytes
     PPackage arguments = PackageInit(NULL, FALSE);                        // Length-prefix the whole package
     PackageAddBytes(arguments, temp->buffer, temp->length, TRUE);

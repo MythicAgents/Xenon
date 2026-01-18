@@ -10,6 +10,7 @@
 #define ERROR_MYTHIC_UPLOAD     1112
 #define ERROR_MYTHIC_BOF        1113
 #define ERROR_LINK_NOT_FOUND    1114
+#define ERROR_LINK_CONNECT_TIMEOUT  1115
 
 #define NUMBER_OF_TASKS     5       // Per request
 
