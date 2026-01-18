@@ -11,7 +11,7 @@
 
 #define MAX_REQUEST_LENGTH  0x300000    // 3 mb
 #define PIPE_BUFFER_MAX 	0x10000     // 64 kb
-#define TCP_BUFFER_MAX 	0x10000     // 64 kb
+#define TCP_BUFFER_MAX 		0x10000     // 64 kb
 
 #define MIN( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
 

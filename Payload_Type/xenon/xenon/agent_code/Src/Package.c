@@ -522,7 +522,6 @@ BOOL PackageReadTcp(SOCKET sock, PBYTE* ppOutData, SIZE_T* pOutLen)
     DWORD  BytesAvailable = 0;
     BYTE   SizeHeaderBytes[sizeof(UINT32)] = {0};
     PVOID  Buffer          = NULL;
-    CHAR TmpBuffer[6] = {0};
 
     *ppOutData = NULL;
     *pOutLen   = 0;
@@ -540,7 +539,7 @@ BOOL PackageReadTcp(SOCKET sock, PBYTE* ppOutData, SIZE_T* pOutLen)
 
 
     /* Check if socket has any data */
-    if (ioctlsocket(sock, FIONREAD, &BytesAvailable) < 0)
+    if (ioctlsocket(sock, FIONREAD, &BytesAvailable) == SOCKET_ERROR)
     {
         _err("ioctlsocket error: %d", WSAGetLastError());
         return FALSE;
@@ -639,29 +638,40 @@ BOOL PackageReadTcp(SOCKET sock, PBYTE* ppOutData, SIZE_T* pOutLen)
         else
         {
             _dbg("\t Package size smaller than 4 bytes...");
+
+            /* Check socket health */
             char buf;
+            u_long mode = 1;
+            ioctlsocket(sock, FIONBIO, &mode);
+
             int recvResult = recv(sock, &buf, 1, MSG_PEEK);
+
+            /* Either no data or badness */
+            if (recvResult == SOCKET_ERROR)
+            {
+                if (WSAGetLastError() == WSAEWOULDBLOCK)
+                {
+                    _dbg("\t No data to read yet.");
+                    /* Revert the socket mode -> blocking */
+                    mode = 0;
+                    ioctlsocket(sock, FIONBIO, &mode);
+                }
+                else
+                {
+                    _err("\t Socket error [%x]", sock);
+                    closesocket(sock);
+                    sock = NULL;
+                    return FALSE;
+                }
+            }
+
             if (recvResult == 0)
             {
                 _err("\t recv() returned 0 - connection closed");
                 closesocket(sock);
                 sock = NULL;
                 return FALSE;
-            }
-                
-
-            if (recvResult < 0) {
-                int err = WSAGetLastError();
-                if (err == WSAEWOULDBLOCK)
-                {
-                    _dbg("\t No data to read yet");
-                }
-                else
-                {
-                    _err("\t Socket %x error", sock);
-                    return FALSE;
-                }
-            }
+            }            
         }
     }
     else

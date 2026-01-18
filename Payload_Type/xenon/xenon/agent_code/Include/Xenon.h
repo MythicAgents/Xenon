@@ -50,7 +50,7 @@ typedef struct
     CHAR injectKitExplicit[37];
     PCHAR pipename;
     // Linked Agents
-    PLINKS SmbLinks;
+    PLINKS Links;
     // Message Queue
     PPackage PackageQueue;
 
@@ -81,8 +81,8 @@ typedef struct
     UINT32 TcpId;
     SOCKET TcpSocketServer;
     SOCKET TcpSocketClient;
-    UINT32  TcpPort;
-    PCHAR TcpBindAddress;  
+    UINT32 TcpPort;
+    PCHAR  TcpBindAddress;  
 
 #endif
 

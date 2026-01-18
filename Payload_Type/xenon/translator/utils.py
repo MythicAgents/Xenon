@@ -141,6 +141,7 @@ ERROR_CODES = {
     1112: {'description': 'Unknown error occurred during Mythic upload.', 'name': 'MYTHIC_ERROR_UPLOAD'},
     1113: {'description': 'Unknown error occurred during BOF execution.', 'name': 'MYTHIC_ERROR_BOF'},
     1114: {'description': 'Agent failed to find P2P Agent.', 'name': 'ERROR_LINK_NOT_FOUND'},
+    1115: {'description': 'Timed out trying to connect to P2P Agent.', 'name': 'ERROR_LINK_CONNECT_TIMEOUT'},
     0: {'description': 'The operation completed successfully.',
      'name': 'ERROR_SUCCESS'},
     1: {'description': 'Incorrect function.', 'name': 'ERROR_INVALID_FUNCTION'},
@@ -703,5 +704,7 @@ ERROR_CODES = {
         'name': 'ERROR_PROCESS_MODE_NOT_BACKGROUND'},
     487: {'description': 'Attempt to access invalid address.',
         'name': 'ERROR_INVALID_ADDRESS'},
-    1326: {'description': '', 'name': 'ERROR_LOGON_FAILURE'}
+    1326: {'description': '', 'name': 'ERROR_LOGON_FAILURE'},
+    # Windows Socket Errors
+    10060: {'description': 'Connection timed out.', 'name': 'WSAETIMEDOUT'}
 }

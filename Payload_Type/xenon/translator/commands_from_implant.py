@@ -481,7 +481,7 @@ def p2p_checkin_to_mythic_format(data):
     link_type_str = "smb" if (link_type == 1) else "tcp"
     data = data[8:]
     
-    # Rest of bytes are from Link Pipe
+    # Rest of bytes are msg from Link
     output, data = get_bytes_with_size(data)
     
     task_json = {
@@ -499,7 +499,7 @@ def p2p_checkin_to_mythic_format(data):
         }
     ]
     
-    logging.info(f"[P2P_CHECKIN] IMPLANT -> C2: \n\t message: {output.decode('cp850')}, \n\t uuid: {str(link_id)}, \n\t c2_profile: smb")
+    logging.info(f"[P2P_CHECKIN] IMPLANT -> C2: \n\t message: {output.decode('cp850')}, \n\t uuid: {str(link_id)}, \n\t c2_profile: {link_type_str}")
     
     return task_json, delegates, data
 
