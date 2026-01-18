@@ -275,6 +275,13 @@ If you have suggestions/requests open an issue or you can message me on discord.
 - [X] Fix initial install files not found
 - [ ] Issues executing BOFs compiled with MSVC
 
+## Contributors
+Special thanks to all contributors who help improve this project.
+
+- **@c0rnbread** — Maintainer
+- **@dstepanov** — TCP Transport support
+
+
 
 ## Credits
 
