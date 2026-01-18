@@ -23,7 +23,8 @@
   ],
   "c2": [
     "httpx",
-    "smb"
+    "smb",
+    "tcp"
   ],
   "mythic_version": "3.4.18",
   "agent_version": "0.0.3",
