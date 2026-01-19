@@ -20,7 +20,7 @@
  */
 VOID InjectShellcode(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
 {
-    BOOL   isProcessInjectKit    = FALSE;
+    BOOL   isProcessInjectKit     = FALSE;
     PBYTE  Shellcode              = NULL;
     PCHAR  injectKitBof           = NULL;
     SIZE_T scLength               = 0;

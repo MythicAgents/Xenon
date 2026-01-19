@@ -1,10 +1,6 @@
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
-from ..utils.packer import serialize_int, serialize_bool, serialize_string
 import logging, sys
-import os
-import tempfile
-import donut
 from .utils.agent_global_settings import PROCESS_INJECT_KIT
 
 '''

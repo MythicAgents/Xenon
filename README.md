@@ -265,15 +265,15 @@ Xenon agents can be generated with the TCP comms profile to link agents in a pee
 If you have suggestions/requests open an issue or you can message me on discord.
 
 ### Features
-- [X] `execute_assembly` command
-- [ ] `powershell` command
-- [ ] Lateral movement related commands
 - [ ] Socks5 proxy
+- [ ] Support crystal palace for post-ex dlls
+- [ ] `powershell` command
+- [ ] Support dns external transport
 
 ### Bugs
 - [X] Work on memory issues (duplicate buffers etc)
 - [X] Fix initial install files not found
-- [ ] Sometimes `execute_assembly` holds pipe busy if assembly hangs
+- [ ] `execute_assembly` can cause PIPE_BUSY if doesnt exit properly
 - [ ] Issues executing BOFs compiled with MSVC
 
 ## Contributors
