@@ -533,7 +533,7 @@ class XenonAgent(PayloadType):
                     udrl_path = custom_udrl_path
                 # Use Default Loader
                 else:
-                    udrl_path = agent_build_path.name + "/Loader/udrl"
+                    udrl_path = agent_build_path.name + "/Loader/default"
                 
                 # Compile UDRL Object
                 command = "make"
@@ -555,7 +555,7 @@ class XenonAgent(PayloadType):
                 # Link with Crystal Palace
                 bin_file = f"{agent_build_path.name}/out.x64.bin"
                 command = f"./link {udrl_path}/loader.spec {output_path} {bin_file}"
-                crystal_palace_path = agent_build_path.name + "/Loader/dist"
+                crystal_palace_path = agent_build_path.name + "/Loader/crystal-linker"
                 
                 proc = await asyncio.create_subprocess_shell(command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=crystal_palace_path)
                 stdout, stderr = await proc.communicate()

@@ -7,14 +7,16 @@ from .utils.agent_global_settings import PROCESS_INJECT_KIT
     [BRIEF]
     
     This command is not designed to be used directly although it can be.
-    It takes a PIC shellcode file as an input and sends it's UUID string as 
-    an argument to the Agent.
+    It does the following:
+        - Takes a PIC (shellcode) file as input
+        - Checks if there is a Process Inject Kit registered
+        - Sends PIC and Kit (optional) to Agent for injection
     
     [Input]: 
-        - File
+        - File (shellcode)
     [Output]:
-        - {str} File UUID
-        - {typedlist} [bytes:kit_spawn_contents] Raw file of the currently configured Process Injection Kit BOF 
+        - {typedlist} [bytes:shellcode_contents] Contents of PIC input file
+        - {typedlist} [bytes:kit_spawn_contents] Contents of Process Injection Kit BOF 
 '''
 
 logging.basicConfig(level=logging.INFO)

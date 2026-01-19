@@ -269,6 +269,7 @@ If you have suggestions/requests open an issue or you can message me on discord.
 - [ ] Support crystal palace for post-ex dlls
 - [ ] `powershell` command
 - [ ] Support dns external transport
+- [ ] hook into more Mythic features (file browser, etc)
 
 ### Bugs
 - [X] Work on memory issues (duplicate buffers etc)
