@@ -13,7 +13,7 @@
 
 
 ### OPSEC Disclaimer
-Xenon makes no claims about evasion. In fact it is not OPSEC safe. There are many OPSEC improvements that need to be made to the agent. The main purpose of the project was to learn C and Windows internals better, not create the next FUD implant.
+Xenon makes no claims about evasion. The default configuration will not be OPSEC safe. The goal for Xenon is to allow the operator to customize features in order to accomplish their goals.
 
 
 ## Quick Start
@@ -273,6 +273,7 @@ If you have suggestions/requests open an issue or you can message me on discord.
 ### Bugs
 - [X] Work on memory issues (duplicate buffers etc)
 - [X] Fix initial install files not found
+- [ ] Sometimes `execute_assembly` holds pipe busy if assembly hangs
 - [ ] Issues executing BOFs compiled with MSVC
 
 ## Contributors
