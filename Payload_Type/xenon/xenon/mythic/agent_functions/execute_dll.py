@@ -23,7 +23,7 @@ from .utils.bof_utilities import *
 
 logging.basicConfig(level=logging.INFO)
 
-class InjectDllArguments(TaskArguments):
+class ExecuteDllArguments(TaskArguments):
     def __init__(self, command_line, **kwargs):
         super().__init__(command_line, **kwargs)
         self.args = [
@@ -109,7 +109,7 @@ class InjectDllArguments(TaskArguments):
         if len(self.command_line) == 0:
             raise Exception(
                 "Require a DLL to execute.\n\tUsage: {}".format(
-                    InjectDllCommand.help_cmd
+                    ExecuteDllCommand.help_cmd
                 )
             )
         if self.command_line[0] == "{":
@@ -138,15 +138,15 @@ def print_attributes(obj):
         self.load_args_from_json_string(self.command_line)
         pass
         
-class InjectDllCommand(CoffCommandBase):
-    cmd = "inject_dll"
+class ExecuteDllCommand(CoffCommandBase):
+    cmd = "execute_dll"
     needs_admin = False
-    help_cmd = "inject_dll -File [mimikatz.x64.dll]"
-    description = "Execute a Dynamic Link Library as PIC. (e.g., inject_dll -File mimikatz.x64.dll"
+    help_cmd = "execute_dll -File [mimikatz.x64.dll]"
+    description = "Execute a Dynamic Link Library as PIC. (e.g., execute_dll -File mimikatz.x64.dll"
     version = 1
     author = "@c0rnbread"
     attackmapping = []
-    argument_class = InjectDllArguments
+    argument_class = ExecuteDllArguments
     attributes = CommandAttributes(
         builtin=False,
         dependencies=["inline_execute", "inject_shellcode"],        # Required for ProcessInjectKit

