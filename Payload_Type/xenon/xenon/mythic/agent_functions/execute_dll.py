@@ -222,7 +222,7 @@ class ExecuteDllCommand(CoffCommandBase):
             
             # TODO: Do something with DLL arguments (dll_arguments)
             
-            shellcode_file_contents = await convert_dll_to_pic(file_resp.Files[0].AgentFileId)
+            shellcode_file_contents = await convert_postex_dll_to_pic(file_resp.Files[0].AgentFileId)
 
             logging.info(f"Converted DLL to PIC. Size: {len(shellcode_file_contents)} bytes")
 

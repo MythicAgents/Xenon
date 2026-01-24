@@ -221,11 +221,11 @@ class InjectShellcodeCommand(CommandBase):
                         MythicRPCFileGetContentMessage(AgentFileId=shellcode_file_id)
                     )
                 
-                # Delete shellcode file from Mythic
-                
-                
+
                 if not shellcode_contents.Success:
                     raise Exception("Failed to fetch find file from Mythic (ID: {})".format(shellcode_file_id))
+                
+                logging.info("Prepending Named Pipe Stub for Output.")
                 
                 # Prepend Named Pipe stub (to set stdout/stderr for process)
                 named_pipe_stub_path = 'xenon/agent_code/stub/stub.bin'

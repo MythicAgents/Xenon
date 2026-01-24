@@ -71,7 +71,7 @@ VOID InjectShellcode(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
             PackageError(taskUuid, error);
             return;
         }
-    } 
+    }
     else 
     {
         if ( !InjectDefault(Shellcode, scLength, &Output, &OutLen) ) 
