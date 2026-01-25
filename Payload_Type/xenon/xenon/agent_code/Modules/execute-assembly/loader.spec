@@ -16,6 +16,10 @@ x64:
 	# Load the PICO
 	load "bin/execute_assembly.x64.o"
 		make object +optimize
+		
+		# Merge in LibTCG.
+		mergelib "libtcg.x64.zip"
+		
 		# Export as bytes and link as "my_pico".
 		export
 		link "my_pico"

