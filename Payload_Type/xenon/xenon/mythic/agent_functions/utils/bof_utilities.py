@@ -28,20 +28,13 @@ class CoffCommandBase(CommandBase):
     completion_functions = {"coff_completion_callback": default_coff_completion_callback}
 
 
-async def upload_sa_bof_if_missing(file_name: str, taskData):
+async def upload_module_if_missing(file_name: str, taskData):
     """
     Upload a BOF to Mythic only if it doesn't already exist for the given task.
     """
 
     try:
-        # Construct path dynamically, e.g. xenon/.../trustedsec_bofs/arp/arp.x64.o
-        sa_module_path = (
-            Path("xenon/agent_code/modules/trustedsec_bofs")
-            / file_name.split(".")[0]
-            / file_name
-        )
-
-        # Search for existing file
+        # Search for module by filename
         search_resp = await SendMythicRPCFileSearch(
             MythicRPCFileSearchMessage(
                 TaskID=taskData.Task.ID,
@@ -51,38 +44,47 @@ async def upload_sa_bof_if_missing(file_name: str, taskData):
             )
         )
 
+        # File search failed
         if not search_resp.Success:
-            logging.error(f"[BOF Upload] File search failed for {file_name}: {search_resp.Error}")
+            logging.error(f"[Module Upload] File search failed for {file_name}: {search_resp.Error}")
             return False
 
+        # Already uploaded to Mythic
         existing_names = {f.Filename for f in search_resp.Files}
         if file_name in existing_names:
-            logging.info(f"[BOF Upload] {file_name} already exists in Mythic, skipping upload.")
+            logging.info(f"[Module Upload] {file_name} already exists in Mythic, skipping upload.")
             return True
 
-        # Read and upload the BOF
-        with open(sa_module_path, "rb") as bof_file:
-            bof_bytes = bof_file.read()
+        # Path to module on disk
+        module_path = (
+            Path("xenon/agent_code/Modules/bin")
+            / file_name.split(".")[0]
+            / file_name
+        )
 
+        # Read and upload the module
+        with open(module_path, "rb") as module_file:
+            module_bytes = module_file.read()
+            
         upload_resp = await SendMythicRPCFileCreate(
             MythicRPCFileCreateMessage(
                 TaskID=taskData.Task.ID,
                 Filename=file_name,
                 DeleteAfterFetch=False,
-                FileContents=bof_bytes,
+                FileContents=module_bytes,
             )
         )
 
         if upload_resp.Success:
-            logging.info(f"[BOF Upload] Successfully uploaded: {file_name}")
+            logging.info(f"[Module Upload] Successfully uploaded: {file_name}")
             return True
         else:
-            logging.error(f"[BOF Upload] Failed to upload {file_name}: {upload_resp.Error}")
+            logging.error(f"[Module Upload] Failed to upload {file_name}: {upload_resp.Error}")
             return False
 
     except FileNotFoundError:
-        logging.error(f"[BOF Upload] File not found: {sa_module_path}")
+        logging.error(f"[Module Upload] File not found: {module_path}")
         return False
     except Exception as e:
-        logging.exception(f"[BOF Upload] Unexpected error while processing {file_name}: {str(e)}")
+        logging.exception(f"[Module Upload] Unexpected error while processing {file_name}: {str(e)}")
         return False

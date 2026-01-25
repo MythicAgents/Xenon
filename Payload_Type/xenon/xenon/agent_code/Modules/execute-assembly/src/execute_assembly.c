@@ -51,25 +51,14 @@ HRESULT go(
             return -1;
         }
 
-        if (!EATHook(
-                advapi,
-                (CHAR *)"EventWrite",
-                (PVOID)&DummyFunction,
-                (PVOID *)&originalFunc
-            ))
+        if (!EATHook(advapi, (CHAR *)"EventWrite", (PVOID)&DummyFunction, (PVOID *)&originalFunc))
         {
             return -1;
         }
     }
 
     /* Execute inline dotnet */
-    Executedotnet(
-        assemblyBytes,
-        assemblyByteLen,
-        assemblyArguments,
-        patchExitflag,
-        patchAmsiflag
-    );
+    Executedotnet(assemblyBytes, assemblyByteLen, assemblyArguments, patchExitflag, patchAmsiflag);
 
     return 0;
 }

@@ -73,7 +73,7 @@ async def convert_dotnet_to_pic(file_id: str, assembly_args: str, arch: str, is_
     cwd = os.getcwd()                                                                                   # /root/Xenon/Payload_Type/xenon
     agent_code_path = os.path.join(cwd, "xenon", "agent_code")                                          # /root/Xenon/Payload_Type/xenon/xenon/agent_code
     crystal_palace_path = os.path.join(agent_code_path, "Loader", "crystal-linker")                     # /root/Xenon/Payload_Type/xenon/xenon/agent_code/Loader/crystal-linker
-    execute_assembly_path = os.path.join(agent_code_path, "modules", "core", "execute-assembly")        # /root/Xenon/Payload_Type/xenon/xenon/agent_code/Loader/post-ex
+    execute_assembly_path = os.path.join(agent_code_path, "Modules", "execute-assembly")                # /root/Xenon/Payload_Type/xenon/xenon/agent_code/Modules/execute-assembly
 
     # Get .NET assembly bytes from Mythic
     assembly_contents = await SendMythicRPCFileGetContent(MythicRPCFileGetContentMessage(AgentFileID=file_id))

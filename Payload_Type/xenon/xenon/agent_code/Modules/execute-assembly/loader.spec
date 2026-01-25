@@ -1,18 +1,18 @@
 x64:
 	# Load the runner PIC.
 	load "bin/loader.x64.o"
-	make pic +optimize +gofirst
+		make pic +optimize +gofirst
 	
-	# Merge in LibTCG.
-	mergelib "libtcg.x64.zip"
+		# Merge in LibTCG.
+		mergelib "libtcg.x64.zip"
 	
-	# Opt into dynamic function resolution using the resolve() function.
-	dfr "resolve" "ror13" "KERNEL32, NTDLL"
-	dfr "resolve_unloaded" "strings"
+		# Opt into dynamic function resolution using the resolve() function.
+		dfr "resolve" "ror13" "KERNEL32, NTDLL"
+		dfr "resolve_unloaded" "strings"
 	
 	# Load the PICO
 	load "bin/execute_assembly.x64.o"
-	make object +optimize
+		make object +optimize
 	
 	# Export as bytes and link as "my_pico".
 	export

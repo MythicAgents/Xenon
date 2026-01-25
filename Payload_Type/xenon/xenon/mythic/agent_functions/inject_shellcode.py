@@ -168,60 +168,23 @@ class InjectShellcodeCommand(CommandBase):
             #                                    #
             ######################################
             groupName = taskData.args.get_parameter_group_name()
-            method = "kit" if PROCESS_INJECT_KIT.get_inject_spawn() or PROCESS_INJECT_KIT.get_inject_explicit() else "default"
-            # method = taskData.args.get_arg("method")
+            method = "kit"
+        
+            # Check if Default Process Injection Kit was built yet
+            if not PROCESS_INJECT_KIT.get_inject_spawn() or not PROCESS_INJECT_KIT.get_inject_explicit():
+                await PROCESS_INJECT_KIT.build_default(taskData.Task.ID)
             
-            # if groupName == "New File":
-            #     file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
-            #         TaskID=taskData.Task.ID,
-            #         AgentFileID=taskData.args.get_arg("shellcode_file")
-            #     ))
-                
-            #     if file_resp.Success:
-            #         original_file_name = file_resp.Files[0].Filename
-            #     else:
-            #         raise Exception("Failed to fetch uploaded file from Mythic (ID: {})".format(taskData.args.get_arg("shellcode_file")))
-                
-            #     taskData.args.add_arg("shellcode_file", file_resp.Files[0].AgentFileId, parameter_group_info=[ParameterGroupInfo(
-            #         group_name="New File"
-            #     )])
-            #     # When this is here the filename is properly set in Mythic, BUT agent parses filename as UUID and fails.
-            #     taskData.args.add_arg("shellcode_name", original_file_name, parameter_group_info=[ParameterGroupInfo(
-            #         group_name="New File"
-            #         )])
-                
-                
-            #     # taskData.args.add_arg("file_id", taskData.args.get_arg("shellcode_file"), parameter_group_info=[ParameterGroupInfo(
-            #     #     group_name="New File"
-            #     #     )])
-
-            #     response.DisplayParams = original_file_name
-
-            #elif groupName == "Existing":
+            # Assuming existing shellcode file was passed
             if groupName == "Existing":
                 shellcode_file_id = taskData.args.get_arg("shellcode_file")
                 
                 # Retrieve the shellcode file to inject
-                logging.info(f"Pre-existing name {shellcode_file_id}")
-                
-                # file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
-                #     TaskID=taskData.Task.ID,
-                #     Filename=taskData.args.get_arg("shellcode_name"),
-                #     LimitByCallback=False,
-                #     MaxResults=1
-                # ))
-                # file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
-                #     TaskID=taskData.Task.ID,
-                #     AgentFileID=taskData.args.get_arg("shellcode_file"),
-                #     LimitByCallback=True,
-                #     MaxResults=1
-                # ))
-                
+                logging.info(f"Selecting shellcode file to inject. Mythic File UUID: {shellcode_file_id}")
+
                 shellcode_contents = await SendMythicRPCFileGetContent(
                         MythicRPCFileGetContentMessage(AgentFileId=shellcode_file_id)
                     )
                 
-
                 if not shellcode_contents.Success:
                     raise Exception("Failed to fetch find file from Mythic (ID: {})".format(shellcode_file_id))
                 
@@ -233,8 +196,6 @@ class InjectShellcodeCommand(CommandBase):
                     stub_bytes = f.read()
                 prefixed_shellcode = stub_bytes + shellcode_contents.Content
                 
-                # Send shellcode bytes directly instead of file UUID
-                # This avoids needing to download the file in the agent
                 # Use TypedArray format to send raw bytes (same format as kit bytes)
                 shellcode_typed_array = [["bytes", prefixed_shellcode.hex()]]
                 taskData.args.add_arg("shellcode_bytes", shellcode_typed_array, type=ParameterType.TypedArray, parameter_group_info=[ParameterGroupInfo(
@@ -260,9 +221,11 @@ class InjectShellcodeCommand(CommandBase):
                         group_name="Existing"
                     )])
                     
-                    logging.info(f"\n[+] Using Custom Process Injection Kit. \n\t- PROCESS_INJECT_SPAWN:{kit_spawn_uuid}:{len(kit_spawn_contents)} bytes\n")
+                    logging.info(f"[PIK] Using Process Injection Kit.")
+                    logging.info(f"[PIK] \t PROCESS_INJECT_SPAWN:{PROCESS_INJECT_KIT.get_inject_spawn()}")
+                    logging.info(f"[PIK] \t PROCESS_INJECT_EXPLICIT:{PROCESS_INJECT_KIT.get_inject_explicit()}")
 
-
+                
                 response.DisplayParams = "-File {} --method {}".format(
                     shellcode_file_id,
                     method

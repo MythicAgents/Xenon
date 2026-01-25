@@ -248,11 +248,11 @@ class ExecuteAssemblyCommand(CoffCommandBase):
             
             # TODO
             # Check if execute_assembly PICO capability is built, if not build it
-            #
-
-            #   /root/Xenon/Payload_Type/xenon/xenon/agent_code/modules/core/execute-assembly/bin/execute_assembly.x64.bin
-            #   /root/Xenon/Payload_Type/xenon/xenon/agent_code/modules/core/execute-assembly/bin/loader.x64.bin  
-                        
+            #            
+            #   /root/Xenon/Payload_Type/xenon/xenon/agent_code/Modules/execute-assembly/bin/execute_assembly.x64.bin
+            #   /root/Xenon/Payload_Type/xenon/xenon/agent_code/Modules/execute-assembly/bin/loader.x64.bin
+            
+            
             #
             # Link COFF -> PIC with Crystal Palace linker
             #
@@ -272,8 +272,6 @@ class ExecuteAssemblyCommand(CoffCommandBase):
                 is_patchetw
             )
                         
-            logging.info(f"Converted .NET into Shellcode {len(assembly_shellcode_contents)} bytes")
-            
             # .NET shellcode stub in Mythic
             shellcode_file_resp = await SendMythicRPCFileCreate(
                 MythicRPCFileCreateMessage(TaskID=taskData.Task.ID, FileContents=assembly_shellcode_contents, DeleteAfterFetch=True)

@@ -319,7 +319,7 @@ class InlineExecuteAssemblyCommand(CoffCommandBase):
             
 
             # Upload desired BOF if it hasn't been before (per payload uuid)
-            succeeded = await upload_sa_bof_if_missing(file_name=file_name, taskData=taskData)
+            succeeded = await upload_module_if_missing(file_name=file_name, taskData=taskData)
             if not succeeded:
                 response.Success = False
                 response.Error = f"Failed to upload or check BOF \"{file_name}\"."
