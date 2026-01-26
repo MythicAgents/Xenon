@@ -58,7 +58,6 @@ async def upload_module_if_missing(file_name: str, taskData):
         # Path to module on disk
         module_path = (
             Path("xenon/agent_code/Modules/bin")
-            / file_name.split(".")[0]
             / file_name
         )
 

