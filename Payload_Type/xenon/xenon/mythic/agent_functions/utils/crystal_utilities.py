@@ -21,7 +21,7 @@ async def convert_postex_dll_to_pic(file_id: str) -> bytes:
     post_ex_path = os.path.join(agent_code_path, "Loader", "post-ex")                   # /root/Xenon/Payload_Type/xenon/xenon/agent_code/Loader/post-ex
 
     # Get DLL bytes from Mythic
-    dll_contents = await SendMythicRPCFileGetContent(MythicRPCFileGetContentMessage(AgentFileID=file_id))
+    dll_contents = await SendMythicRPCFileGetContent(MythicRPCFileGetContentMessage(AgentFileId=file_id))
     
     if not dll_contents.Success:
         raise Exception("[CRYSTAL] Failed to fetch find file from Mythic (ID: {})".format(file_id))
@@ -76,7 +76,7 @@ async def convert_dotnet_to_pic(file_id: str, assembly_args: str, arch: str, is_
     execute_assembly_path = os.path.join(agent_code_path, "Modules", "execute-assembly")                # /root/Xenon/Payload_Type/xenon/xenon/agent_code/Modules/execute-assembly
 
     # Get .NET assembly bytes from Mythic
-    assembly_contents = await SendMythicRPCFileGetContent(MythicRPCFileGetContentMessage(AgentFileID=file_id))
+    assembly_contents = await SendMythicRPCFileGetContent(MythicRPCFileGetContentMessage(AgentFileId=file_id))
     if not assembly_contents.Success:
         raise Exception("[CRYSTAL] Failed to fetch find file from Mythic (ID: {})".format(file_id))
     
