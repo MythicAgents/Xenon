@@ -89,11 +89,6 @@ class ExecuteAssemblyArguments(TaskArguments):
 
     async def parse_arguments(self):
         if len(self.command_line) == 0:
-            raise ValueError("Must supply arguments")
-        raise ValueError("Must supply named arguments or use the modal")
-
-    async def parse_arguments(self):
-        if len(self.command_line) == 0:
             raise Exception(
                 "Require an assembly to execute.\n\tUsage: {}".format(
                     ExecuteAssemblyCommand.help_cmd
