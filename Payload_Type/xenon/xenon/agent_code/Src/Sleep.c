@@ -1,6 +1,9 @@
 #include "Sleep.h"
 #include "Debug.h"
 #include "Utils.h"
+#include "Config.h"
+
+#ifdef HTTPX_TRANSPORT
 
 // Function to apply jitter to the sleep time
 VOID SleepWithJitter(INT baseSleepTime, INT maxJitter) {
@@ -27,3 +30,13 @@ sleep:
     // Sleep for the adjusted time (in milliseconds)
     Sleep(baseSleepTime * 1000);
 }
+
+#else // SMB_TRANSPORT & TCP_TRANSPORT
+
+VOID SleepWithJitter(INT baseSleepTime, INT maxJitter) {
+
+    Sleep(500);
+    
+}
+
+#endif

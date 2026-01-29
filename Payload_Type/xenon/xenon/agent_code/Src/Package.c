@@ -426,7 +426,8 @@ BOOL PackageReadPipe(HANDLE hPipe, PBYTE* ppOutData, SIZE_T* pOutLen)
         }
         else
         {
-            _dbg("\t Package size smaller than 4 bytes...");
+            // Package size smaller than 4 bytes...
+            // _dbg("\t Package size smaller than 4 bytes...");
         }
     }
     else
@@ -435,9 +436,7 @@ BOOL PackageReadPipe(HANDLE hPipe, PBYTE* ppOutData, SIZE_T* pOutLen)
         return FALSE;
     }
 
-    
-
-    _dbg("\t Read complete message: %d bytes", Total);
+    // _dbg("\t Read complete message: %d bytes", Total);
     
     /* Output */
     *ppOutData = Buffer;
