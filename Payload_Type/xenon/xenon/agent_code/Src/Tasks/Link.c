@@ -374,12 +374,7 @@ BOOL LinkSync( PCHAR TaskUuid, PPARSER Response )
                 Current->AgentId = P2pUuid;
 
                 _dbg("[LINK SYNC] Updated Link Agent ID => [%s]", Current->AgentId);
-            }
-            else
-            {
-                _err("Failed to find the matching Link by LinkID");
-                goto CLEANUP;
-            }
+            } // If not, will check rest of linked-list
         }
         
         
