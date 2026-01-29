@@ -120,14 +120,14 @@ BOOL SmbRecieve(PBYTE* ppOutData, SIZE_T* pOutLen)
             {
                 _dbg("Waiting for new parent to connect...");
                 
-                if ( !CheckinSend() )
+                if ( CheckinSend() )
                 {
-                    _err("Failed to send checkin request");
-                    return FALSE;
+                    _dbg("Forced new checkin to Mythic. Continuing...");
+                    return TRUE;
                 }
             }
 
-            _err("Failed to create new SMB pipe");
+            _err("Failed to recover from parent disconnection.");
             return FALSE;
         }
         

