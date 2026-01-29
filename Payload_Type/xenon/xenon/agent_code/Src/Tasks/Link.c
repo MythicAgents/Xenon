@@ -369,6 +369,7 @@ BOOL LinkSync( PCHAR TaskUuid, PPARSER Response )
         /* Update Mythic Agent ID If Checkin */
         if ( IsCheckin )
         {
+
             if ( Current->LinkId == LinkId )
             {
                 Current->AgentId = P2pUuid;
@@ -377,7 +378,7 @@ BOOL LinkSync( PCHAR TaskUuid, PPARSER Response )
             } // If not, will check rest of linked-list
         }
         
-        
+        _dbg("[LINK SYNC] Checking current link : %s", Current->AgentId);
         /* Search by AgentId and Send Data */
         if ( strcmp(Current->AgentId, P2pUuid) == 0 )
         {
@@ -757,8 +758,6 @@ BOOL LinkRemove( PCHAR P2pUuid )
     // Host    = ParserGetString(arguments, &hLen);
     P2pUuid = ParserGetString(arguments, &pLen);
 
-    _dbg("Unlinking P2P Agent [%s]", P2pUuid);
-
     PLINKS Current = xenonConfig->Links;
     while ( Current )
     {
@@ -766,6 +765,7 @@ BOOL LinkRemove( PCHAR P2pUuid )
 
         if ( strcmp(Current->AgentId, P2pUuid) == 0 )
         {
+            _dbg("Unlinking P2P Agent [%s]", P2pUuid);
             LinkType = Current->LinkType;
             break;
         }
