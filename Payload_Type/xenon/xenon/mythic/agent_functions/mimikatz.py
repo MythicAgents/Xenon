@@ -115,9 +115,17 @@ class MimikatCommand(CoffCommandBase):
             #                                    #
             ######################################      
 
+            file_name = "mimikatz.x64.exe"
+            
+            # Upload desired BOF if it hasn't been before (per payload uuid)
+            succeeded = await upload_module_if_missing(file_name=file_name, taskData=taskData)
+            if not succeeded:
+                response.Success = False
+                response.Error = f"Failed to upload or check module \"{file_name}\"."
+            
             file_resp = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(
                     TaskID=taskData.Task.ID,
-                    Filename="mimikatz.x64.exe",
+                    Filename=file_name,
                     LimitByCallback=False,
                     MaxResults=1
                 ))
