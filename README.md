@@ -60,6 +60,7 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 | `inline_execute` | `inline_execute -BOF [COFF.o] [-Arguments [optional arguments]]` | Execute a Beacon Object File in the current process thread and see output. **Warning:** Incorrect argument types can crash the Agent process. |
 | `inline_execute_assembly` | `inline_execute_assembly -Assembly [file] [-Arguments [assembly args] [--patchexit] [--amsi] [--etw]]` | Execute a .NET Assembly in the current process using @EricEsquivel's BOF "Inline-EA" (e.g., inline_execute_assembly -Assembly SharpUp.exe -Arguments "audit" --patchexit --amsi --etw) |
 | `execute_assembly` | `execute_assembly -Assembly [SharpUp.exe] [-Arguments [assembly arguments]]` | Execute a .NET Assembly in a remote processes and retrieve the output. |
+| `execute_dll` | `execute_dll -File [mimikatz.x64.dll]` | Execute a Dynamic Link Library as PIC. (e.g., execute_dll -File mimikatz.x64.dll) |
 | `spawnto` | `spawnto -path [C:\Windows\System32\svchost.exe]` | Set the full path of the process to use for spawn & inject commands. |
 | `download`     | `download -path <file path>`                           | Download a file off the target system (supports UNC path). |
 | `upload`       | `upload (modal)`                                            | Upload a file to the target machine by selecting a file from your computer. |
