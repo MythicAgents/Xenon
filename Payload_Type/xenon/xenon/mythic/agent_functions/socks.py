@@ -8,17 +8,6 @@ class SocksArguments(TaskArguments):
         super().__init__(command_line, **kwargs)
         self.args = [
             CommandParameter(
-                name="port", 
-                cli_name="Port",
-                display_name="Port",
-                type=ParameterType.Number,
-                description="Port to start the socks server on.",
-                parameter_group_info=[ParameterGroupInfo(
-                    ui_position=0,
-                    required=True
-                )]
-            ),
-            CommandParameter(
                 name="action",
                 cli_name="Action",
                 display_name="Action",
@@ -27,10 +16,22 @@ class SocksArguments(TaskArguments):
                 default_value="start",
                 description="Start or stop proxy server for this port.",
                 parameter_group_info=[ParameterGroupInfo(
-                    ui_position=1,
+                    ui_position=0,
                     required=False
                 )],
             ),
+            CommandParameter(
+                name="port", 
+                cli_name="Port",
+                display_name="Port",
+                type=ParameterType.Number,
+                description="Port to start the socks server on.",
+                parameter_group_info=[ParameterGroupInfo(
+                    ui_position=1,
+                    required=True
+                )]
+            ),
+            
             CommandParameter(
                 name="username",
                 cli_name="Username",
@@ -71,11 +72,11 @@ class SocksArguments(TaskArguments):
 class SocksCommand(CommandBase):
     cmd = "socks"
     needs_admin = False
-    help_cmd = "socks -Port [port number] -Action {start|stop}"
+    help_cmd = "socks -Action {start|stop} -Port [port number]. (e.g. socks start 7001)"
     description = "Enable SOCKS 5 compliant proxy to send data to the target network."
-    version = 2
+    version = 1
     script_only = False
-    author = "@djhohnstein"
+    author = "@c0rnbread"
     argument_class = SocksArguments
     attackmapping = ["T1090"]
     attributes=CommandAttributes(
@@ -86,7 +87,7 @@ class SocksCommand(CommandBase):
             TaskID=taskData.Task.ID,
             Success=True,
         )
-        response.DisplayParams = f"-Action {taskData.args.get_arg('action')} -Port {taskData.args.get_arg('port')}"
+        response.DisplayParams = f"{taskData.args.get_arg('action')} {taskData.args.get_arg('port')}"
         if taskData.args.get_arg('username') != "" and taskData.args.get_arg('username') is not None:
             response.DisplayParams += f" -Username {taskData.args.get_arg('username')} -Password {taskData.args.get_arg('password')}"
         
