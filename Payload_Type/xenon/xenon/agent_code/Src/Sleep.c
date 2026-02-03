@@ -6,10 +6,16 @@
 #ifdef HTTPX_TRANSPORT
 
 // Function to apply jitter to the sleep time
-VOID SleepWithJitter(INT baseSleepTime, INT maxJitter) {
+VOID SleepWithJitter(INT baseSleepTime, INT maxJitter) 
+{
+    if (baseSleepTime == 0)
+    {
+        return;
+    }
+    
     if (maxJitter == 0)
         goto sleep;
-    
+
     // Define limits for jitter
     const INT minJitter = 1;  // Minimum jitter of 1 second
     const INT jitterRange = maxJitter / 2;  // Half of maxJitter as range for +/- adjustments
@@ -33,8 +39,13 @@ sleep:
 
 #else // SMB_TRANSPORT & TCP_TRANSPORT
 
-VOID SleepWithJitter(INT baseSleepTime, INT maxJitter) {
-
+VOID SleepWithJitter(INT baseSleepTime, INT maxJitter)
+{
+    if (baseSleepTime == 0)
+    {
+        return;
+    }
+    
     Sleep(500);
     
 }

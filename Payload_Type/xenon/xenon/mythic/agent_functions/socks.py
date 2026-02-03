@@ -107,8 +107,6 @@ class SocksCommand(CommandBase):
                     Response=resp.Error.encode()
                 ))
             else:
-                #response.TaskStatus = MythicStatus.Success
-                #response.Completed = True
                 await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
                     TaskID=taskData.Task.ID,
                     Response=f"Started SOCKS5 server on port {taskData.args.get_arg('port')}\nUpdating Sleep to 0\n".encode()

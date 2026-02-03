@@ -18,7 +18,7 @@
 #include "Tasks/Exit.h"
 
 /**
- * @brief @brief Process commands from GET_TASKING
+ * @brief Process commands from GET_TASKING
 
  * @param [in] cmd Task command ID.
  * @param [in] taskUuid Mythic's UUID for tracking tasks.
@@ -335,7 +335,6 @@ VOID TaskProcess(PPARSER tasks)
         
         ParserNew(&taskParser, taskBuffer, sizeTask);
         
-        // Do the tasks synchronously 
         TaskDispatch(taskId, taskUuid, &taskParser);
 
         ParserDestroy(&taskParser);
