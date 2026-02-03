@@ -542,7 +542,7 @@ def p2p_to_mythic_format(data):
         }
     ]
     
-    logging.info(f"[P2P] IMPLANT -> C2: \n\t message: {output.decode('cp850')}, \n\t mythic_uuid: {payload_uuid.decode('cp850')}, \n\t c2_profile: smb")
+    logging.info(f"[P2P] IMPLANT -> C2: \n\t message: {len(output)} bytes, \n\t mythic_uuid: {payload_uuid.decode('cp850')}, \n\t c2_profile: smb")
         
     return task_json, delegates, data
 
