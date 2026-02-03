@@ -12,6 +12,7 @@
 #include "Tasks/Upload.h"
 #include "Tasks/InlineExecute.h"
 #include "Tasks/InjectShellcode.h"
+#include "Tasks/Socks.h"
 #include "Tasks/Token.h"
 #include "Tasks/Link.h"
 #include "Tasks/Exit.h"
@@ -217,6 +218,14 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
         {
             _dbg("INJECT_SHELLCODE_CMD was called");
             InjectShellcode(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_SOCKS
+        case SOCKS_CMD:
+        {
+            _dbg("SOCKS_CMD was called");
+            Socks(taskUuid, taskParser);
             return;
         }
 #endif

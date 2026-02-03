@@ -245,7 +245,7 @@ VOID PackageComplete(PCHAR taskUuid, PPackage package)
     }
     else
     {
-        PackageAddInt32(data, 0);
+        PackageAddInt32(data, 0);   // 0 length of data
     }
 
     /* Add Status Byte to End */
