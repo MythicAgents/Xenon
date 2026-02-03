@@ -72,9 +72,9 @@ class SocksCommand(CommandBase):
     cmd = "socks"
     needs_admin = False
     help_cmd = "socks -Port [port number] -Action {start|stop}"
-    description = "Enable SOCKS 5 compliant proxy to send data to the target network. Compatible with proxychains and proxychains4."
+    description = "Enable SOCKS 5 compliant proxy to send data to the target network."
     version = 2
-    script_only = True
+    script_only = False
     author = "@djhohnstein"
     argument_class = SocksArguments
     attackmapping = ["T1090"]
@@ -111,7 +111,7 @@ class SocksCommand(CommandBase):
                 #response.Completed = True
                 await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
                     TaskID=taskData.Task.ID,
-                    Response=f"Started SOCKS5 server on port {taskData.args.get_arg('port')}\nUpdating Sleep to 0".encode()
+                    Response=f"Started SOCKS5 server on port {taskData.args.get_arg('port')}\nUpdating Sleep to 0\n".encode()
                 ))
                 await SendMythicRPCTaskCreateSubtask(MythicRPCTaskCreateSubtaskMessage(
                     TaskID=taskData.Task.ID,
@@ -142,7 +142,7 @@ class SocksCommand(CommandBase):
                 response.Completed = True
                 await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
                     TaskID=taskData.Task.ID,
-                    Response=f"Stopped SOCKS5 server on port {taskData.args.get_arg('port')}\nUpdating Sleep to 1".encode()
+                    Response=f"Stopped SOCKS5 server on port {taskData.args.get_arg('port')}\nUpdating Sleep to 1\n".encode()
                 ))
                 await SendMythicRPCTaskCreateSubtask(MythicRPCTaskCreateSubtaskMessage(
                     TaskID=taskData.Task.ID,

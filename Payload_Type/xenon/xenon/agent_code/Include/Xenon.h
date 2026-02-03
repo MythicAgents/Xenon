@@ -100,6 +100,13 @@ typedef struct
 
 #endif
 
+#if defined(INCLUDE_CMD_SOCKS)
+
+    // SOCKS Connections
+    struct _SOCKS_CONN* SocksConnections;
+
+#endif
+
 } CONFIG_XENON, *PCONFIG_XENON;
 
 extern PCONFIG_XENON xenonConfig;

@@ -26,6 +26,7 @@
 #define LINK_ADD            0x05
 #define LINK_MSG            0x06
 #define LINK_REMOVE         0x07
+#define SOCKS_DATA          0x08
 
 // General
 #define STATUS_CMD      0x37
@@ -71,6 +72,7 @@
 #define LINK_RESP       0xCB
 #define DOWNLOAD_RESP   0xCC
 #define UPLOAD_RESP     0xCD
+#define SOCKS_RESP      0xCE
 
 
 

@@ -14,6 +14,7 @@ MYTHIC_UPLOAD_CHUNKED = 0x04
 MYTHIC_P2P_CHECK_IN = 0x05
 MYTHIC_P2P_MSG = 0x06
 MYTHIC_P2P_REMOVE = 0x07
+MYTHIC_SOCKS_DATA = 0x08
 # Mythic Responses
 MYTHIC_NORMAL_RESP = 0xAA
 MYTHIC_DOWNLOAD_RESP = 0xAB
@@ -53,7 +54,8 @@ commands = {
     "normal_resp": 0xCA,
     "p2p_resp": 0xCB,
     "download_resp": 0xCC,
-    "upload_resp": 0xCD
+    "upload_resp": 0xCD,
+    "socks_resp": 0xCE
 }
 
 def get_operator_command(command_name):

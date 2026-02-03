@@ -41,7 +41,7 @@ def checkin_to_agent_format(uuid: str) -> bytes:
 
 def get_responses_to_agent_format(inputMsg) -> bytes:
     """
-    Pack get_tasking message with tasks, responses, and delegates.
+    Pack get_tasking message with tasks, responses, delegates, and socks.
     
     This is the main entry point for converting Mythic get_tasking messages
     into the binary format expected by the agent.
@@ -51,6 +51,7 @@ def get_responses_to_agent_format(inputMsg) -> bytes:
             - "tasks": List of normal tasks
             - "responses": List of task responses (download/upload)
             - "delegates": List of P2P delegate messages
+            - "socks": List of SOCKS proxy data messages
     
     Returns:
         bytes: Packed binary data to be sent to agent
@@ -58,5 +59,6 @@ def get_responses_to_agent_format(inputMsg) -> bytes:
     tasks = inputMsg.Message.get("tasks", [])
     responses = inputMsg.Message.get("responses", [])
     delegates = inputMsg.Message.get("delegates", [])
+    socks = inputMsg.Message.get("socks", [])
     
-    return format_get_tasking_message(tasks, responses, delegates)
+    return format_get_tasking_message(tasks, responses, delegates, socks)

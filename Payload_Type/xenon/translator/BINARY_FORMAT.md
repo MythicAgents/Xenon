@@ -98,6 +98,63 @@ P2P messages are converted to `p2p_resp` tasks with parameters:
 - `p2p_uuid`: String (36 bytes)
 - `base64_msg`: String (base64-encoded message)
 
+### SOCKS Proxy Messages
+
+SOCKS messages allow the agent to act as a TCP proxy for Mythic. The Mythic server handles the SOCKS5 protocol negotiation with clients; the agent simply tunnels raw TCP data.
+
+#### SOCKS Data (C2 → Agent)
+
+SOCKS messages from Mythic are converted to `socks_resp` (0xCE) tasks with parameters:
+- `server_id`: UINT32 - Unique connection identifier
+- `data`: Bytes - Base64-decoded data to forward (length-prefixed)
+- `exit`: Boolean - Whether to close the connection after sending
+
+For new connections, the first message's data contains:
+```
+BYTES[4]:  target_ip (network byte order)
+BYTES[2]:  target_port (network byte order)
+BYTES[...]: initial_data (optional)
+```
+
+Binary format as task parameters:
+```
+UINT32:  parameter_count (3)
+UINT32:  server_id
+UINT32:  data_length
+BYTES:   data (decoded from base64)
+BYTE:    exit (0x00=false, 0x01=true)
+```
+
+#### SOCKS Response (Agent → C2)
+
+```
+BYTE:    0x08 (MYTHIC_SOCKS_DATA)
+UINT32:  server_id
+UINT32:  data_length
+BYTES:   data
+BYTE:    exit_flag (0x00=false, 0x01=true)
+```
+
+The translator converts this to Mythic's JSON format:
+```json
+{
+  "socks": [
+    {
+      "server_id": 12345,
+      "data": "base64_encoded_data",
+      "exit": false
+    }
+  ]
+}
+```
+
+#### SOCKS Connection Lifecycle
+
+1. **New Connection**: First message for a `server_id` contains target IP:port in data
+2. **Data Transfer**: Subsequent messages forward raw TCP data
+3. **Close Connection**: Message with `exit=true` signals connection closure
+4. **Error Handling**: Socket errors trigger `exit=true` response to Mythic
+
 ## Agent Parsing
 
 The agent uses the following parsing functions (from `Parser.c`):
