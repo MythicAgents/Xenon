@@ -34,6 +34,7 @@ pre = "<b>1. </b>"
 | `status`         | `status`                                              | List C2 connection hosts and their status. |
 | `link`           | `link <target> <named pipe>`                          | Connect to an SMB Link Agent. |
 | `unlink`         | `unlink <Display Id>`                                 | Disconnect from an SMB Link Agent. |
+| `socks` | `socks <start/stop> <port number>` | Enable SOCKS 5 compliant proxy to send data to the target network. |
 | `register_process_inject_kit`       | `register_process_inject_kit (pops modal)`                                            | Register a custom BOF to use for process injection (CS compatible). See documentation for requirements. |
 | `exit`         | `exit`                                              | Task the implant to exit. |
 

@@ -67,6 +67,7 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 | `status`         | `status`                                              | List C2 connection hosts and their status. |
 | `link`           | `link <target> [<named pipe>\|<tcp_port>]`                          | Connect to an SMB/TCP Link Agent. |
 | `unlink`         | `unlink <Display Id>`                                 | Disconnect from an SMB/TCP Link Agent. |
+| `socks` | `socks <start/stop> <port number>` | Enable SOCKS 5 compliant proxy to send data to the target network. |
 | `register_process_inject_kit`       | `register_process_inject_kit (pops modal)`                                            | Register a custom BOF to use for process injection (CS compatible). See documentation for requirements. |
 | `exit`         | `exit`                                              | Task the implant to exit. |
 
@@ -283,7 +284,7 @@ Special thanks to all contributors who help improve this project.
 
 - **@c0rnbread** — Maintainer
 - **@dstepanov** — TCP Transport support
-
+- **vnp-dev**
 
 
 ## Credits
