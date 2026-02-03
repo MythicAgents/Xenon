@@ -267,8 +267,7 @@ Xenon agents can be generated with the TCP comms profile to link agents in a pee
 If you have suggestions/requests open an issue or you can message me on discord.
 
 ### Features
-- [ ] Socks5 proxy
-- [ ] Support crystal palace for post-ex dlls
+- [x] Socks5 proxy
 - [ ] `powershell` command
 - [ ] Support dns external transport
 - [ ] hook into more Mythic features (file browser, etc)
@@ -282,10 +281,11 @@ If you have suggestions/requests open an issue or you can message me on discord.
 ## Contributors
 Special thanks to all contributors who help improve this project.
 
-- **@c0rnbread** — Maintainer
+- **@c0rnbread** — Author & Maintainer
 - **@dstepanov** — TCP Transport support
 - **vnp-dev**
 
+If you would like to contribute to the project, please work off of the **next version branch** (named like "v1.2.3") as merges will go into that.
 
 ## Credits
 
