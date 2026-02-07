@@ -1,5 +1,6 @@
 from translator.utils import *
 import ipaddress, logging
+from .utils import parse_file_browser_tlv
 
 logging.basicConfig(level=logging.INFO)
 
@@ -162,6 +163,10 @@ def post_response_handler(data):
             logging.info(f"[MYTHIC_SOCKS_DATA]")
             if socks_msg:
                 mythic_socks.append(socks_msg)
+
+        elif response_type == MYTHIC_FILE_BROWSER:
+            task_json, data = file_browser_to_mythic_format(data)
+            logging.info(f"[MYTHIC_FILE_BROWSER]")
         else:
             logging.info(f"[UNKNOWN_RESPONSE]: {response_type}")
             continue
@@ -277,9 +282,58 @@ def post_response_to_mythic_format(data):
             "status": status,
             "completed": status in ("success", "error")
         }
-    
+
     return task_json, data
 
+
+def file_browser_to_mythic_format(data):
+    """
+    Parse file-browser message from Agent (message type MYTHIC_FILE_BROWSER already consumed).
+    Format: task_uuid (36), status_byte (1), then raw TLV payload (no length prefix).
+    The agent builds one package: type, uuid, status, then TLV.
+    Returns (task_json, remaining_data) for Mythic file_browser response.
+    """
+    if len(data) < 36 + 1:
+        logging.error("file_browser_to_mythic_format: buffer too small for task_uuid + status")
+        return None, data
+
+    task_uuid = data[:36].decode("cp850")
+    data = data[36:]
+    status_byte = data[0]
+    data = data[1:]
+
+    if status_byte == 0x95:
+        status = "success"
+    elif status_byte == 0x97:
+        status = None
+    elif status_byte == 0x99:
+        status = "error"
+    else:
+        status = "unknown"
+
+    # Rest of buffer is the raw TLV (agent sends type, uuid, status, then TLV with no length prefix)
+    tlv_payload = data
+    data = b""
+
+    file_browser_data = parse_file_browser_tlv(tlv_payload) if len(tlv_payload) > 0 else None
+    
+    if status == "success":
+        user_output = "[+] file browser listing\n" if file_browser_data else "[+] file browser (parse error)\n"
+    elif status == "error":
+        user_output = "[!] file browser failed\n"
+    else:
+        user_output = "[+] file browser listing\n"
+
+    task_json = {
+        "task_id": task_uuid,
+        "user_output": user_output,
+        "status": status,
+        "completed": status in ("success", "error"),
+    }
+    if file_browser_data is not None:
+        task_json["file_browser"] = file_browser_data
+
+    return task_json, data
 
 
 def download_init_to_mythic_format(data):
@@ -386,7 +440,7 @@ def download_cont_to_mythic_format(data):
             }
     }
     
-    logging.info(f"[DOWNLOAD_CHUNK] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t chunk_num:{chunk_num}, \n\t file_id:{file_id.decode('cp850')}, \n\t chunk_size:{chunk_size}, \n\tchunk_data:{chunk_data}")
+    logging.info(f"[DOWNLOAD_CHUNK] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t chunk_num:{chunk_num}, \n\t file_id:{file_id.decode('cp850')}, \n\t chunk_size:{chunk_size}, \n\tchunk_data:{len(chunk_data)} bytes")
     
     return task_json, data
 

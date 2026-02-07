@@ -90,7 +90,7 @@ BOOL PackageAddInt64(PPackage package, UINT64 value)
     if (!package->buffer)
         return FALSE;
 
-    addInt64ToBuffer((PUCHAR)package->buffer, value);
+    addInt64ToBuffer((PUCHAR)(package->buffer) + package->length, value);
     package->length += sizeof(UINT64);
 
     return TRUE;

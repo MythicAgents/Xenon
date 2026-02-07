@@ -31,15 +31,31 @@ def pack_parameters(parameters: Dict[str, Any]) -> bytes:
     Returns:
         bytes: Packed parameter data
     """
+    return pack_parameters_ordered(parameters, None)
+
+
+def pack_parameters_ordered(parameters: Dict[str, Any], order: list = None) -> bytes:
+    """
+    Pack parameters in a fixed order when order is provided (e.g. for ls: filepath then file_browser).
+    Only includes keys present in parameters. If order is None, uses dict iteration order.
+    """
     packer = TlvPacker()
-    
-    # Add parameter count
-    packer.add_uint32(len(parameters))
-    
-    # Pack each parameter
-    for param_name, param_value in parameters.items():
+    if not parameters:
+        packer.add_uint32(0)
+        return packer.get_buffer()
+
+    if order:
+        # Pack keys in order first (only those present)
+        ordered_items = [(k, parameters[k]) for k in order if k in parameters]
+        # Then any remaining keys not in order
+        remaining = [(k, parameters[k]) for k in parameters if k not in order]
+        items = ordered_items + remaining
+    else:
+        items = list(parameters.items())
+
+    packer.add_uint32(len(items))
+    for param_name, param_value in items:
         pack_parameter_value(packer, param_name, param_value)
-    
     return packer.get_buffer()
 
 

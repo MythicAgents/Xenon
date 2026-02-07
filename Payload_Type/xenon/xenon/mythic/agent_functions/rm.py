@@ -1,5 +1,6 @@
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
+import logging
 
 
 class RmArguments(TaskArguments):
@@ -22,6 +23,17 @@ class RmArguments(TaskArguments):
         self.add_arg("path", self.command_line)
 
     async def parse_dictionary(self, dictionary):
+        if "host" in dictionary:
+            # Tasking from File Browser UI: use full_path if present, else path + "\\" + file
+            logging.info(f"Command came from File Browser UI - {dictionary}")
+            full_path = dictionary.get("full_path")
+            if full_path is not None and full_path != "":
+                self.add_arg("full_path", full_path)
+            else:
+                path = dictionary.get("path", "")
+                file = dictionary.get("file", "")
+                self.add_arg("full_path", (path + "\\" + file) if file else (path.rstrip("\\") or path))
+        
         self.load_args_from_dictionary(dictionary)
 
 class RmCommand(CommandBase):
@@ -49,8 +61,18 @@ class RmCommand(CommandBase):
             TaskID=taskData.Task.ID,
             Success=True,
         )
+
+        taskData.args.remove_arg("path")
+
+        logging.info(f"Arguments: {taskData.args}")
         return response
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
         resp = PTTaskProcessResponseMessageResponse(TaskID=task.Task.ID, Success=True)
+        # Report removed file to File Browser so UI shows strikethrough
+        if response.get("status") == "success" and response.get("completed"):
+            file = task.args.get_arg("full_path")
+            if file:
+                host = (task.Callback.Host if task.Callback else "") or ""
+                resp.RemovedFiles = [{"host": host, "full_path": file}]
         return resp

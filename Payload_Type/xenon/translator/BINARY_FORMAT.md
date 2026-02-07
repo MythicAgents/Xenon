@@ -84,6 +84,40 @@ BYTE:    status (0x95=complete, 0x97=update, 0x99=failed)
 [UINT32: error_code] (if status == 0x99)
 ```
 
+#### File Browser Listing (ls with file_browser=true)
+
+When the task is `ls` with `file_browser=true`, the agent sends a dedicated message type instead of embedding in task response:
+
+```
+BYTE:    0x09 (MYTHIC_FILE_BROWSER)
+BYTES[36]: task_uuid
+BYTE:    status (0x95=complete, 0x97=update, 0x99=failed)
+BYTES:   TLV payload (see below; no length prefix—rest of message is raw TLV)
+```
+
+TLV payload:
+
+```
+UINT32:  parent_path_len
+BYTES:   parent_path (UTF-8)
+UINT32:  name_len
+BYTES:   name (folder/file name)
+BYTE:    is_file (0=folder, 1=file)
+UINT64:  size (bytes)
+UINT64:  access_time (Windows FILETIME, 100-ns since 1601)
+UINT64:  modify_time (Windows FILETIME)
+BYTE:    success (0/1)
+...      for each directory entry:
+  UINT32:  name_len
+  BYTES:   name
+  BYTE:    is_file
+  UINT64:  size
+  UINT64:  access_time
+  UINT64:  modify_time
+```
+
+The translator converts FILETIME to Unix milliseconds and builds Mythic's `file_browser` JSON via `file_browser_to_mythic_format()`.
+
 ### Download/Upload Messages
 
 These are handled as special task types:

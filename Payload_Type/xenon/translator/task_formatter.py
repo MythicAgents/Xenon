@@ -11,7 +11,7 @@ import logging
 from typing import Dict, Any, Optional, List
 
 from .tlv_packer import TlvPacker
-from .parameter_packer import pack_parameters
+from .parameter_packer import pack_parameters, pack_parameters_ordered
 from .utils import get_operator_command, MYTHIC_GET_TASKING
 
 logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ def format_normal_task(task: Dict[str, Any]) -> bytes:
         raise ValueError(f"Task UUID must be exactly 36 characters, got {len(task_uuid)}")
     packer.add_raw(task_uuid.encode('utf-8'))
     
-    # Parameters
+    # Parameters (ls requires filepath then file_browser for agent)
     if parameters:
         try:
             param_data = pack_parameters(parameters)

@@ -65,8 +65,14 @@ end:
 #ifdef INCLUDE_CMD_MKDIR
 VOID FileSystemMkdir(PCHAR taskUuid, PPARSER arguments)
 {
+    // Get command arguments for filepath
     UINT32 nbArg = ParserGetInt32(arguments);
-
+    _dbg("\t Got %d arguments", nbArg);
+    if (nbArg == 0)
+    {
+        return;
+    }
+    
     SIZE_T size = 0;
     PCHAR dirname = ParserStringCopy(arguments, &size);
 
@@ -98,10 +104,10 @@ VOID FileSystemCopy(PCHAR taskUuid, PPARSER arguments)
 {
     // Get command arguments for filepath
     UINT32 nbArg = ParserGetInt32(arguments);
-
+    _dbg("\t Got %d arguments", nbArg);
     if (nbArg == 0)
     {
-        goto end;
+        return;
     }
 
     SIZE_T size     = 0;
@@ -134,92 +140,225 @@ end:;
 #endif
 
 #ifdef INCLUDE_CMD_LS
+
+#define MAX_FILENAME 0x4000
+#define LS_SOURCE_DIRECTORY "\\*"
+
+/* Helper */
+static VOID LsSplitParentAndName(PCHAR pathNoStar, PCHAR outParent, SIZE_T parentSize, PCHAR outName, SIZE_T nameSize)
+{
+    SIZE_T len = strlen(pathNoStar);
+    if (len == 0) { outParent[0] = outName[0] = '\0'; return; }
+    PCHAR lastSlash = strrchr(pathNoStar, '\\');
+    if (!lastSlash || lastSlash == pathNoStar)
+    {
+        outParent[0] = '\0';
+        strncpy_s(outName, nameSize, pathNoStar, _TRUNCATE);
+        return;
+    }
+    /* If path ends with backslash (e.g. "C:\") treat as root of that drive: parent = path minus trailing \, name = "" */
+    if (*(lastSlash + 1) == '\0')
+    {
+        SIZE_T parentLen = (SIZE_T)(lastSlash - pathNoStar);
+        if (parentLen >= parentSize) parentLen = parentSize - 1;
+        memcpy(outParent, pathNoStar, parentLen);
+        outParent[parentLen] = '\0';
+        outName[0] = '\0';
+        _dbg("Parent: %s, Name: (root)", outParent);
+        return;
+    }
+    SIZE_T parentLen = (SIZE_T)(lastSlash - pathNoStar + 1);
+    if (parentLen >= parentSize) parentLen = parentSize - 1;
+    memcpy(outParent, pathNoStar, parentLen);
+    outParent[parentLen] = '\0';
+    strncpy_s(outName, nameSize, lastSlash + 1, _TRUNCATE);
+
+    _dbg("Parent: %s, Name: %s", outParent, outName);
+}
+
+/* Convert FILETIME to UINT64 (100-nanosecond intervals since 1601). */
+
+// TODO: Can I move this to the translation container utils
+
+static ULONGLONG FileTimeToUint64(FILETIME const *ft)
+{
+    ULARGE_INTEGER u;
+    u.LowPart = ft->dwLowDateTime;
+    u.HighPart = ft->dwHighDateTime;
+    return u.QuadPart;
+}
+
 VOID FileSystemList(PCHAR taskUuid, PPARSER arguments)
 {
-#define MAX_FILENAME 0x4000
     // Get command arguments for filepath
     UINT32 nbArg = ParserGetInt32(arguments);
-
     _dbg("\t Got %d arguments", nbArg);
-
-    if (nbArg == 0)
-        return;
-
-    UINT32 PathSize = NULL;
-    SIZE_T size     = 0;
-    char filename[MAX_FILENAME];
-    PCHAR file = ParserStringCopy(arguments, &size);        // allocates
-
-    strcpy(filename, file);
-
-    _dbg("Filename: %s", filename);
-
-    // Store in temp buffer so that we can copy the full size into serialized format
-    PPackage temp = PackageInit(0, FALSE);
-
-#define SOURCE_DIRECTORY "\\*"
-    if (!strncmp(filename, "." SOURCE_DIRECTORY, MAX_FILENAME)) // ".\*"
+    if (nbArg != 3)
     {
-        GetCurrentDirectoryA(MAX_FILENAME, filename);
-        strncat_s(filename, MAX_FILENAME, SOURCE_DIRECTORY, strlen(SOURCE_DIRECTORY));
+        return;
+    }
+
+    SIZE_T flen = 0;
+    SIZE_T hlen = 0;
+    PCHAR File        = ParserStringCopy(arguments, &flen);                    // allocates
+    BYTE  FileBrowser = (nbArg >= 2) ? ParserGetByte(arguments) : 0;
+    PCHAR Host        = ParserGetString(arguments, &hlen);
+
+    /* Construct full file path (with hostname) */
+    char filename[MAX_FILENAME];
+    if ( Host && hlen > 0 )
+    {
+        snprintf(filename, sizeof(filename), "\\\\%s\\%s", Host, File);
     }
     else
     {
-        // Make sure path ends with \*  e.g., C:\Windows\*
-        PathSize = strlen(filename);
-        if (filename[PathSize - 1] != 0x5c) // '\'
-            filename[PathSize++] = 0x5c;
-        filename[PathSize++] = 0x2a; // *
-        filename[PathSize] = 0x00;
+        strcpy_s(filename, sizeof(filename), File);
     }
 
-    _dbg("[ls] %s", filename);
+    /* Current Directory */
+    if ( flen == 0 )
+    {
+        GetCurrentDirectoryA(sizeof(filename), filename);
+        strncat_s(filename, sizeof(filename), LS_SOURCE_DIRECTORY, _TRUNCATE);
+    }
+    else  /* Add '\*' to end. C:\Windows\* */
+    {
+        SIZE_T pathLen = strlen(filename);
+        if (pathLen > 0 && filename[pathLen - 1] != '\\')
+            filename[pathLen++] = '\\';
+        filename[pathLen++] = '*';
+        filename[pathLen] = '\0';
+    }
 
-    PackageAddFormatPrintf(temp, FALSE, "%s\n", filename);
     WIN32_FIND_DATAA findData;
     HANDLE firstFile = FindFirstFileA(filename, &findData);
-
-    if (firstFile == INVALID_HANDLE_VALUE)
+    if ( firstFile == INVALID_HANDLE_VALUE )
     {
         DWORD error = GetLastError();
         _err("Could not open %s : ERROR CODE %d", filename, error);
         PackageError(taskUuid, error);
-        goto end;
+        LocalFree(File);
+        return;
     }
 
-    SYSTEMTIME systemTime, localTime;
-    do
+    /* Normal output for CLI (ls) */
+    if ( !FileBrowser )
     {
-        FileTimeToSystemTime(&findData.ftLastWriteTime, &systemTime);
-        SystemTimeToTzSpecificLocalTime(NULL, &systemTime, &localTime);
-
-        if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        PPackage temp = PackageInit(0, FALSE);
+        PackageAddFormatPrintf(temp, FALSE, "%s\n", filename);
+        SYSTEMTIME systemTime, localTime;
+        do
         {
-            PackageAddFormatPrintf(temp, FALSE, "D\t0\t%02d/%02d/%02d %02d:%02d:%02d\t%s\n",
-                            localTime.wMonth, localTime.wDay, localTime.wYear,
-                            localTime.wHour, localTime.wMinute, localTime.wSecond,
-                            findData.cFileName);
+            FileTimeToSystemTime(&findData.ftLastWriteTime, &systemTime);
+            SystemTimeToTzSpecificLocalTime(NULL, &systemTime, &localTime);
+            if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            {
+                PackageAddFormatPrintf(
+                    temp, 
+                    FALSE, 
+                    "D\t0\t%02d/%02d/%02d %02d:%02d:%02d\t%s\n",
+                    localTime.wMonth, 
+                    localTime.wDay, 
+                    localTime.wYear,
+                    localTime.wHour, 
+                    localTime.wMinute, 
+                    localTime.wSecond, 
+                    findData.cFileName
+                );
+            }
+            else
+            {
+                PackageAddFormatPrintf(
+                    temp, 
+                    FALSE, 
+                    "F\t%I64d\t%02d/%02d/%02d %02d:%02d:%02d\t%s\n",
+                    ((ULONGLONG)findData.nFileSizeHigh << 32) | findData.nFileSizeLow,
+                    localTime.wMonth, 
+                    localTime.wDay, 
+                    localTime.wYear,
+                    localTime.wHour, 
+                    localTime.wMinute, 
+                    localTime.wSecond, 
+                    findData.cFileName
+                );
+            }
+        } while (FindNextFileA(firstFile, &findData));
+        
+        FindClose(firstFile);
+        
+        /* Send response */
+        PackageComplete(taskUuid, temp);
+        
+        /* Clean up and finish */
+        PackageDestroy(temp);
+        LocalFree(File);
+        return;
+    }
+    else  /* File Browser UI output format */
+    {
+        char pathNoStar[MAX_FILENAME];
+        SIZE_T starOff = strlen(filename);
+        if (starOff >= 2 && filename[starOff - 1] == '*' && filename[starOff - 2] == '\\')
+        {
+            starOff -= 2;
+            memcpy(pathNoStar, filename, starOff);
+            pathNoStar[starOff] = '\0';
         }
         else
         {
-            PackageAddFormatPrintf(temp, FALSE, "F\t%I64d\t%02d/%02d/%02d %02d:%02d:%02d\t%s\n",
-                            ((ULONGLONG)findData.nFileSizeHigh << 32) | findData.nFileSizeLow,
-                            localTime.wMonth, localTime.wDay, localTime.wYear,
-                            localTime.wHour, localTime.wMinute, localTime.wSecond,
-                            findData.cFileName);
+            strcpy_s(pathNoStar, sizeof(pathNoStar), filename);
         }
-    } while (FindNextFileA(firstFile, &findData));
 
-    FindClose(firstFile);
+        char parentPath[MAX_FILENAME];
+        char folderName[MAX_FILENAME];
+        LsSplitParentAndName(pathNoStar, parentPath, sizeof(parentPath), folderName, sizeof(folderName));
 
+        WIN32_FILE_ATTRIBUTE_DATA attrData;
+        ULONGLONG accessTime = 0;
+        ULONGLONG modifyTime = 0;
+        if (GetFileAttributesExA(pathNoStar, GetFileExInfoStandard, &attrData))
+        {
+            accessTime = FileTimeToUint64(&attrData.ftLastAccessTime);
+            modifyTime = FileTimeToUint64(&attrData.ftLastWriteTime);
+        }
 
-    // success
-    PackageComplete(taskUuid, temp);
+        /* Create FILE_BROWSER Package */
+        PPackage data = PackageInit(0, FALSE);
+        PackageAddByte(data, FILE_BROWSER);
+        PackageAddString(data, taskUuid, FALSE);
+        PackageAddByte(data, TASK_COMPLETE);
 
-end:
-    // Cleanup
-    LocalFree(file);
-    PackageDestroy(temp);
+        /* Data for Parent File (folder) */
+        if (parentPath[0] == '\0') PackageAddInt32(data, 0); else PackageAddString(data, parentPath, TRUE); // CHAR:    Parent Path (empty string is length 0)
+        PackageAddString(data, folderName, TRUE);       // CHAR:    Folder name
+        PackageAddByte(data, 0);                        // BYTE:    Is Folder
+        PackageAddInt64(data, 0);                       // INT64:   Size
+        PackageAddInt64(data, accessTime);              // INT64:   Access time 
+        PackageAddInt64(data, modifyTime);              // INT64:   Modify time
+        PackageAddByte(data, 1);                        // BYTE:    Success
+
+        /* Data for each file in dir */
+        do
+        {
+            if ( strcmp(findData.cFileName, ".") == 0 || strcmp(findData.cFileName, "..") == 0 ) {
+                continue;
+            }
+            PackageAddString(data, findData.cFileName, TRUE);                                               // CHAR:    File name
+            PackageAddByte(data, (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 0 : 1);           // BYTE:    Is file
+            PackageAddInt64(data, ((ULONGLONG)findData.nFileSizeHigh << 32) | findData.nFileSizeLow);       // INT64:   Size
+            PackageAddInt64(data, FileTimeToUint64(&findData.ftLastAccessTime));                            // INT64:   Access time
+            PackageAddInt64(data, FileTimeToUint64(&findData.ftLastWriteTime));                             // INT64:   Modify time
+        
+        } while (FindNextFileA(firstFile, &findData));
+
+        FindClose(firstFile);
+
+        /* Send response */
+        PackageQueue(data);
+
+        /* Clean up and finish */
+        LocalFree(File);
+    }
 }
 #endif
 

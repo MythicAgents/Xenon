@@ -1,7 +1,7 @@
 from mythic_container.MythicCommandBase import *
 import json
 import re
-
+import logging
 
 class DownloadArguments(TaskArguments):
 
@@ -29,7 +29,7 @@ class DownloadArguments(TaskArguments):
         self.load_args_from_dictionary(dictionary_arguments)
         if "host" in dictionary_arguments:
             if "full_path" in dictionary_arguments:
-                self.add_arg("path", f'\\\\{dictionary_arguments["host"]}\\{dictionary_arguments["full_path"]}')
+                self.add_arg("path", dictionary_arguments["full_path"])
             elif "path" in dictionary_arguments:
                 self.add_arg("path", f'\\\\{dictionary_arguments["host"]}\\{dictionary_arguments["path"]}')
             elif "file" in dictionary_arguments:
@@ -89,6 +89,8 @@ class DownloadCommand(CommandBase):
 
             taskData.args.set_arg("host", host)
         taskData.args.add_arg("file", taskData.args.get_arg("path"))
+        
+        logging.info(f"Arguments: {taskData.args}")
         return response
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
