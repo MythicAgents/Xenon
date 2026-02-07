@@ -119,9 +119,6 @@ class RegisterProcessInjectKitCommand(CommandBase):
         inject_spawn_file = taskData.args.get_arg("inject_spawn_file")
         inject_spawn_choice = taskData.args.get_arg("inject_spawn_choose")
         
-        # logging.info(f"Got previous kit file: {inject_spawn_file}")
-        # logging.info(f"Uploaded new kit file: {inject_spawn_choice}")
-        
         groupName = taskData.args.get_parameter_group_name()
         
         
@@ -133,7 +130,7 @@ class RegisterProcessInjectKitCommand(CommandBase):
             if file_resp.Success:
                 if len(file_resp.Files) > 0:
                     kit_spawn_file_id = file_resp.Files[0].AgentFileId
-                    logging.info(f"New kit uploaded with File ID : {kit_spawn_file_id}")
+                    logging.info(f"[PIK] New kit uploaded with File ID : {kit_spawn_file_id}")
                 else:
                     raise Exception("Failed to find that file")
             else:
@@ -154,13 +151,11 @@ class RegisterProcessInjectKitCommand(CommandBase):
             if file_resp.Success:
                 if len(file_resp.Files) > 0:
                     kit_spawn_file_id = file_resp.Files[0].AgentFileId
-                    logging.info(f"Found existing Kit with File ID : {kit_spawn_file_id}")
-
+                    logging.info(f"[PIK] Found existing Kit with File ID : {kit_spawn_file_id}")
 
                     # taskData.args.remove_arg("inject_spawn_choose")    # Don't need this anymore
                     # taskData.args.add_arg("inject_spawn_file", kit_spawn_file_id)
                     
-
                 elif len(file_resp.Files) == 0:
                     raise Exception("Failed to find the named file. Have you uploaded it before? Did it get deleted?")
             else:
@@ -172,10 +167,10 @@ class RegisterProcessInjectKitCommand(CommandBase):
         # Set the file UUID for the Kit
         if is_enabled:            
             PROCESS_INJECT_KIT.set_inject_spawn(kit_spawn_file_id)
-            #PROCESS_INJECT_KIT.set_inject_explicit(kit_explicit_file_id)
+            # PROCESS_INJECT_KIT.set_inject_explicit(kit_explicit_file_id)
         else:
             PROCESS_INJECT_KIT.set_inject_spawn("")         
-            #PROCESS_INJECT_KIT.set_inject_explicit("")
+            PROCESS_INJECT_KIT.set_inject_explicit("")
         
         response.DisplayParams = "--enabled {} --inject_spawn {} ".format(
             "True" if is_enabled else "False",

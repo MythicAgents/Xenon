@@ -1,1 +1,0 @@
-java -Dcrystalpalace.verbose=false -jar ${BASH_SOURCE%/*}/crystalpalace.jar buildPic "$@"

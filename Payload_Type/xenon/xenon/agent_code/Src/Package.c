@@ -90,7 +90,7 @@ BOOL PackageAddInt64(PPackage package, UINT64 value)
     if (!package->buffer)
         return FALSE;
 
-    addInt64ToBuffer((PUCHAR)package->buffer, value);
+    addInt64ToBuffer((PUCHAR)(package->buffer) + package->length, value);
     package->length += sizeof(UINT64);
 
     return TRUE;
@@ -245,7 +245,7 @@ VOID PackageComplete(PCHAR taskUuid, PPackage package)
     }
     else
     {
-        PackageAddInt32(data, 0);
+        PackageAddInt32(data, 0);   // 0 length of data
     }
 
     /* Add Status Byte to End */
@@ -426,7 +426,8 @@ BOOL PackageReadPipe(HANDLE hPipe, PBYTE* ppOutData, SIZE_T* pOutLen)
         }
         else
         {
-            _dbg("\t Package size smaller than 4 bytes...");
+            // Package size smaller than 4 bytes...
+            // _dbg("\t Package size smaller than 4 bytes...");
         }
     }
     else
@@ -435,9 +436,7 @@ BOOL PackageReadPipe(HANDLE hPipe, PBYTE* ppOutData, SIZE_T* pOutLen)
         return FALSE;
     }
 
-    
-
-    _dbg("\t Read complete message: %d bytes", Total);
+    // _dbg("\t Read complete message: %d bytes", Total);
     
     /* Output */
     *ppOutData = Buffer;

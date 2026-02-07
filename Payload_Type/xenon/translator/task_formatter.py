@@ -1,16 +1,17 @@
 """
 Task Formatting for Xenon Agent
 
-This module handles converting Mythic tasks, responses, and delegates into
-the binary task format expected by the agent.
+This module handles converting Mythic tasks, responses, delegates, and socks
+into the binary task format expected by the agent.
 """
 
+import base64
 import json
 import logging
 from typing import Dict, Any, Optional, List
 
 from .tlv_packer import TlvPacker
-from .parameter_packer import pack_parameters
+from .parameter_packer import pack_parameters, pack_parameters_ordered
 from .utils import get_operator_command, MYTHIC_GET_TASKING
 
 logger = logging.getLogger(__name__)
@@ -73,7 +74,7 @@ def format_normal_task(task: Dict[str, Any]) -> bytes:
         raise ValueError(f"Task UUID must be exactly 36 characters, got {len(task_uuid)}")
     packer.add_raw(task_uuid.encode('utf-8'))
     
-    # Parameters
+    # Parameters (ls requires filepath then file_browser for agent)
     if parameters:
         try:
             param_data = pack_parameters(parameters)
@@ -191,13 +192,58 @@ def format_delegate_as_task(delegate: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def format_socks_as_task(socks_msg: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Convert a SOCKS proxy message into a task format.
+    
+    SOCKS messages from Mythic contain:
+        - "server_id": Unique connection identifier (int)
+        - "data": Base64 encoded data to forward
+        - "exit": Boolean indicating if connection should close
+    
+    Args:
+        socks_msg: SOCKS message dictionary
+    
+    Returns:
+        Task dictionary for socks_resp command
+    """
+    server_id = socks_msg.get('server_id', 0)
+    data_b64 = socks_msg.get('data') or ''          # Handle None values
+    exit_flag = socks_msg.get('exit', False)
+    
+    # Decode base64 data
+    if data_b64:
+        try:
+            data_bytes = base64.b64decode(data_b64)
+        except Exception as e:
+            logger.error(f"Failed to decode SOCKS data: {e}")
+            data_bytes = b''
+    else:
+        data_bytes = b''
+    
+    params = {
+        "server_id": server_id,
+        "data": data_b64,  # Keep as base64 for parameter packing
+        "exit": exit_flag,
+    }
+    
+    logger.info(f"[SOCKS] Formatting message: server_id={server_id}, data_len={len(data_bytes)}, exit={exit_flag}")
+    
+    return {
+        "command": "socks_resp",
+        "parameters": json.dumps(params),
+        "id": "00000000-0000-0000-0000-000000000000"  # Not a real task
+    }
+
+
 def format_get_tasking_message(
     tasks: List[Dict[str, Any]],
     responses: Optional[List[Dict[str, Any]]] = None,
-    delegates: Optional[List[Dict[str, Any]]] = None
+    delegates: Optional[List[Dict[str, Any]]] = None,
+    socks: Optional[List[Dict[str, Any]]] = None
 ) -> bytes:
     """
-    Format a complete get_tasking message with tasks, responses, and delegates.
+    Format a complete get_tasking message with tasks, responses, delegates, and socks.
     
     Format:
         BYTE: message_type (MYTHIC_GET_TASKING)
@@ -208,6 +254,7 @@ def format_get_tasking_message(
         tasks: List of normal tasks
         responses: List of task responses (converted to tasks)
         delegates: List of delegate messages (converted to tasks)
+        socks: List of SOCKS proxy messages (converted to tasks)
     
     Returns:
         bytes: Complete packed message
@@ -237,6 +284,16 @@ def format_get_tasking_message(
                 all_tasks.append(delegate_task)
             except Exception as e:
                 logger.error(f"Failed to format delegate as task: {e}")
+                continue
+    
+    # Convert SOCKS messages to tasks
+    if socks:
+        for socks_msg in socks:
+            try:
+                socks_task = format_socks_as_task(socks_msg)
+                all_tasks.append(socks_task)
+            except Exception as e:
+                logger.error(f"Failed to format SOCKS message as task: {e}")
                 continue
     
     # Build message

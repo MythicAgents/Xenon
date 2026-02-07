@@ -14,6 +14,8 @@ MYTHIC_UPLOAD_CHUNKED = 0x04
 MYTHIC_P2P_CHECK_IN = 0x05
 MYTHIC_P2P_MSG = 0x06
 MYTHIC_P2P_REMOVE = 0x07
+MYTHIC_SOCKS_DATA = 0x08
+MYTHIC_FILE_BROWSER = 0x09
 # Mythic Responses
 MYTHIC_NORMAL_RESP = 0xAA
 MYTHIC_DOWNLOAD_RESP = 0xAB
@@ -35,10 +37,9 @@ commands = {
     "download": 0x51,
     "ps": 0x52, 
     "inline_execute": 0x53,
-    # "execute_assembly": 0x54,
     "spawnto": 0x55,
     "inject_shellcode": 0x56,
-    # "register_process_inject_kit": 0x57,
+    "socks": 0x57,
     "shell": 0x60, 
     "powershell": 0x61, 
     "getuid": 0x70, 
@@ -54,7 +55,8 @@ commands = {
     "normal_resp": 0xCA,
     "p2p_resp": 0xCB,
     "download_resp": 0xCC,
-    "upload_resp": 0xCD
+    "upload_resp": 0xCD,
+    "socks_resp": 0xCE
 }
 
 def get_operator_command(command_name):
@@ -132,6 +134,127 @@ class Packer:
     def addshort(self, n):
         self.buffer += pack(">h", n)
         self.size += 2
+
+
+
+# Windows FILETIME: 100-nanosecond intervals since 1601-01-01. Unix epoch offset in same units.
+FILETIME_EPOCH_OFFSET = 116444736000000000
+
+def filetime_to_unix_ms(filetime_100ns):
+    """Convert Windows FILETIME (100-ns since 1601) to Unix timestamp in milliseconds.
+    Clamp to non-negative so Mythic's uint validation passes (invalid/corrupt FILETIME can yield negative)."""
+    if filetime_100ns is None or filetime_100ns == 0:
+        return 0
+    unix_ms = (filetime_100ns - FILETIME_EPOCH_OFFSET) // 10000
+    return max(0, unix_ms)
+
+def parse_file_browser_tlv(data):
+    """
+    Parse file-browser structured data from agent.
+    Format:
+    - parent_path (UINT32 len + bytes)
+    - name (UINT32 + bytes)
+    - is_file (byte)
+    - size (int64)
+    - access_time (int64)
+    - modify_time (int64)
+    - success (byte)
+    - files (list of files)
+        - name (UINT32 + bytes)
+        - is_file (byte)
+        - size (int64)
+        - access_time (int64)
+        - modify_time (int64)
+    """
+    try:
+        # Parent path (length-prefixed string)
+        parent_path, data = get_bytes_with_size(data)
+        parent_path = parent_path.decode("cp850", errors="replace") if parent_path else ""
+        
+        # Name (length-prefixed string)
+        name, data = get_bytes_with_size(data)
+        name = name.decode("cp850", errors="replace") if name else ""
+
+        # Is file
+        if len(data) < 1:
+            return None
+        is_file = data[0] != 0
+        data = data[1:]
+
+        # Size
+        if len(data) < 8:
+            return None
+        size = int.from_bytes(data[0:8], byteorder="big")
+        data = data[8:]
+
+        # Access time
+        if len(data) < 8:
+            return None
+        access_time = int.from_bytes(data[0:8], byteorder="big")
+        data = data[8:]
+
+        if len(data) < 8:
+            return None
+        modify_time = int.from_bytes(data[0:8], byteorder="big")
+        data = data[8:]
+
+        # Success
+        if len(data) < 1:
+            return None
+        success = data[0] != 0
+        data = data[1:]
+
+        # Files
+        files = []
+        while len(data) >= 4:
+            # File name
+            entry_name, data = get_bytes_with_size(data)
+            entry_name = entry_name.decode("cp850", errors="replace") if entry_name else ""
+            # Is file
+            if len(data) < 1 + 8 + 8 + 8:
+                break
+            entry_is_file = data[0] != 0
+            data = data[1:]
+            # Size
+            if len(data) < 8:
+                return None
+            entry_size = int.from_bytes(data[0:8], byteorder="big")
+            data = data[8:]
+            # Access time
+            if len(data) < 8:
+                return None
+            entry_access = int.from_bytes(data[8:16], byteorder="big")
+            data = data[8:]
+            # Modify time
+            if len(data) < 8:
+                return None
+            entry_modify = int.from_bytes(data[16:24], byteorder="big")
+            data = data[8:]
+            files.append({
+                "name": entry_name,
+                "is_file": entry_is_file,
+                "size": entry_size,
+                "access_time": filetime_to_unix_ms(entry_access),
+                "modify_time": filetime_to_unix_ms(entry_modify),
+                "permissions": {},
+            })
+
+        return {
+            "name": name,
+            "parent_path": parent_path,
+            "is_file": is_file,
+            "size": size,
+            "access_time": filetime_to_unix_ms(access_time),
+            "modify_time": filetime_to_unix_ms(modify_time),
+            "success": success,
+            "update_deleted": True,
+            "set_as_user_output": True,
+            "permissions": {},
+            "files": files,
+        }
+    except Exception as e:
+        logging.warning(f"parse_file_browser_tlv: {e}")
+        return None
 
 
 

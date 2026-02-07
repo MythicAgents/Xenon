@@ -62,22 +62,6 @@ class InlineExecuteAssemblyArguments(TaskArguments):
                 ],
             ),
             CommandParameter(
-                name="assembly_arguments",
-                cli_name="Arguments",
-                display_name="Arguments",
-                type=ParameterType.String,
-                description="Arguments to pass to the assembly.",
-                default_value="",
-                parameter_group_info=[
-                    ParameterGroupInfo(
-                        required=False, group_name="Default", ui_position=2,
-                    ),
-                    ParameterGroupInfo(
-                        required=False, group_name="New Assembly", ui_position=2
-                    ),
-                ],
-            ),
-            CommandParameter(
                 name="patch_exit",
                 cli_name="-patchexit",
                 display_name="patchexit",
@@ -151,11 +135,6 @@ class InlineExecuteAssemblyArguments(TaskArguments):
             response.Error = f"Failed to get files: {file_resp.Error}"
             return response
 
-
-    async def parse_arguments(self):
-        if len(self.command_line) == 0:
-            raise ValueError("Must supply arguments")
-        raise ValueError("Must supply named arguments or use the modal")
 
     async def parse_arguments(self):
         if len(self.command_line) == 0:
@@ -317,12 +296,11 @@ class InlineExecuteAssemblyCommand(CoffCommandBase):
                 ]
             ]
             
-
-            # Upload desired BOF if it hasn't been before (per payload uuid)
-            succeeded = await upload_sa_bof_if_missing(file_name=file_name, taskData=taskData)
+            # Upload desired module if it hasn't been before (per payload uuid)
+            succeeded = await upload_module_if_missing(file_name=file_name, taskData=taskData)
             if not succeeded:
                 response.Success = False
-                response.Error = f"Failed to upload or check BOF \"{file_name}\"."
+                response.Error = f"Failed to upload or check module \"{file_name}\"."
 
                 
             # Debugging

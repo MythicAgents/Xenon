@@ -6,14 +6,15 @@
   <p><i>Xenon is a Cobalt Strike-like Windows agent for Mythic, created by <a href="https://github.com/nickswink">@c0rnbread</a>.</i></p>
   <br />
 
-  <img src="images/ps-v3.png" width="90%" /><br />
+  <img src="images/1.png" width="90%" /><br />
+  <img src="images/2.png" width="90%" /><br />
 </div>
 
 > :warning: Xenon is in an early state of release. It is not opsec safe and could contain memory issues causing crashes. Test thoroughly if planning to use in a live environment.
 
 
 ### OPSEC Disclaimer
-Xenon makes no claims about evasion. In fact it is not OPSEC safe. There are many OPSEC improvements that need to be made to the agent. The main purpose of the project was to learn C and Windows internals better, not create the next FUD implant.
+Xenon makes no claims about evasion. The default configuration will not be OPSEC safe. The goal for Xenon is to allow the operator to customize features in order to accomplish their goals.
 
 
 ## Quick Start
@@ -60,12 +61,14 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 | `inline_execute` | `inline_execute -BOF [COFF.o] [-Arguments [optional arguments]]` | Execute a Beacon Object File in the current process thread and see output. **Warning:** Incorrect argument types can crash the Agent process. |
 | `inline_execute_assembly` | `inline_execute_assembly -Assembly [file] [-Arguments [assembly args] [--patchexit] [--amsi] [--etw]]` | Execute a .NET Assembly in the current process using @EricEsquivel's BOF "Inline-EA" (e.g., inline_execute_assembly -Assembly SharpUp.exe -Arguments "audit" --patchexit --amsi --etw) |
 | `execute_assembly` | `execute_assembly -Assembly [SharpUp.exe] [-Arguments [assembly arguments]]` | Execute a .NET Assembly in a remote processes and retrieve the output. |
+| `execute_dll` | `execute_dll -File [mimikatz.x64.dll]` | Execute a Dynamic Link Library as PIC. (e.g., execute_dll -File mimikatz.x64.dll) |
 | `spawnto` | `spawnto -path [C:\Windows\System32\svchost.exe]` | Set the full path of the process to use for spawn & inject commands. |
 | `download`     | `download -path <file path>`                           | Download a file off the target system (supports UNC path). |
 | `upload`       | `upload (modal)`                                            | Upload a file to the target machine by selecting a file from your computer. |
 | `status`         | `status`                                              | List C2 connection hosts and their status. |
 | `link`           | `link <target> [<named pipe>\|<tcp_port>]`                          | Connect to an SMB/TCP Link Agent. |
 | `unlink`         | `unlink <Display Id>`                                 | Disconnect from an SMB/TCP Link Agent. |
+| `socks` | `socks <start/stop> <port number>` | Enable SOCKS 5 compliant proxy to send data to the target network. |
 | `register_process_inject_kit`       | `register_process_inject_kit (pops modal)`                                            | Register a custom BOF to use for process injection (CS compatible). See documentation for requirements. |
 | `exit`         | `exit`                                              | Task the implant to exit. |
 
@@ -265,16 +268,28 @@ Xenon agents can be generated with the TCP comms profile to link agents in a pee
 If you have suggestions/requests open an issue or you can message me on discord.
 
 ### Features
-- [X] `execute_assembly` command
+- [x] Socks5 proxy
+- [x] Support File Browser UI
 - [ ] `powershell` command
-- [ ] Lateral movement related commands
-- [ ] Socks5 proxy
+- [ ] Support dns external transport
+- [ ] hook into more Mythic features (file browser, etc)
 
 ### Bugs
 - [X] Work on memory issues (duplicate buffers etc)
 - [X] Fix initial install files not found
+- [ ] Use random pipe names or anon pipes for fork n run
+- [ ] Weirdness with File Browser UI (remote hosts, etc)
+- [ ] `execute_assembly` can cause PIPE_BUSY if doesnt exit properly
 - [ ] Issues executing BOFs compiled with MSVC
 
+## Contributors
+Special thanks to all contributors who help improve this project.
+
+- **@c0rnbread** — Author & Maintainer
+- **@dstepanov** — TCP Transport support
+- **vnp-dev**
+
+If you would like to contribute to the project, please work off of the **next version branch** (named like "v1.2.3") as merges will go into that.
 
 ## Credits
 

@@ -108,9 +108,6 @@ END:
 	return Success;
 }
 
-
-
-
 /**
  * @brief Read data from TCP C2 Channel
  *

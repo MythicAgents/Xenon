@@ -116,9 +116,9 @@ Xenon's default process injection technique is the classic APC injection.
 It follows a well signatured process of: `CreateProcess`, `VirtualAllocEx`, `WriteProcessMemory`, `VirtualProtectEx`, `QueueUserAPC`, and finally `ResumeThread`.
 
 ### Bring Your Own Process Injection
-The command `register_process_inject_kit` allows you to enable a custom process injection technique in the running payload. Process Injection Kit's are implemented as Beacon Object Files (BOFs) and uploaded through the modal.
+The command `register_process_inject_kit` allows you to enable a custom process injection technique in the running payload. Process Injection Kit's are implemented as Beacon Object Files (BOFs) and applied through the modal.
 
-Currently only **PROCESS_INJECT_SPAWN** is supported which spawns a sacrificial process to perform process injection.
+Currently only **PROCESS_INJECT_SPAWN** is implemented which spawns a sacrificial process to perform process injection.
 
 Here is a basic example from [Cobalt Strike](https://www.cobaltstrike.com/blog/process-injection-update-in-cobalt-strike-4-5):
 ```C
@@ -182,7 +182,9 @@ void gox64(char * args, int alen) {
    go(args, alen, FALSE);
 }
 ```
-This example is essentially the same behavior as Xenon's default process injection method. It can be easily modified to change the injection behavior to something custom, and that's where the advantage is. Additionally, with `register_process_inject_kit` the injection behavior can be changed an infinite amount in the running payload without compiling a new payload.
+This example is represents Xenon's default process injection technique implemented as a BOF under `xenon/agent_code/Loader/inject-kits`. It can be easily modified to change the injection behavior to something custom, and that's where the advantage is. Additionally, with `register_process_inject_kit` the injection behavior can be changed an infinite amount in the running payload without compiling a new payload.
+
+**NOTE** - The registered process injection kit will apply globally to **ALL** instances of Xenon, not just the callback you submitted the register command in.
 
 You can compile this as a BOF with the following:
 ```

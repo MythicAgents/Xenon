@@ -120,14 +120,14 @@ BOOL SmbRecieve(PBYTE* ppOutData, SIZE_T* pOutLen)
             {
                 _dbg("Waiting for new parent to connect...");
                 
-                if ( !CheckinSend() )
+                if ( CheckinSend() )
                 {
-                    _err("Failed to send checkin request");
-                    return FALSE;
+                    _dbg("Forced new checkin to Mythic. Continuing...");
+                    return TRUE;
                 }
             }
 
-            _err("Failed to create new SMB pipe");
+            _err("Failed to recover from parent disconnection.");
             return FALSE;
         }
         
@@ -159,8 +159,8 @@ BOOL SmbPipeCreate()
             xenonConfig->SmbPipename,		 // Named pipe string
             PIPE_ACCESS_DUPLEX,              // read/write access
             PIPE_TYPE_MESSAGE     |          // message type pipe
-            PIPE_READMODE_MESSAGE,           // message-read mode
-            // PIPE_WAIT,                    // blocking mode
+            PIPE_READMODE_MESSAGE |           // message-read mode
+            PIPE_WAIT,                    // blocking mode
             PIPE_UNLIMITED_INSTANCES,        // max. instances
             PIPE_BUFFER_MAX,                 // output buffer size
             PIPE_BUFFER_MAX,                 // input buffer size

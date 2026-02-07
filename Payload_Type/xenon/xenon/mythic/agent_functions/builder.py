@@ -18,7 +18,7 @@ class XenonAgent(PayloadType):
     supported_os = [SupportedOS.Windows]
     wrapper = False
     wrapped_payloads = []
-    note = """A Cobalt Strike-like agent for Windows targets. Version: v0.0.3"""
+    note = """A Cobalt Strike-like agent for Windows targets. Version: v0.0.4"""
     supports_dynamic_loading = True
     c2_profiles = ["httpx", "smb", "tcp"]
     mythic_encrypts = True
@@ -224,41 +224,7 @@ class XenonAgent(PayloadType):
         else:
             logging.info(f"[stdout]: {stdout.decode()}")
         
-        
-        ###############################
-        ### Initialize BOF Modules ####
-        ###############################
-        
-        # CORE_MODULE_PATH = pathlib.Path(".") / "xenon" / "agent_code" / "modules" / "core"
-        # # Add Core Modules 
-        # bof_filename = "inline-ea.x64.o"
-        # bof_path = CORE_MODULE_PATH / "inline-ea" / bof_filename
     
-        # if not bof_path.exists():
-        #     logging.error(f"BOF file not found: {bof_path}")
-
-        # try:
-        #     with open(bof_path, "rb") as f:
-        #         bof_bytes = f.read()
-
-        #     # Upload BOF to Mythic 
-        #     file_resp = await SendMythicRPCFileCreate(
-        #         MythicRPCFileCreateMessage(
-        #             PayloadUUID=self.uuid,
-        #             Filename=bof_filename,
-        #             DeleteAfterFetch=False,
-        #             FileContents=bof_bytes
-        #         )
-        #     )
-
-        #     if file_resp.Success:
-        #         logging.info(f"Successfully uploaded: {bof_filename}")
-        #     else:
-        #         raise Exception(f"Failed to upload {bof_filename}: {file_resp.Error}")
-
-        # except Exception as e:
-        #     logging.exception(f"Error uploading {bof_filename}: {str(e)}")
-
         # Notify: Installed Modules
         await SendMythicRPCPayloadUpdatebuildStep(MythicRPCPayloadUpdateBuildStepMessage(
                 PayloadUUID=self.uuid,
@@ -567,7 +533,7 @@ class XenonAgent(PayloadType):
                     udrl_path = custom_udrl_path
                 # Use Default Loader
                 else:
-                    udrl_path = agent_build_path.name + "/Loader/udrl"
+                    udrl_path = agent_build_path.name + "/Loader/default"
                 
                 # Compile UDRL Object
                 command = "make"
@@ -589,7 +555,7 @@ class XenonAgent(PayloadType):
                 # Link with Crystal Palace
                 bin_file = f"{agent_build_path.name}/out.x64.bin"
                 command = f"./link {udrl_path}/loader.spec {output_path} {bin_file}"
-                crystal_palace_path = agent_build_path.name + "/Loader/dist"
+                crystal_palace_path = agent_build_path.name + "/Loader/crystal-linker"
                 
                 proc = await asyncio.create_subprocess_shell(command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=crystal_palace_path)
                 stdout, stderr = await proc.communicate()

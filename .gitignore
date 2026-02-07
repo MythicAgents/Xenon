@@ -11,9 +11,10 @@ out.x86.bin
 main
 .idea
 .bin
-
+.cursor
 # Mythic stuff
 rabbitmq_config.json
 mythic_go_services.bin
 Payload_Type/xenon/xenon/agent_code/*.exe
 Payload_Type/xenon/xenon/agent_code/*.dll
+Payload_Type/xenon/xenon/agent_code/*.bin

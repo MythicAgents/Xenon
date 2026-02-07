@@ -1,5 +1,6 @@
 from translator.utils import *
 import ipaddress, logging
+from .utils import parse_file_browser_tlv
 
 logging.basicConfig(level=logging.INFO)
 
@@ -105,6 +106,7 @@ def post_response_handler(data):
     mythic_messages = []
     mythic_delegates = []
     mythic_edges = []
+    mythic_socks = []
 
     # Number of tasks to return to agent
     num_of_tasks = int.from_bytes(data[0:4], byteorder='big')
@@ -155,6 +157,16 @@ def post_response_handler(data):
             logging.info(f"[MYTHIC_P2P_REMOVE]")
             if edges:
                 mythic_edges.extend(edges)
+        
+        elif response_type == MYTHIC_SOCKS_DATA:
+            task_json, socks_msg, data = socks_to_mythic_format(data)
+            logging.info(f"[MYTHIC_SOCKS_DATA]")
+            if socks_msg:
+                mythic_socks.append(socks_msg)
+
+        elif response_type == MYTHIC_FILE_BROWSER:
+            task_json, data = file_browser_to_mythic_format(data)
+            logging.info(f"[MYTHIC_FILE_BROWSER]")
         else:
             logging.info(f"[UNKNOWN_RESPONSE]: {response_type}")
             continue
@@ -170,14 +182,6 @@ def post_response_handler(data):
         "action": "get_tasking",
         "tasking_size": num_of_tasks,
         "responses": mythic_messages,
-        # delegates
-        # edges
-        
-        # TODO
-        # socks,
-        # rpfwd,
-        # alerts,
-        # interactive
     }
     
     if mythic_delegates:
@@ -185,6 +189,9 @@ def post_response_handler(data):
     
     if mythic_edges:
         mythic_json["edges"] = mythic_edges
+    
+    if mythic_socks:
+        mythic_json["socks"] = mythic_socks
 
     return mythic_json
 
@@ -275,9 +282,58 @@ def post_response_to_mythic_format(data):
             "status": status,
             "completed": status in ("success", "error")
         }
-    
+
     return task_json, data
 
+
+def file_browser_to_mythic_format(data):
+    """
+    Parse file-browser message from Agent (message type MYTHIC_FILE_BROWSER already consumed).
+    Format: task_uuid (36), status_byte (1), then raw TLV payload (no length prefix).
+    The agent builds one package: type, uuid, status, then TLV.
+    Returns (task_json, remaining_data) for Mythic file_browser response.
+    """
+    if len(data) < 36 + 1:
+        logging.error("file_browser_to_mythic_format: buffer too small for task_uuid + status")
+        return None, data
+
+    task_uuid = data[:36].decode("cp850")
+    data = data[36:]
+    status_byte = data[0]
+    data = data[1:]
+
+    if status_byte == 0x95:
+        status = "success"
+    elif status_byte == 0x97:
+        status = None
+    elif status_byte == 0x99:
+        status = "error"
+    else:
+        status = "unknown"
+
+    # Rest of buffer is the raw TLV (agent sends type, uuid, status, then TLV with no length prefix)
+    tlv_payload = data
+    data = b""
+
+    file_browser_data = parse_file_browser_tlv(tlv_payload) if len(tlv_payload) > 0 else None
+    
+    if status == "success":
+        user_output = "[+] file browser listing\n" if file_browser_data else "[+] file browser (parse error)\n"
+    elif status == "error":
+        user_output = "[!] file browser failed\n"
+    else:
+        user_output = "[+] file browser listing\n"
+
+    task_json = {
+        "task_id": task_uuid,
+        "user_output": user_output,
+        "status": status,
+        "completed": status in ("success", "error"),
+    }
+    if file_browser_data is not None:
+        task_json["file_browser"] = file_browser_data
+
+    return task_json, data
 
 
 def download_init_to_mythic_format(data):
@@ -384,7 +440,7 @@ def download_cont_to_mythic_format(data):
             }
     }
     
-    logging.info(f"[DOWNLOAD_CHUNK] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t chunk_num:{chunk_num}, \n\t file_id:{file_id.decode('cp850')}, \n\t chunk_size:{chunk_size}, \n\tchunk_data:{chunk_data}")
+    logging.info(f"[DOWNLOAD_CHUNK] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t chunk_num:{chunk_num}, \n\t file_id:{file_id.decode('cp850')}, \n\t chunk_size:{chunk_size}, \n\tchunk_data:{len(chunk_data)} bytes")
     
     return task_json, data
 
@@ -540,7 +596,7 @@ def p2p_to_mythic_format(data):
         }
     ]
     
-    logging.info(f"[P2P] IMPLANT -> C2: \n\t message: {output.decode('cp850')}, \n\t mythic_uuid: {payload_uuid.decode('cp850')}, \n\t c2_profile: smb")
+    logging.info(f"[P2P] IMPLANT -> C2: \n\t message: {len(output)} bytes, \n\t mythic_uuid: {payload_uuid.decode('cp850')}, \n\t c2_profile: smb")
         
     return task_json, delegates, data
 
@@ -589,3 +645,64 @@ def p2p_remove_to_mythic_format(data):
     ]
 
     return task_json, edges, data
+
+
+def socks_to_mythic_format(data):
+    """
+    Parse SOCKS data message from Agent and return JSON in Mythic format.
+    
+    SOCKS messages are forwarded to Mythic in the "socks" array:
+    {
+        "action": "get_tasking",
+        "socks": [
+            {
+                "server_id": 12345,
+                "data": "base64_encoded_data",
+                "exit": false
+            }
+        ]
+    }
+    
+    Binary format from agent:
+        UINT32: server_id
+        UINT32: data_length
+        BYTES:  data
+        BYTE:   exit_flag (0x00 or 0x01)
+    """
+    task_json = None
+    
+    # UINT32: server_id
+    if len(data) < 4:
+        logging.error("[SOCKS] Insufficient data for server_id")
+        return None, None, data
+    
+    server_id = int.from_bytes(data[0:4], byteorder='big')
+    data = data[4:]
+    
+    # UINT32: data_length + BYTES: data
+    if len(data) < 4:
+        logging.error("[SOCKS] Insufficient data for data_length")
+        return None, None, data
+    
+    socks_data, data = get_bytes_with_size(data)
+    
+    # BYTE: exit_flag
+    if len(data) < 1:
+        logging.error("[SOCKS] Insufficient data for exit_flag")
+        return None, None, data
+    
+    exit_flag = data[0] == 0x01
+    data = data[1:]
+    
+    # Base64 encode the data for Mythic
+    data_b64 = base64.b64encode(socks_data).decode('utf-8') if socks_data else ""
+    
+    socks_msg = {
+        "server_id": server_id,
+        "data": data_b64,
+        "exit": exit_flag
+    }
+    
+    logging.info(f"[SOCKS] IMPLANT -> C2: server_id={server_id}, data_len={len(socks_data)}, exit={exit_flag}")
+    
+    return task_json, socks_msg, data

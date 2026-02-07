@@ -4,7 +4,6 @@
 #include "Parser.h"
 #include "Task.h"
 #include "Config.h"
-#include "Mythic.h"
 #include "BeaconCompatibility.h"
 
 #ifdef INCLUDE_CMD_INLINE_EXECUTE

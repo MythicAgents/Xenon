@@ -27,23 +27,26 @@ class LsArguments(TaskArguments):
 
     async def parse_dictionary(self, dictionary):
         logging.info("Parse Dictionary")
-        if "host" in dictionary: 
-            # Then this came from File Browser UI
+        if "host" in dictionary:
+            # Tasking from File Browser UI: use full_path if present, else path + "\\" + file (handle empty file for root)
             logging.info(f"Command came from File Browser UI - {dictionary}")
-            self.add_arg("filepath", dictionary["path"] + "\\" + dictionary["file"])
-            # self.add_arg("file_browser", type=ParameterType.Boolean, value=True)
+            self.add_arg("file_browser", type=ParameterType.Boolean, value=True)
+            full_path = dictionary.get("full_path")
+            self.add_arg("filepath", full_path)
+            logging.info(f"Host: {dictionary.get('host', '')}")
+            self.add_arg("host", dictionary.get("host", ""))
+            
         else:
             # Arguments came from command line
             logging.info(f"Command came from CMDLINE - {dictionary}")
-            
+            self.add_arg("file_browser", type=ParameterType.Boolean, value=False)
             arg_path = dictionary.get("filepath")
             if arg_path:
                 self.add_arg("filepath", arg_path)
             else:
-                self.add_arg("filepath", ".\\*")    # List current directory if no args
-           
-        self.add_arg("file_browser", "true")
-
+                self.add_arg("filepath", "")
+            self.add_arg("host", dictionary.get("host", ""))
+        
         self.load_args_from_dictionary(dictionary)
 
 class LsCommand(CommandBase):
@@ -75,26 +78,35 @@ class LsCommand(CommandBase):
             Success=True,
         )
         
+        is_file_browser = taskData.args.get_arg("file_browser")
         path = taskData.args.get_arg("filepath")
-        logging.info(f"create_go_tasking - path : {path}")
-        response.DisplayParams = path
-        
-        # 
+
+        # Fix drive letter
+        if path.endswith(":"):
+            taskData.args.set_arg("filepath", path + "\\")
+
+        # Fix current directory
+        if path == ".":
+            taskData.args.set_arg("filepath", "")
+
+
+        # UNC Path
         if uncmatch := re.match(r"^\\\\(?P<host>[^\\]+)\\(?P<path>.*)$", path):
-            taskData.args.add_arg("host", uncmatch.group("host"))
-            taskData.args.set_arg("path", uncmatch.group("path"))
-        else:
-            # Set the host argument to an empty string if it does not exist
-            taskData.args.add_arg("host", "")
+            taskData.args.set_arg("host", uncmatch.group("host"))
+            path = uncmatch.group("path")
+            taskData.args.set_arg("filepath", path)
+
+        # Uppercase the host
         if host := taskData.args.get_arg("host"):
             host = host.upper()
-
-            # Resolve 'localhost' and '127.0.0.1' aliases
-            if host == "127.0.0.1" or host.lower() == "localhost":
-                host = taskData.Callback.Host
+            # Dont include hostname if its current one
+            if host == taskData.Callback.Host:
+                host = ""
 
             taskData.args.set_arg("host", host)
 
+        logging.info(f"Arguments: {taskData.args}")
+        
         return response
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
