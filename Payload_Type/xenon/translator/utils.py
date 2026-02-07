@@ -170,7 +170,7 @@ def parse_file_browser_tlv(data):
         # Parent path (length-prefixed string)
         parent_path, data = get_bytes_with_size(data)
         parent_path = parent_path.decode("cp850", errors="replace") if parent_path else ""
-
+        
         # Name (length-prefixed string)
         name, data = get_bytes_with_size(data)
         name = name.decode("cp850", errors="replace") if name else ""
