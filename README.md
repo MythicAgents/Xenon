@@ -268,6 +268,7 @@ If you have suggestions/requests open an issue or you can message me on discord.
 
 ### Features
 - [x] Socks5 proxy
+- [x] Support File Browser UI
 - [ ] `powershell` command
 - [ ] Support dns external transport
 - [ ] hook into more Mythic features (file browser, etc)
@@ -275,6 +276,8 @@ If you have suggestions/requests open an issue or you can message me on discord.
 ### Bugs
 - [X] Work on memory issues (duplicate buffers etc)
 - [X] Fix initial install files not found
+- [ ] Use random pipe names or anon pipes for fork n run
+- [ ] Weirdness with File Browser UI (remote hosts, etc)
 - [ ] `execute_assembly` can cause PIPE_BUSY if doesnt exit properly
 - [ ] Issues executing BOFs compiled with MSVC
 
