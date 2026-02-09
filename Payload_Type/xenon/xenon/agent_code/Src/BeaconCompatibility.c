@@ -23,7 +23,6 @@
 
 #include "BeaconCompatibility.h"
 
-// #define DEFAULTPROCESSNAME "rundll32.exe"
 #ifdef _WIN64
 #define X86PATH "SysWOW64"
 #define X64PATH "System32"
