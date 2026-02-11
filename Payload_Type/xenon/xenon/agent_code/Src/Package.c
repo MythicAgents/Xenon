@@ -255,441 +255,6 @@ VOID PackageComplete(PCHAR taskUuid, PPackage package)
     PackageQueue(data);
 }
 
-/**
- * @brief Write the specified buffer to the specified pipe (UINT32 size header + message)
- * @param Handle handle to the pipe
- * @param Buffer Message to write
- * @param Length Size of message
- * @return pipe write successful or not
- */
-BOOL PackageSendPipe(HANDLE hPipe, PVOID Buffer, SIZE_T Length) 
-{
-    DWORD  Written         = 0;
-    DWORD  Total           = 0;
-    DWORD  MaxBytesToWrite = 0;
-    UINT32 SizeHeader      = 0;
-    BYTE   SizeHeaderBytes[sizeof(UINT32)] = {0};
-
-    /* Prepend the message size as UINT32 (network byte order) */
-    SizeHeader = (UINT32)Length;
-    addInt32ToBuffer(SizeHeaderBytes, SizeHeader);
-    
-    /* Write the size header first */
-    Total = 0;
-    do {
-        MaxBytesToWrite = MIN( ( sizeof(UINT32) - Total ), PIPE_BUFFER_MAX );
-        
-        if ( !WriteFile(hPipe, SizeHeaderBytes + Total, MaxBytesToWrite, &Written, NULL) )
-        {
-            _err("WriteFile failed writing size header. ERROR : %d", GetLastError());
-            return FALSE;
-        }
-        
-        Total += Written;
-    } while ( Total < sizeof(UINT32) );
-    
-    // _dbg("Wrote size header: %d bytes (message size: %d)", Total, Length);
-    
-    /* Write the message data in chunks of PIPE_BUFFER_MAX */
-    Total = 0;
-    do {
-        MaxBytesToWrite = MIN( ( Length - Total ), PIPE_BUFFER_MAX );
-
-        _dbg("\t Max bytes to write: %d bytes", MaxBytesToWrite);
-
-        if ( !WriteFile(hPipe, ((PBYTE)Buffer) + Total, MaxBytesToWrite, &Written , NULL) ) 
-        {
-            _err("WriteFile failed. ERROR : %d", GetLastError());
-            return FALSE;
-        }
-
-        _dbg("\t Wrote %d bytes", Written);
-
-        Total += Written;
-        
-    } while ( Total < Length );
-
-    _dbg("Sent %d bytes to pipe.", Total);
-
-    return TRUE;
-}
-
-/**
- * @brief Read data from the specified pipe (UINT32 size header + message)
- * @param hPipe Handle to the pipe
- * @param ppOutData Pointer to receive the allocated buffer
- * @param pOutLen Pointer to receive the length of data read
- * @return pipe read successful or not
- */
-BOOL PackageReadPipe(HANDLE hPipe, PBYTE* ppOutData, SIZE_T* pOutLen)
-{
-    DWORD  BytesRead      = 0;
-    DWORD  Total          = 0;
-    DWORD  MaxBytesToRead = 0;
-    UINT32 MessageSize    = 0;
-    DWORD  BytesAvailable = 0;
-    BYTE   SizeHeaderBytes[sizeof(UINT32)] = {0};
-    PVOID  Buffer          = NULL;
-
-    *ppOutData = NULL;
-    *pOutLen   = 0;
-
-    /* Check if pipe has any data */
-    if ( PeekNamedPipe(hPipe, NULL, 0, NULL, &BytesAvailable, NULL) )
-    {
-        if ( BytesAvailable >= sizeof(UINT32) )
-        {
-            /* Read the size header first (UINT32) */
-            Total = 0;
-            do {
-
-                MaxBytesToRead = sizeof(UINT32) - Total;
-                
-                if ( !ReadFile(hPipe, SizeHeaderBytes + Total, MaxBytesToRead, &BytesRead, NULL) )
-                {
-                    DWORD error = GetLastError();
-                    if ( error == ERROR_MORE_DATA )
-                    {
-                        /* Continue reading */
-                        continue;
-                    }
-                    _err("ReadFile failed reading size header. ERROR : %d", error);
-                    return FALSE;
-                }
-                
-                if ( BytesRead == 0 )
-                {
-                    _err("ReadFile returned 0 bytes when reading size header");
-                    return FALSE;
-                }
-                
-                Total += BytesRead;
-
-            } while ( Total < sizeof(UINT32) );
-
-            /* Convert size header from network byte order */
-            UINT32 tempValue = 0;
-            memcpy(&tempValue, SizeHeaderBytes, sizeof(UINT32));
-            MessageSize = BYTESWAP32(tempValue);
-            
-            _dbg("\t Message has a size of %d bytes", MessageSize);
-
-            if ( MessageSize == 0 )
-            {
-                _err("\t Message size is 0: %d", MessageSize);
-                return FALSE;
-            }
-
-            /* Allocate buffer for the complete message */
-            Buffer = LocalAlloc(LPTR, MessageSize);
-            if ( !Buffer )
-            {
-                _err("\t Failed to allocate buffer for message (%d bytes)", MessageSize);
-                return FALSE;
-            }
-
-            /* Read the complete message in chunks */
-            Total = 0;
-            do {
-                MaxBytesToRead = MIN((MessageSize - Total), PIPE_BUFFER_MAX);
-                
-                if ( !ReadFile(hPipe, ((PBYTE)Buffer) + Total, MaxBytesToRead, &BytesRead, NULL) )
-                {
-                    DWORD error = GetLastError();
-                    if ( error == ERROR_MORE_DATA )
-                    {
-                        /* Continue reading */
-                        Total += BytesRead;
-                        continue;
-                    }
-                    
-                    _err("\t ReadFile failed reading message data. ERROR : %d", error);
-                    LocalFree(Buffer);
-                    *ppOutData = NULL;
-                    *pOutLen   = 0;
-                    return FALSE;
-                }
-
-                if ( BytesRead == 0 )
-                {
-                    _err("\t ReadFile returned 0 bytes when reading message data (expected %d more bytes)", MessageSize - Total);
-                    LocalFree(Buffer);
-                    *ppOutData = NULL;
-                    *pOutLen   = 0;
-                    return FALSE;
-                }
-
-                _dbg("\t Read %d bytes (total: %d / %d)", BytesRead, Total + BytesRead, MessageSize);
-
-                Total += BytesRead;
-            } while ( Total < MessageSize );
-        }
-        else
-        {
-            // Package size smaller than 4 bytes...
-            // _dbg("\t Package size smaller than 4 bytes...");
-        }
-    }
-    else
-    {
-        _err("\t PeekNamedPipe failed with ERROR code : %d", GetLastError());
-        return FALSE;
-    }
-
-    // _dbg("\t Read complete message: %d bytes", Total);
-    
-    /* Output */
-    *ppOutData = Buffer;
-    *pOutLen = MessageSize;
-
-    return TRUE;
-}
-
-/**
- * @brief Write the specified buffer to the specified socket (UINT32 size header + message)
- * @param sock Socket of TCP client
- * @param Buffer Message to write
- * @param Length Size of message
- * @return TCP write successful or not
- */
-BOOL PackageSendTcp(SOCKET sock, PVOID Buffer, SIZE_T Length) 
-{
-    DWORD  Written         = 0;
-    DWORD  Total           = 0;
-    DWORD  MaxBytesToWrite = 0;
-    UINT32 SizeHeader      = 0;
-    BYTE   SizeHeaderBytes[sizeof(UINT32)] = {0};
-
-    /* Prepend the message size as UINT32 (network byte order) */
-    SizeHeader = (UINT32)Length;
-    addInt32ToBuffer(SizeHeaderBytes, SizeHeader);
-    
-    /* Write the size header first */
-    Total = 0;
-    do {
-        MaxBytesToWrite = MIN( ( sizeof(UINT32) - Total ), TCP_BUFFER_MAX );
-        
-        Written = send(sock, SizeHeaderBytes + Total, MaxBytesToWrite, 0);
-        if ( Written == -1 )
-        {
-            _err("send failed writing size header. ERROR : %d", GetLastError());
-            return FALSE;
-        }
-        
-        Total += Written;
-    } while ( Total < sizeof(UINT32) );
-    
-    // _dbg("Wrote size header: %d bytes (message size: %d)", Total, Length);
-    
-    /* Write the message data in chunks of TCP_BUFFER_MAX */
-    Total = 0;
-    do {
-        MaxBytesToWrite = MIN( ( Length - Total ), TCP_BUFFER_MAX );
-
-        _dbg("\t Max bytes to write: %d bytes", MaxBytesToWrite);
-        Written = send(sock, ((PBYTE)Buffer) + Total, MaxBytesToWrite , 0);
-        if ( Written == -1 ) 
-        {
-            _err("send failed. ERROR : %d", GetLastError());
-            return FALSE;
-        }
-
-        _dbg("\t Wrote %d bytes", Written);
-
-        Total += Written;
-        
-    } while ( Total < Length );
-
-    _dbg("Sent %d bytes to socket.", Total);
-
-    return TRUE;
-}
-
-/**
- * @brief Read data from the specified socket (UINT32 size header + message)
- * @param sock Socket of TCP client
- * @param ppOutData Pointer to receive the allocated buffer
- * @param pOutLen Pointer to receive the length of data read
- * @return TCP read successful or not
- */
-BOOL PackageReadTcp(SOCKET sock, PBYTE* ppOutData, SIZE_T* pOutLen)
-{
-    DWORD  BytesRead      = 0;
-    DWORD  Total          = 0;
-    DWORD  MaxBytesToRead = 0;
-    UINT32 MessageSize    = 0;
-    DWORD  BytesAvailable = 0;
-    BYTE   SizeHeaderBytes[sizeof(UINT32)] = {0};
-    PVOID  Buffer          = NULL;
-
-    *ppOutData = NULL;
-    *pOutLen   = 0;
-
-    fd_set readfds;
-    readfds.fd_count = 1;
-    readfds.fd_array[0] = sock;
-    struct timeval timeout = { 0, 100 };
-
-    int selResult = select(0, &readfds, NULL, NULL, &timeout);
-    if (selResult == SOCKET_ERROR){
-        _err("[select] sock Error [%d]", GetLastError());
-        return FALSE;
-    }
-
-
-    /* Check if socket has any data */
-    if (ioctlsocket(sock, FIONREAD, &BytesAvailable) == SOCKET_ERROR)
-    {
-        _err("ioctlsocket error: %d", WSAGetLastError());
-        return FALSE;
-    }
-    
-    if ( BytesAvailable >= 0 )
-    {
-        if ( BytesAvailable >= sizeof(UINT32) )
-        {
-            /* Read the size header first (UINT32) */
-            Total = 0;
-            do {
-
-                MaxBytesToRead = sizeof(UINT32) - Total;
-                BytesRead = recv(sock, SizeHeaderBytes + Total, MaxBytesToRead, 0);
-                if ( BytesRead == -1 )
-                {
-                    DWORD error = GetLastError();
-                    if ( error == ERROR_MORE_DATA )
-                    {
-                        /* Continue reading */
-                        continue;
-                    }
-                    _err("recv failed reading size header. ERROR : %d", error);
-                    return FALSE;
-                }
-                
-                if ( BytesRead == 0 )
-                {
-                    _err("recv returned 0 bytes when reading size header");
-                    return FALSE;
-                }
-                
-                Total += BytesRead;
-
-            } while ( Total < sizeof(UINT32) );
-
-            /* Convert size header from network byte order */
-            UINT32 tempValue = 0;
-            memcpy(&tempValue, SizeHeaderBytes, sizeof(UINT32));
-            MessageSize = BYTESWAP32(tempValue);
-            
-            _dbg("\t Message has a size of %d bytes", MessageSize);
-
-            if ( MessageSize == 0 )
-            {
-                _err("\t Message size is 0: %d", MessageSize);
-                return FALSE;
-            }
-
-            /* Allocate buffer for the complete message */
-            Buffer = LocalAlloc(LPTR, MessageSize);
-            if ( !Buffer )
-            {
-                _err("\t Failed to allocate buffer for message (%d bytes)", MessageSize);
-                return FALSE;
-            }
-
-            /* Read the complete message in chunks */
-            Total = 0;
-            do {
-                MaxBytesToRead = MIN((MessageSize - Total), PIPE_BUFFER_MAX);
-                BytesRead = recv(sock, ((PBYTE)Buffer) + Total, MaxBytesToRead, 0);
-                
-                if ( BytesRead == -1 )
-                {
-                    DWORD error = GetLastError();
-                    if ( error == ERROR_MORE_DATA )
-                    {
-                        /* Continue reading */
-                        Total += BytesRead;
-                        continue;
-                    }
-                    
-                    _err("\t recv failed reading message data. ERROR : %d", error);
-                    LocalFree(Buffer);
-                    *ppOutData = NULL;
-                    *pOutLen   = 0;
-                    return FALSE;
-                }
-
-                if ( BytesRead == 0 )
-                {
-                    _err("\t recv returned 0 bytes when reading message data (expected %d more bytes)", MessageSize - Total);
-                    LocalFree(Buffer);
-                    *ppOutData = NULL;
-                    *pOutLen   = 0;
-                    return FALSE;
-                }
-
-                _dbg("\t Read %d bytes (total: %d / %d)", BytesRead, Total + BytesRead, MessageSize);
-
-                Total += BytesRead;
-            } while ( Total < MessageSize );
-        }
-        else
-        {
-            _dbg("\t Package size smaller than 4 bytes...");
-
-            /* Check socket health */
-            char buf;
-            u_long mode = 1;
-            ioctlsocket(sock, FIONBIO, &mode);
-
-            int recvResult = recv(sock, &buf, 1, MSG_PEEK);
-
-            /* Either no data or badness */
-            if (recvResult == SOCKET_ERROR)
-            {
-                if (WSAGetLastError() == WSAEWOULDBLOCK)
-                {
-                    _dbg("\t No data to read yet.");
-                    /* Revert the socket mode -> blocking */
-                    mode = 0;
-                    ioctlsocket(sock, FIONBIO, &mode);
-                }
-                else
-                {
-                    _err("\t Socket error [%x]", sock);
-                    closesocket(sock);
-                    sock = NULL;
-                    return FALSE;
-                }
-            }
-
-            if (recvResult == 0)
-            {
-                _err("\t recv() returned 0 - connection closed");
-                closesocket(sock);
-                sock = NULL;
-                return FALSE;
-            }            
-        }
-    }
-    else
-    {
-        _err("\t recv failed with ERROR code : %d", GetLastError());
-        return FALSE;
-    }
-
-    
-
-    _dbg("\t Read complete message: %d bytes", Total);
-    
-    /* Output */
-    *ppOutData = Buffer;
-    *pOutLen = MessageSize;
-
-    return TRUE;
-}
-
 // Function to base64 encode the input package and modify it
 BOOL PackageBase64Encode(PPackage package)
 {
@@ -910,14 +475,6 @@ BOOL PackageSendAll(PPARSER response)
     /* Include as many packages as fit */
     while ( Current )
     {
-        // if ( (Package->length + Current->length) > MAX_PACKAGE_SIZE )                       // TODO: Will the NEW PackageSendPipe logic work without this??
-        // {
-        //     _dbg("[INFO] MAX_PACKAGE_SIZE reached, checking the next package");
-
-        //     Current = Current->Next;
-        //     continue;
-        // }
-        
         _dbg("Adding package (%d bytes)", Current->length);
         PackageAddBytes(Package, Current->buffer, Current->length, FALSE);
         Current->Sent = TRUE;
@@ -968,6 +525,454 @@ CLEANUP:
 }
 
 
+/*
+    Functions Only used for SMB Links
+*/
+#if defined(SMB_TRANSPORT) || defined(INCLUDE_CMD_LINK)
+/**
+ * @brief Write the specified buffer to the specified pipe (UINT32 size header + message)
+ * @param Handle handle to the pipe
+ * @param Buffer Message to write
+ * @param Length Size of message
+ * @return pipe write successful or not
+ */
+BOOL PackageSendPipe(HANDLE hPipe, PVOID Buffer, SIZE_T Length) 
+{
+    DWORD  Written         = 0;
+    DWORD  Total           = 0;
+    DWORD  MaxBytesToWrite = 0;
+    UINT32 SizeHeader      = 0;
+    BYTE   SizeHeaderBytes[sizeof(UINT32)] = {0};
+
+    /* Prepend the message size as UINT32 (network byte order) */
+    SizeHeader = (UINT32)Length;
+    addInt32ToBuffer(SizeHeaderBytes, SizeHeader);
+    
+    /* Write the size header first */
+    Total = 0;
+    do {
+        MaxBytesToWrite = MIN( ( sizeof(UINT32) - Total ), PIPE_BUFFER_MAX );
+        
+        if ( !WriteFile(hPipe, SizeHeaderBytes + Total, MaxBytesToWrite, &Written, NULL) )
+        {
+            _err("WriteFile failed writing size header. ERROR : %d", GetLastError());
+            return FALSE;
+        }
+        
+        Total += Written;
+    } while ( Total < sizeof(UINT32) );
+    
+    // _dbg("Wrote size header: %d bytes (message size: %d)", Total, Length);
+    
+    /* Write the message data in chunks of PIPE_BUFFER_MAX */
+    Total = 0;
+    do {
+        MaxBytesToWrite = MIN( ( Length - Total ), PIPE_BUFFER_MAX );
+
+        _dbg("\t Max bytes to write: %d bytes", MaxBytesToWrite);
+
+        if ( !WriteFile(hPipe, ((PBYTE)Buffer) + Total, MaxBytesToWrite, &Written , NULL) ) 
+        {
+            _err("WriteFile failed. ERROR : %d", GetLastError());
+            return FALSE;
+        }
+
+        _dbg("\t Wrote %d bytes", Written);
+
+        Total += Written;
+        
+    } while ( Total < Length );
+
+    _dbg("Sent %d bytes to pipe.", Total);
+
+    return TRUE;
+}
+/**
+ * @brief Read data from the specified pipe (UINT32 size header + message)
+ * @param hPipe Handle to the pipe
+ * @param ppOutData Pointer to receive the allocated buffer
+ * @param pOutLen Pointer to receive the length of data read
+ * @return pipe read successful or not
+ */
+BOOL PackageReadPipe(HANDLE hPipe, PBYTE* ppOutData, SIZE_T* pOutLen)
+{
+    DWORD  BytesRead      = 0;
+    DWORD  Total          = 0;
+    DWORD  MaxBytesToRead = 0;
+    UINT32 MessageSize    = 0;
+    DWORD  BytesAvailable = 0;
+    BYTE   SizeHeaderBytes[sizeof(UINT32)] = {0};
+    PVOID  Buffer          = NULL;
+
+    *ppOutData = NULL;
+    *pOutLen   = 0;
+
+    /* Check if pipe has any data */
+    if ( PeekNamedPipe(hPipe, NULL, 0, NULL, &BytesAvailable, NULL) )
+    {
+        if ( BytesAvailable >= sizeof(UINT32) )
+        {
+            /* Read the size header first (UINT32) */
+            Total = 0;
+            do {
+
+                MaxBytesToRead = sizeof(UINT32) - Total;
+                
+                if ( !ReadFile(hPipe, SizeHeaderBytes + Total, MaxBytesToRead, &BytesRead, NULL) )
+                {
+                    DWORD error = GetLastError();
+                    if ( error == ERROR_MORE_DATA )
+                    {
+                        /* Continue reading */
+                        continue;
+                    }
+                    _err("ReadFile failed reading size header. ERROR : %d", error);
+                    return FALSE;
+                }
+                
+                if ( BytesRead == 0 )
+                {
+                    _err("ReadFile returned 0 bytes when reading size header");
+                    return FALSE;
+                }
+                
+                Total += BytesRead;
+
+            } while ( Total < sizeof(UINT32) );
+
+            /* Convert size header from network byte order */
+            UINT32 tempValue = 0;
+            memcpy(&tempValue, SizeHeaderBytes, sizeof(UINT32));
+            MessageSize = BYTESWAP32(tempValue);
+            
+            _dbg("\t Message has a size of %d bytes", MessageSize);
+
+            if ( MessageSize == 0 )
+            {
+                _err("\t Message size is 0: %d", MessageSize);
+                return FALSE;
+            }
+
+            /* Allocate buffer for the complete message */
+            Buffer = LocalAlloc(LPTR, MessageSize);
+            if ( !Buffer )
+            {
+                _err("\t Failed to allocate buffer for message (%d bytes)", MessageSize);
+                return FALSE;
+            }
+
+            /* Read the complete message in chunks */
+            Total = 0;
+            do {
+                MaxBytesToRead = MIN((MessageSize - Total), PIPE_BUFFER_MAX);
+                
+                if ( !ReadFile(hPipe, ((PBYTE)Buffer) + Total, MaxBytesToRead, &BytesRead, NULL) )
+                {
+                    DWORD error = GetLastError();
+                    if ( error == ERROR_MORE_DATA )
+                    {
+                        /* Continue reading */
+                        Total += BytesRead;
+                        continue;
+                    }
+                    
+                    _err("\t ReadFile failed reading message data. ERROR : %d", error);
+                    LocalFree(Buffer);
+                    *ppOutData = NULL;
+                    *pOutLen   = 0;
+                    return FALSE;
+                }
+
+                if ( BytesRead == 0 )
+                {
+                    _err("\t ReadFile returned 0 bytes when reading message data (expected %d more bytes)", MessageSize - Total);
+                    LocalFree(Buffer);
+                    *ppOutData = NULL;
+                    *pOutLen   = 0;
+                    return FALSE;
+                }
+
+                _dbg("\t Read %d bytes (total: %d / %d)", BytesRead, Total + BytesRead, MessageSize);
+
+                Total += BytesRead;
+            } while ( Total < MessageSize );
+        }
+        else
+        {
+            // Package size smaller than 4 bytes...
+            // _dbg("\t Package size smaller than 4 bytes...");
+        }
+    }
+    else
+    {
+        _err("\t PeekNamedPipe failed with ERROR code : %d", GetLastError());
+        return FALSE;
+    }
+
+    // _dbg("\t Read complete message: %d bytes", Total);
+    
+    /* Output */
+    *ppOutData = Buffer;
+    *pOutLen = MessageSize;
+
+    return TRUE;
+}
+#endif // SMB_TRANSPORT || INCLUDE_CMD_LINK
+
+/* 
+    Functions Only used for TCP Links
+*/
+#if defined(TCP_TRANSPORT) || defined(INCLUDE_CMD_LINK)
+/**
+ * @brief Write the specified buffer to the specified socket (UINT32 size header + message)
+ * @param sock Socket of TCP client
+ * @param Buffer Message to write
+ * @param Length Size of message
+ * @return TCP write successful or not
+ */
+BOOL PackageSendTcp(SOCKET sock, PVOID Buffer, SIZE_T Length) 
+{
+    DWORD  Written         = 0;
+    DWORD  Total           = 0;
+    DWORD  MaxBytesToWrite = 0;
+    UINT32 SizeHeader      = 0;
+    BYTE   SizeHeaderBytes[sizeof(UINT32)] = {0};
+
+    /* Prepend the message size as UINT32 (network byte order) */
+    SizeHeader = (UINT32)Length;
+    addInt32ToBuffer(SizeHeaderBytes, SizeHeader);
+    
+    /* Write the size header first */
+    Total = 0;
+    do {
+        MaxBytesToWrite = MIN( ( sizeof(UINT32) - Total ), TCP_BUFFER_MAX );
+        
+        Written = send(sock, SizeHeaderBytes + Total, MaxBytesToWrite, 0);
+        if ( Written == -1 )
+        {
+            _err("send failed writing size header. ERROR : %d", GetLastError());
+            return FALSE;
+        }
+        
+        Total += Written;
+    } while ( Total < sizeof(UINT32) );
+    
+    // _dbg("Wrote size header: %d bytes (message size: %d)", Total, Length);
+    
+    /* Write the message data in chunks of TCP_BUFFER_MAX */
+    Total = 0;
+    do {
+        MaxBytesToWrite = MIN( ( Length - Total ), TCP_BUFFER_MAX );
+
+        _dbg("\t Max bytes to write: %d bytes", MaxBytesToWrite);
+        Written = send(sock, ((PBYTE)Buffer) + Total, MaxBytesToWrite , 0);
+        if ( Written == -1 ) 
+        {
+            _err("send failed. ERROR : %d", GetLastError());
+            return FALSE;
+        }
+
+        _dbg("\t Wrote %d bytes", Written);
+
+        Total += Written;
+        
+    } while ( Total < Length );
+
+    _dbg("Sent %d bytes to socket.", Total);
+
+    return TRUE;
+}
+/**
+ * @brief Read data from the specified socket (UINT32 size header + message)
+ * @param sock Socket of TCP client
+ * @param ppOutData Pointer to receive the allocated buffer
+ * @param pOutLen Pointer to receive the length of data read
+ * @return TCP read successful or not
+ */
+BOOL PackageReadTcp(SOCKET sock, PBYTE* ppOutData, SIZE_T* pOutLen)
+{
+    DWORD  BytesRead      = 0;
+    DWORD  Total          = 0;
+    DWORD  MaxBytesToRead = 0;
+    UINT32 MessageSize    = 0;
+    DWORD  BytesAvailable = 0;
+    BYTE   SizeHeaderBytes[sizeof(UINT32)] = {0};
+    PVOID  Buffer          = NULL;
+
+    *ppOutData = NULL;
+    *pOutLen   = 0;
+
+    fd_set readfds;
+    readfds.fd_count = 1;
+    readfds.fd_array[0] = sock;
+    struct timeval timeout = { 0, 100 };
+
+    int selResult = select(0, &readfds, NULL, NULL, &timeout);
+    if (selResult == SOCKET_ERROR){
+        _err("[select] sock Error [%d]", GetLastError());
+        return FALSE;
+    }
+
+
+    /* Check if socket has any data */
+    if (ioctlsocket(sock, FIONREAD, &BytesAvailable) == SOCKET_ERROR)
+    {
+        _err("ioctlsocket error: %d", WSAGetLastError());
+        return FALSE;
+    }
+    
+    if ( BytesAvailable >= 0 )
+    {
+        if ( BytesAvailable >= sizeof(UINT32) )
+        {
+            /* Read the size header first (UINT32) */
+            Total = 0;
+            do {
+
+                MaxBytesToRead = sizeof(UINT32) - Total;
+                BytesRead = recv(sock, SizeHeaderBytes + Total, MaxBytesToRead, 0);
+                if ( BytesRead == -1 )
+                {
+                    DWORD error = GetLastError();
+                    if ( error == ERROR_MORE_DATA )
+                    {
+                        /* Continue reading */
+                        continue;
+                    }
+                    _err("recv failed reading size header. ERROR : %d", error);
+                    return FALSE;
+                }
+                
+                if ( BytesRead == 0 )
+                {
+                    _err("recv returned 0 bytes when reading size header");
+                    return FALSE;
+                }
+                
+                Total += BytesRead;
+
+            } while ( Total < sizeof(UINT32) );
+
+            /* Convert size header from network byte order */
+            UINT32 tempValue = 0;
+            memcpy(&tempValue, SizeHeaderBytes, sizeof(UINT32));
+            MessageSize = BYTESWAP32(tempValue);
+            
+            _dbg("\t Message has a size of %d bytes", MessageSize);
+
+            if ( MessageSize == 0 )
+            {
+                _err("\t Message size is 0: %d", MessageSize);
+                return FALSE;
+            }
+
+            /* Allocate buffer for the complete message */
+            Buffer = LocalAlloc(LPTR, MessageSize);
+            if ( !Buffer )
+            {
+                _err("\t Failed to allocate buffer for message (%d bytes)", MessageSize);
+                return FALSE;
+            }
+
+            /* Read the complete message in chunks */
+            Total = 0;
+            do {
+                MaxBytesToRead = MIN((MessageSize - Total), PIPE_BUFFER_MAX);
+                BytesRead = recv(sock, ((PBYTE)Buffer) + Total, MaxBytesToRead, 0);
+                
+                if ( BytesRead == -1 )
+                {
+                    DWORD error = GetLastError();
+                    if ( error == ERROR_MORE_DATA )
+                    {
+                        /* Continue reading */
+                        Total += BytesRead;
+                        continue;
+                    }
+                    
+                    _err("\t recv failed reading message data. ERROR : %d", error);
+                    LocalFree(Buffer);
+                    *ppOutData = NULL;
+                    *pOutLen   = 0;
+                    return FALSE;
+                }
+
+                if ( BytesRead == 0 )
+                {
+                    _err("\t recv returned 0 bytes when reading message data (expected %d more bytes)", MessageSize - Total);
+                    LocalFree(Buffer);
+                    *ppOutData = NULL;
+                    *pOutLen   = 0;
+                    return FALSE;
+                }
+
+                _dbg("\t Read %d bytes (total: %d / %d)", BytesRead, Total + BytesRead, MessageSize);
+
+                Total += BytesRead;
+            } while ( Total < MessageSize );
+        }
+        else
+        {
+            _dbg("\t Package size smaller than 4 bytes...");
+
+            /* Check socket health */
+            char buf;
+            u_long mode = 1;
+            ioctlsocket(sock, FIONBIO, &mode);
+
+            int recvResult = recv(sock, &buf, 1, MSG_PEEK);
+
+            /* Either no data or badness */
+            if (recvResult == SOCKET_ERROR)
+            {
+                if (WSAGetLastError() == WSAEWOULDBLOCK)
+                {
+                    _dbg("\t No data to read yet.");
+                    /* Revert the socket mode -> blocking */
+                    mode = 0;
+                    ioctlsocket(sock, FIONBIO, &mode);
+                }
+                else
+                {
+                    _err("\t Socket error [%x]", sock);
+                    closesocket(sock);
+                    sock = NULL;
+                    return FALSE;
+                }
+            }
+
+            if (recvResult == 0)
+            {
+                _err("\t recv() returned 0 - connection closed");
+                closesocket(sock);
+                sock = NULL;
+                return FALSE;
+            }            
+        }
+    }
+    else
+    {
+        _err("\t recv failed with ERROR code : %d", GetLastError());
+        return FALSE;
+    }
+
+    
+
+    _dbg("\t Read complete message: %d bytes", Total);
+    
+    /* Output */
+    *ppOutData = Buffer;
+    *pOutLen = MessageSize;
+
+    return TRUE;
+}
+#endif // TCP_TRANSPORT || INCLUDE_CMD_LINK
+
+/**
+ * @brief Cleanup a package memory
+ * @param package Ptr to Package to cleanup
+ * @return VOID
+ */
 VOID PackageDestroy(PPackage package)
 {
     if (!package)
