@@ -8,6 +8,7 @@ class SpawntoArguments(TaskArguments):
         self.args = [
             CommandParameter(
                 name="path", 
+                cli_name="Path",
                 type=ParameterType.String, 
                 description="Path of the Windows process to spawn."
             ),
@@ -36,15 +37,17 @@ class SpawntoCommand(CommandBase):
         suggested_command=False
     )
 
-    # async def create_tasking(self, task: MythicTask) -> MythicTask:
-    #     task.display_params = task.args.get_arg("command")
-    #     return task
-    
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
         response = PTTaskCreateTaskingMessageResponse(
             TaskID=taskData.Task.ID,
             Success=True,
         )
+
+        # Set display parameters
+        response.DisplayParams = "{}".format(
+            taskData.args.get_arg("path")
+        )
+
         return response
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:

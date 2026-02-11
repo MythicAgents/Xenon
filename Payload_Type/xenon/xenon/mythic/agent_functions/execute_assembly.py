@@ -50,10 +50,10 @@ class ExecuteAssemblyArguments(TaskArguments):
                 default_value="",
                 parameter_group_info=[
                     ParameterGroupInfo(
-                        required=True, group_name="Default", ui_position=2,
+                        required=False, group_name="Default", ui_position=2,
                     ),
                     ParameterGroupInfo(
-                        required=True, group_name="New Assembly", ui_position=2
+                        required=False, group_name="New Assembly", ui_position=2
                     ),
                 ],
             ),
@@ -144,17 +144,11 @@ class ExecuteAssemblyArguments(TaskArguments):
         else:
             parts = self.command_line.split(" ", maxsplit=1)
             self.add_arg("assembly_name", parts[0])
-            self.add_arg("assembly_arguments", "")
             if len(parts) == 2:
                 self.add_arg("assembly_arguments", parts[1])
+            else:
+                self.add_arg("assembly_arguments", "")
 
-def print_attributes(obj):
-    for attr in dir(obj):
-        if not attr.startswith("__"):  # Ignore built-in dunder methods
-            try:
-                logging.info(f"{attr}: {getattr(obj, attr)}")
-            except Exception as e:
-                logging.info(f"{attr}: [Error retrieving attribute] {e}")
 
 class ExecuteAssemblyCommand(CoffCommandBase):
     cmd = "execute_assembly"
@@ -199,16 +193,7 @@ class ExecuteAssemblyCommand(CoffCommandBase):
                         raise Exception("Failed to find that file")
                 else:
                     raise Exception("Error from Mythic trying to get file: " + str(file_resp.Error))
-                
-                # Set display parameters
-                response.DisplayParams = "-Assembly {} -Arguments {} --patchexit {} --amsi {} --etw {}".format(
-                    file_resp.Files[0].Filename,
-                    taskData.args.get_arg("assembly_arguments"),
-                    taskData.args.get_arg("patch_exit"),
-                    taskData.args.get_arg("amsi"),
-                    taskData.args.get_arg("etw")
-                )
-                
+                                
                 taskData.args.add_arg("assembly_name", file_resp.Files[0].Filename)
                 taskData.args.remove_arg("assembly_file")
             
@@ -225,22 +210,21 @@ class ExecuteAssemblyCommand(CoffCommandBase):
                         logging.info(f"Found existing Assembly with File ID : {file_resp.Files[0].AgentFileId}")
 
                         taskData.args.remove_arg("assembly_name")    # Don't need this anymore
-                        
-                        # Set display parameters
-                        response.DisplayParams = "-Assembly {} -Arguments {} --patchexit {} --amsi {} --etw {}".format(
-                            file_resp.Files[0].Filename,
-                            taskData.args.get_arg("assembly_arguments"),
-                            taskData.args.get_arg("patch_exit"),
-                            taskData.args.get_arg("amsi"),
-                            taskData.args.get_arg("etw")
-                        )
 
                     elif len(file_resp.Files) == 0:
                         raise Exception("Failed to find the named file. Have you uploaded it before? Did it get deleted?")
                 else:
                     raise Exception("Error from Mythic trying to search files:\n" + str(file_resp.Error))
 
-            
+            # Set display parameters
+            response.DisplayParams = "{} {} {} {} {}".format(
+                file_resp.Files[0].Filename,
+                taskData.args.get_arg("assembly_arguments"),
+                "--patchexit" if taskData.args.get_arg("patch_exit") else "",
+                "--amsi" if taskData.args.get_arg("amsi") else "",
+                "--etw" if taskData.args.get_arg("etw") else "",
+            )
+
             # TODO
             # Check if execute_assembly PICO capability is built, if not build it
             #            

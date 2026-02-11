@@ -11,6 +11,7 @@ class MakeTokenArguments(TaskArguments):
         self.args = [
             CommandParameter(
                 name="domain", 
+                cli_name="Domain",
                 type=ParameterType.String,
                 description="Domain of the account credentials. e.g., acme.corp",
                 parameter_group_info=[ParameterGroupInfo(
@@ -20,6 +21,7 @@ class MakeTokenArguments(TaskArguments):
             ),
             CommandParameter(
                 name="username", 
+                cli_name="Username",
                 type=ParameterType.String, 
                 description="Username of the account.",
                 parameter_group_info=[ParameterGroupInfo(
@@ -29,6 +31,7 @@ class MakeTokenArguments(TaskArguments):
             ),
             CommandParameter(
                 name="password", 
+                cli_name="Password",
                 type=ParameterType.String, 
                 description="The plaintext password for the account.",
                 parameter_group_info=[ParameterGroupInfo(
@@ -38,6 +41,7 @@ class MakeTokenArguments(TaskArguments):
             ),
             CommandParameter(
                 name="logon_type", 
+                cli_name="LogonType",
                 type=ParameterType.Number, 
                 default_value=9,    # LOGON32_LOGON_NEW_CREDENTIALS 
                 description="The type of logon operation to perform. (optional) default=LOGON32_LOGON_NEW_CREDENTIALS",
@@ -73,15 +77,18 @@ class MakeTokenCommand(CommandBase):
         suggested_command=False
     )
 
-    # async def create_tasking(self, task: MythicTask) -> MythicTask:
-    #     task.display_params = task.args.get_arg("command")
-    #     return task
-    
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
         response = PTTaskCreateTaskingMessageResponse(
             TaskID=taskData.Task.ID,
             Success=True,
         )
+
+        # Set display parameters
+        response.DisplayParams = "{} {}".format(
+            taskData.args.get_arg("domain") + "\\" + taskData.args.get_arg("username"),
+            taskData.args.get_arg("password")
+        )
+
         return response
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:

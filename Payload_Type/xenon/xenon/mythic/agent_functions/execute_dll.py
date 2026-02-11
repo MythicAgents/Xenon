@@ -180,13 +180,7 @@ class ExecuteDllCommand(CoffCommandBase):
                         raise Exception("Failed to find that file")
                 else:
                     raise Exception("Error from Mythic trying to get file: " + str(file_resp.Error))
-                
-                # Set display parameters
-                response.DisplayParams = "-File {} -Arguments {}".format(
-                    file_resp.Files[0].Filename,
-                    taskData.args.get_arg("dll_arguments")
-                )
-                
+                                
                 taskData.args.add_arg("dll_name", file_resp.Files[0].Filename)
                 taskData.args.remove_arg("dll_file")
             
@@ -203,19 +197,18 @@ class ExecuteDllCommand(CoffCommandBase):
                         logging.info(f"Found existing DLL with File ID : {file_resp.Files[0].AgentFileId}")
 
                         taskData.args.remove_arg("dll_name")    # Don't need this anymore
-                        
-                        # Set display parameters
-                        response.DisplayParams = "-File {} -Arguments {}".format(
-                            file_resp.Files[0].Filename,
-                            taskData.args.get_arg("dll_arguments")
-                        )
 
                     elif len(file_resp.Files) == 0:
                         raise Exception("Failed to find the named file. Have you uploaded it before? Did it get deleted?")
                 else:
                     raise Exception("Error from Mythic trying to search files:\n" + str(file_resp.Error))
 
-            
+            # Set display parameters
+            response.DisplayParams = "{} {}".format(
+                file_resp.Files[0].Filename,
+                taskData.args.get_arg("dll_arguments")
+            )
+
             #
             # Convert DLL -> PIC with Crystal Palace linker
             #

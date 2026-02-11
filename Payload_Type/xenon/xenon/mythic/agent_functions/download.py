@@ -10,7 +10,7 @@ class DownloadArguments(TaskArguments):
         self.args = [
             CommandParameter(
                 name="path",
-                cli_name="path",
+                cli_name="Path",
                 display_name="Path to file to download.",
                 type=ParameterType.String,
                 description="File to download.",
@@ -37,8 +37,9 @@ class DownloadArguments(TaskArguments):
             else:
                 logger.info("unknown dictionary args")
         else:
-            if "path" not in dictionary_arguments or dictionary_arguments["path"] is None:
-                self.add_arg("path", f'.')
+            logging.info(f"Dictionary arguments: {dictionary_arguments}")
+            if "Path" not in dictionary_arguments or dictionary_arguments["Path"] is None:
+                self.add_arg("Path", f'.')
 
     async def parse_arguments(self):
         # Check if named parameters were defined
@@ -90,6 +91,9 @@ class DownloadCommand(CommandBase):
             taskData.args.set_arg("host", host)
         taskData.args.add_arg("file", taskData.args.get_arg("path"))
         
+        # Set display parameters
+        response.DisplayParams = taskData.args.get_arg("path")
+
         logging.info(f"Arguments: {taskData.args}")
         return response
 

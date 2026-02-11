@@ -8,6 +8,7 @@ class CdArguments(TaskArguments):
         self.args = [
             CommandParameter(
                 name="filepath", 
+                cli_name="Path",
                 type=ParameterType.String, 
                 description="Path to change working directory.",
                 parameter_group_info=[ParameterGroupInfo(
@@ -48,6 +49,10 @@ class CdCommand(CommandBase):
             TaskID=taskData.Task.ID,
             Success=True,
         )
+        
+        # Set display parameters
+        response.DisplayParams = taskData.args.get_arg("filepath")
+
         return response
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:

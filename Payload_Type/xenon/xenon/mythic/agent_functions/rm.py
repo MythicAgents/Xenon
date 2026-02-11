@@ -9,13 +9,14 @@ class RmArguments(TaskArguments):
         self.args = [
             CommandParameter(
                 name="path", 
+                cli_name="Path",
                 type=ParameterType.String, 
                 description="Path to file or directory",
                 parameter_group_info=[ParameterGroupInfo(
                     required=True
                 )]
             ),
-        ]
+        ]   
 
     async def parse_arguments(self):
         if len(self.command_line) == 0:
@@ -51,10 +52,6 @@ class RmCommand(CommandBase):
         supported_os=[ SupportedOS.Windows ],
         suggested_command=False
     )
-
-    # async def create_tasking(self, task: MythicTask) -> MythicTask:
-    #     task.display_params = task.args.get_arg("command")
-    #     return task
     
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
         response = PTTaskCreateTaskingMessageResponse(
@@ -62,9 +59,12 @@ class RmCommand(CommandBase):
             Success=True,
         )
 
+        # Set display parameters
+        response.DisplayParams = taskData.args.get_arg("path")
+
         taskData.args.remove_arg("path")
 
-        logging.info(f"Arguments: {taskData.args}")
+        #logging.info(f"Arguments: {taskData.args}")
         return response
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:

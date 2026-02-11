@@ -34,6 +34,6 @@
     "tcp"
   ],
   "mythic_version": "3.4.22",
-  "agent_version": "0.0.4",
+  "agent_version": "0.0.5",
   "supported_wrappers": []
 }

@@ -65,6 +65,13 @@ class CpCommand(CommandBase):
             TaskID=taskData.Task.ID,
             Success=True,
         )
+
+        # Set display parameters
+        response.DisplayParams = "{} {}".format(
+            taskData.args.get_arg("existing_file"),
+            taskData.args.get_arg("new_file")
+        )
+
         return response
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
