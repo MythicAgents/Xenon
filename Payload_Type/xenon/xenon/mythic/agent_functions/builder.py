@@ -27,31 +27,37 @@ class XenonAgent(PayloadType):
         BuildParameter(
             name = "debug",
             parameter_type=BuildParameterType.Boolean,
+            group_name="Output",
             default_value="false",
             description="Debug: Enable debugging console and symbols in payload."
         ),
         BuildParameter(
             name = "output_type",
             parameter_type=BuildParameterType.ChooseOne,
+            group_name="Output",
             choices=[ "exe", "dll", "shellcode"],
             default_value="exe",
-            description="Output type: shellcode, dynamic link library, executable"
+            description="Output type: shellcode, dynamic link library, executable",
         ),
         BuildParameter(
             name = "default_pipename",
             parameter_type=BuildParameterType.String,
-            default_value="xenon",
-            description="Default Pipe Name: Value of the named pipe to use for spawn & inject commands. (e.g., execute_assembly)"
+            group_name="Spawn",
+            format_string="[a-z0-9]{8}\-[a-z0-9]{4}\-[a-z0-9]{4}\-[a-z0-9]{4}\-[a-z0-9]{12}",
+            randomize=True,
+            description="Default string to use as named pipe output for spawn & inject commands. (e.g., execute_assembly, inject_shellcode)"
         ),
         BuildParameter(
             name = "spawnto_process",
             parameter_type=BuildParameterType.String,
+            group_name="Spawn",
             default_value="svchost.exe",
             description="Spawnto Process: Process name to use for spawn & inject commands. Must be in C:\\Windows\\System32\\"
         ),
         BuildParameter(
             name = "dll_export_function",
             parameter_type=BuildParameterType.String,
+            group_name="DLL",
             default_value="DllRegisterServer",
             description="Dll Export Function: Used for Dll execution with rundll32. (e.g., rundll32.exe xenon.dll,DllRegisterServer)",
             hide_conditions=[
@@ -63,6 +69,7 @@ class XenonAgent(PayloadType):
             parameter_type=BuildParameterType.Boolean,
             default_value="false",
             description="User-Defined Reflective Loader: Define your own RDL for agent execution. Must be based on Crystal Palace - See docs for details.",
+            group_name="Shellcode",
             hide_conditions=[
                 HideCondition(name="output_type", operand=HideConditionOperand.NotEQ, value="shellcode")
             ]
@@ -72,6 +79,7 @@ class XenonAgent(PayloadType):
             parameter_type=BuildParameterType.File,
             # default_value="xenon",
             description="Crystal UDRL: ZIP or TAR must follow specified format - See docs for details.",
+            group_name="Shellcode",
             hide_conditions=[
                 HideCondition(name="custom_udrl", operand=HideConditionOperand.NotEQ, value=True)
             ]
