@@ -18,7 +18,7 @@ Xenon makes no claims about evasion. The default configuration will not be OPSEC
 
 
 ## Quick Start
-Installing Xenon on an already existing Mythic server is very easy. If you do not have a Mythic server set up yet, to do that go to [Mythic project page](https://github.com/its-a-feature/Mythic/).
+Installing Xenon on an already existing Mythic server is very easy. If you do not have a Mythic server set up yet, to do that go to [Mythic project page](https://github.com/its-a-feature/Mythic/). For further customizations refer to the [Wiki](https://github.com/MythicAgents/Xenon/wiki).
 
 From the Mythic install directory, use the following command to install Xenon as the **root** user:
 
