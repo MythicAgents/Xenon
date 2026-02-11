@@ -107,7 +107,10 @@ class LsCommand(CommandBase):
             taskData.args.set_arg("host", host)
 
         # Set display parameters
-        response.DisplayParams = taskData.args.get_arg("filepath")
+        response.DisplayParams = "{}{}".format(
+            ("\\\\" + host + "\\") if host else "",
+            taskData.args.get_arg("filepath")
+        )
 
         #logging.info(f"Arguments: {taskData.args}")
         

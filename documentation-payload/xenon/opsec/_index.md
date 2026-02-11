@@ -8,7 +8,7 @@ pre = "<b>3. </b>"
 ![logo](/agents/xenon/Xenon.png?width=600px)
 
 ## Fork & Run Commands
-These commands spawn a sacrificial process to perform their actions and call `inject_shellcode` under the hood using donut-shellcode. 
+These commands spawn a sacrificial process to perform their actions and call `inject_shellcode`. 
 They are compatible with Cobalt Strike's Process Injection Kits.
 
 | Command                  | Usage                                                         | Description |
