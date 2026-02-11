@@ -1,6 +1,6 @@
 # Compiler
 CC = x86_64-w64-mingw32-gcc
-CFLAGS = -Wall -w -s -IInclude
+CFLAGS = -Wall -w -Os -s -IInclude
 LFLAGS = -liphlpapi -lnetapi32 -lwininet -lws2_32 
 DFLAGS = -D_DEBUG
 
