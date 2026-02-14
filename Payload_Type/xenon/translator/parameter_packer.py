@@ -52,6 +52,8 @@ def pack_parameters_ordered(parameters: Dict[str, Any], order: list = None) -> b
         items = ordered_items + remaining
     else:
         items = list(parameters.items())
+     # debugging helper to verify parameters are in the order as expected by agent
+    logging.info("Task parameters ordered: {}".format([i[0] for i in items]))
 
     packer.add_uint32(len(items))
     for param_name, param_value in items:
