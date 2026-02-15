@@ -40,6 +40,21 @@ class InjectShellcodeArguments(TaskArguments):
                     )
                 ]
             ),
+            CommandParameter(
+                name="pid",
+                cli_name="pid", 
+                display_name="Process ID", 
+                type=ParameterType.Number, 
+                description="ID of the process to inject to - Leave blank to inject into a sacrificial process (spawn-inject)",
+                default_value=None, # Spawn-Inject
+                parameter_group_info=[
+                    ParameterGroupInfo(
+                        required=False, 
+                        group_name="Existing",
+                        ui_position=2
+                    )
+                ]
+            )
             # CommandParameter(
             #     name="method",
             #     cli_name="-method",
@@ -142,8 +157,8 @@ class InjectShellcodeArguments(TaskArguments):
 class InjectShellcodeCommand(CommandBase):
     cmd = "inject_shellcode"
     needs_admin = False
-    help_cmd = "inject_shellcode -File [mimi.bin] --method [default|custom] --kit [file.o]"
-    description = "Execute PIC shellcode. (e.g., inject_shellcode -File mimi.bin --method default --kit inject_spawn.x64.o"
+    help_cmd = "inject_shellcode -File <pic-uuid> -pid <pid>"
+    description = "Execute PIC/BOF shellcode. (e.g. inject_shellcode -File <pic-uuid> [-pid <pid>]). The pid parameter is optional. If it is set, the PIC is injected into an already running process (explicit injection). Otherwise a sacrificial process is spawned and the PIC is injected into it (spawn injection)."
     version = 1
     author = "@c0rnbread"
     attackmapping = []
@@ -173,9 +188,24 @@ class InjectShellcodeCommand(CommandBase):
             # Check if Default Process Injection Kit was built yet
             if not PROCESS_INJECT_KIT.get_inject_spawn() or not PROCESS_INJECT_KIT.get_inject_explicit():
                 await PROCESS_INJECT_KIT.build_default(taskData.Task.ID)
-            
+
+            # Default to False, as before this was the only available action
+            explicit = False
+
             # Assuming existing shellcode file was passed
             if groupName == "Existing":
+                pid = taskData.args.get_arg('pid')
+
+                # If a PID was provided by the user, they want explicit injection into an existing process
+                if (pid != None):
+                    if (pid < 0):
+                        raise Exception("Invalid PID provided {}".format(pid))
+                    if (pid > 0):
+                        explicit = True
+                        logging.info("Explicit injection into process with PID: {}".format(pid))
+                else:
+                    pid = 0
+
                 shellcode_file_id = taskData.args.get_arg("shellcode_file")
                 
                 # Retrieve the shellcode file to inject
@@ -204,32 +234,49 @@ class InjectShellcodeCommand(CommandBase):
 
                 # Add raw contents of process inject kit to command tasking
                 if method == "kit":
-                    kit_spawn_uuid = PROCESS_INJECT_KIT.get_inject_spawn()
-                    if not kit_spawn_uuid:
+                    if explicit:
+                        kit_uuid = PROCESS_INJECT_KIT.get_inject_explicit()
+                    else:
+                        kit_uuid = PROCESS_INJECT_KIT.get_inject_spawn()
+                    if not kit_uuid:
                         raise Exception("Failed to get UUID for Process Injection Kit. Have you run register_process_injection_kit yet??")
+
                     # Send BOF contents to Agent
-                    kit_spawn_file = await SendMythicRPCFileGetContent(
-                        MythicRPCFileGetContentMessage(AgentFileId=kit_spawn_uuid)
+                    kit_file = await SendMythicRPCFileGetContent(
+                        MythicRPCFileGetContentMessage(AgentFileId=kit_uuid)
                     )
-                    if not kit_spawn_file.Success:
-                        raise Exception("Failed to fetch find file from Mythic (UUID: {})".format(kit_spawn_uuid))
+                    if not kit_file.Success:
+                        raise Exception("Failed to fetch find file from Mythic (UUID: {})".format(kit_uuid))
                     
-                    kit_spawn_contents = kit_spawn_file.Content
-                    
-                    kit_typed_array = [["bytes", kit_spawn_contents.hex()]]         # I'm only doing a typed-list cause its easier for my translation container to pack raw bytes
+                    kit_contents = kit_file.Content
+
+                    # Todo: can we rename the arg?
+                    kit_typed_array = [["bytes", kit_contents.hex()]]         # I'm only doing a typed-list cause its easier for my translation container to pack raw bytes
                     taskData.args.add_arg("kit_spawn_contents", kit_typed_array, type=ParameterType.TypedArray, parameter_group_info=[ParameterGroupInfo(
                         group_name="Existing"
                     )])
+
+                    # last argument: PID
+                    if explicit: 
+                        # I do not know why, but although adding the parameter last, it is packed first in pack_parameters_ordered()
+                        taskData.args.add_arg("pid", pid, type=ParameterType.Number, parameter_group_info=[ParameterGroupInfo(
+                            group_name="Existing"
+                        )])
                     
                     logging.info(f"[PIK] Using Process Injection Kit.")
                     logging.info(f"[PIK] \t PROCESS_INJECT_SPAWN:{PROCESS_INJECT_KIT.get_inject_spawn()}")
                     logging.info(f"[PIK] \t PROCESS_INJECT_EXPLICIT:{PROCESS_INJECT_KIT.get_inject_explicit()}")
 
-                
-                response.DisplayParams = "-File {} --method {}".format(
-                    shellcode_file_id,
-                    method
-                )
+                # return command back to the user
+                if explicit:
+                    response.DisplayParams = "-File {} -pid {}".format(
+                        shellcode_file_id,
+                        pid
+                    )
+                else:
+                    response.DisplayParams = "-File {} ".format(
+                        shellcode_file_id
+                    )
 
                 taskData.args.remove_arg("shellcode_file")
             

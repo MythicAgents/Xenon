@@ -13,7 +13,8 @@ BOOL InjectShellcodeViaKit(
 	_In_  PBYTE   buffer, 
 	_In_  SIZE_T  bufferLen, 
 	_In_  PCHAR   InjectKit, 
-	_In_  SIZE_T  kitLen, 
+	_In_  SIZE_T  kitLen,
+	_In_  UINT32  pid, 
 	_Out_ PCHAR*  outData, 
 	_Out_ SIZE_T* outLen
 );
