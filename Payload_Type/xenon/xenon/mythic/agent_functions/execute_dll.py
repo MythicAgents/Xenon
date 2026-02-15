@@ -99,12 +99,6 @@ class ExecuteDllArguments(TaskArguments):
             response.Error = f"Failed to get files: {file_resp.Error}"
             return response
 
-
-    async def parse_arguments(self):
-        if len(self.command_line) == 0:
-            raise ValueError("Must supply arguments")
-        raise ValueError("Must supply named arguments or use the modal")
-
     async def parse_arguments(self):
         if len(self.command_line) == 0:
             raise Exception(
@@ -116,33 +110,17 @@ class ExecuteDllArguments(TaskArguments):
             self.load_args_from_json_string(self.command_line)
         else:
             parts = self.command_line.split(" ", maxsplit=1)
-            self.add_arg("assembly_name", parts[0])
-            self.add_arg("assembly_arguments", "")
+            self.add_arg("dll_name", parts[0])
+            self.add_arg("dll_arguments", "")
             if len(parts) == 2:
-                self.add_arg("assembly_arguments", parts[1])
+                self.add_arg("dll_arguments", parts[1])
 
-def print_attributes(obj):
-    for attr in dir(obj):
-        if not attr.startswith("__"):  # Ignore built-in dunder methods
-            try:
-                logging.info(f"{attr}: {getattr(obj, attr)}")
-            except Exception as e:
-                logging.info(f"{attr}: [Error retrieving attribute] {e}")
-
-
-    async def parse_arguments(self):
-        if len(self.command_line) == 0:
-            raise Exception("No arguments given.")
-        if self.command_line[0] != "{":
-            raise Exception("Require JSON blob, but got raw command line.")
-        self.load_args_from_json_string(self.command_line)
-        pass
         
 class ExecuteDllCommand(CoffCommandBase):
     cmd = "execute_dll"
     needs_admin = False
-    help_cmd = "execute_dll -File [mimikatz.x64.dll]"
-    description = "Execute a Dynamic Link Library as PIC. (e.g., execute_dll -File mimikatz.x64.dll"
+    help_cmd = "execute_dll -File [mimikatz.x64.dll] -Arguments [args]"
+    description = "Execute a Dynamic Link Library as PIC. (e.g., execute_dll -File mimikatz.x64.dll -Arguments \"sekurlsa::logonpasswords\")"
     version = 1
     author = "@c0rnbread"
     attackmapping = []
@@ -213,9 +191,10 @@ class ExecuteDllCommand(CoffCommandBase):
             # Convert DLL -> PIC with Crystal Palace linker
             #
             
-            # TODO: Do something with DLL arguments (dll_arguments)
-            
-            shellcode_file_contents = await convert_postex_dll_to_pic(file_resp.Files[0].AgentFileId)
+            shellcode_file_contents = await convert_postex_dll_to_pic(
+                file_resp.Files[0].AgentFileId, 
+                taskData.args.get_arg("dll_arguments")
+            )
 
             logging.info(f"Converted DLL to PIC. Size: {len(shellcode_file_contents)} bytes")
 
