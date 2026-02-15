@@ -506,8 +506,12 @@ void BeaconInjectTemporaryProcess(PROCESS_INFORMATION* pInfo, char* payload, int
 /* --------------------------------------------------------------------------------------------------------------------------------------------------------- */
 
 void BeaconCleanupProcess(PROCESS_INFORMATION* pInfo) {
-    (void)CloseHandle(pInfo->hThread);
-    (void)CloseHandle(pInfo->hProcess);
+    if (pInfo != NULL && pInfo->hThread != NULL) {
+        CloseHandle(pInfo->hThread);
+    }
+    if (pInfo != NULL && pInfo->hProcess != NULL) {
+        CloseHandle(pInfo->hProcess);
+    }
     return;
 }
 

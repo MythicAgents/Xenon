@@ -36,6 +36,7 @@ class PowerpickCommand(CoffCommandBase):
     help_cmd = "powerpick -Command [command]"
     description = "Inject PowerShell loader assembly into a sacrificial process and execute [command]."
     version = 1
+    script_only = True
     author = "@c0rnbread"
     argument_class = PowerpickArguments
     attackmapping = ["T1059", "T1562"]
@@ -46,12 +47,16 @@ class PowerpickCommand(CoffCommandBase):
             Success=True,
         )
 
+        # Set display parameters
+        response.DisplayParams = "{}".format(taskData.args.get_arg("powershell_params"))
+
         # Upload desired module if it hasn't been before (per payload uuid)
         file_name = "powerpick.x64.exe"
         succeeded = await upload_module_if_missing(file_name=file_name, taskData=taskData)
         if not succeeded:
             response.Success = False
             response.Error = f"Failed to upload or check module \"{file_name}\"."
+
 
         # Execute PowerPick
         subtask = await SendMythicRPCTaskCreateSubtask(

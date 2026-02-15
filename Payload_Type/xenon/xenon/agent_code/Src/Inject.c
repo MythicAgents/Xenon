@@ -45,7 +45,8 @@ BOOL InjectShellcodeViaKit(
     PackageAddShort(temp, (USHORT)ignoreToken);                         // +2 bytes
     PackageAddInt32(temp, bufferLen);                           		// +4 bytes little-endian
     PackageAddBytes(temp, buffer, bufferLen, FALSE);					// +sizeof(shellcode) bytes
-    PPackage arguments = PackageInit(NULL, FALSE);                      // Length-prefix the whole package
+    
+	PPackage arguments = PackageInit(NULL, FALSE);                      // Length-prefix the whole package
     PackageAddBytes(arguments, temp->buffer, temp->length, TRUE);
 
 	PackageDestroy(temp);
