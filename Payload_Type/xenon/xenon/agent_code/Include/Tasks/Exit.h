@@ -5,7 +5,7 @@
 #include <windows.h>
 #include "Parser.h"
 
-VOID Exit(PCHAR taskUuid, PPARSER arguments);
+DWORD Exit(PCHAR taskUuid, PPARSER arguments);
 
 
 #endif //EXIT_H

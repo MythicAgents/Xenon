@@ -206,13 +206,15 @@ VOID XenonMain()
         return;
     }
     
-
+    DWORD status = TASK_STATUS_ERROR; 
     // Main beaconing loop
     while (TRUE)
     {
 
-        TaskRoutine();
-
+        status = TaskRoutine();
+        if (status == TASK_STATUS_EXIT) {
+            break;
+        }
     }
 }
 

