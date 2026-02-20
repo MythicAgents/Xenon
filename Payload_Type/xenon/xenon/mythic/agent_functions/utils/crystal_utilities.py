@@ -5,12 +5,13 @@ from .mythicrpc_utilities import *
 
 logging.basicConfig(level=logging.INFO)
 
-async def convert_postex_dll_to_pic(file_id: str) -> bytes:
+async def convert_postex_dll_to_pic(file_id: str, dll_arguments: str) -> bytes:
     """
     Convert DLL to PIC with Crystal Palace
     
     :param self: Description
     :param file_id: Mythic file UUID
+    :param dll_arguments: Arguments to pass to the DLL
     :return: Shellcode Mythic file UUID
     """
     
@@ -35,7 +36,7 @@ async def convert_postex_dll_to_pic(file_id: str) -> bytes:
     # Run Crystal Palace linker on DLL
     # ./link {post-ex}/loader.spec temppath out.x64.bin
     output_file = f"{post_ex_path}/out.x64.bin"
-    command = f"./link {post_ex_path}/loader.spec {temppath} {output_file}"
+    command = f"./link {post_ex_path}/loader.spec {temppath} {output_file} %DLLARGS='{dll_arguments}'"
     
     proc = await asyncio.create_subprocess_shell(command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=crystal_palace_path)
     stdout, stderr = await proc.communicate()
