@@ -8,6 +8,7 @@ DECLSPEC_IMPORT LPVOID WINAPI KERNEL32$VirtualAlloc ( LPVOID, SIZE_T, DWORD, DWO
 char _DLL_ [0] __attribute__ ( ( section ( "dll" ) ) );
 char _DLLARGS_ [0] __attribute__ ( ( section ( "dll_args" ) ) );
 
+
 /* Macro to get Pointer to resource */
 #define GETRESOURCE(x) ( char * ) &x
 
