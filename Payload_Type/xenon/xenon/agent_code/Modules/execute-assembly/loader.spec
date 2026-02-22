@@ -18,7 +18,7 @@ x64:
 		make object +optimize
 		
 		# Merge in LibTCG.
-		mergelib "../../Loader/crystal-linker/libtcg.x64.zip"
+		mergelib "../../Loader/libtcg.x64.zip"
 		
 		# Export as bytes and link as "my_pico".
 		export
