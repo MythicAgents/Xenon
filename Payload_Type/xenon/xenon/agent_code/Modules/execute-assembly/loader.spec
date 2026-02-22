@@ -7,7 +7,7 @@ x64:
 		make pic +optimize +gofirst
 	
 		# Merge in LibTCG.
-		mergelib "libtcg.x64.zip"
+		mergelib "../../Loader/crystal-linker/libtcg.x64.zip"
 	
 		# Opt into dynamic function resolution using the resolve() function.
 		dfr "resolve" "ror13" "KERNEL32, NTDLL"
@@ -18,7 +18,7 @@ x64:
 		make object +optimize
 		
 		# Merge in LibTCG.
-		mergelib "libtcg.x64.zip"
+		mergelib "../../Loader/crystal-linker/libtcg.x64.zip"
 		
 		# Export as bytes and link as "my_pico".
 		export
