@@ -7,7 +7,7 @@ x64:
 		make pic +optimize +gofirst
 	
 		# Merge in LibTCG.
-		mergelib "../../Loader/crystal-linker/libtcg.x64.zip"
+		mergelib "../../Loader/libtcg.x64.zip"
 	
 		# Opt into dynamic function resolution using the resolve() function.
 		dfr "resolve" "ror13" "KERNEL32, NTDLL"
