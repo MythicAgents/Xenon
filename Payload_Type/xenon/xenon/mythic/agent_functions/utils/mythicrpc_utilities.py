@@ -15,7 +15,7 @@ async def get_mythic_file(file_id: str) -> str:
     return base64.b64encode(file.Content).decode("utf-8")
     
 async def get_mythic_file_name(file_id: str) -> str:
-    file_data = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(AgentFileID=file_id))
+    file_data = await SendMythicRPCFileSearch(MythicRPCFileSearchMessage(AgentFileId=file_id))
 
     if not file_data.Success:
         raise Exception("Failed to get file contents: " + file_data.Error)

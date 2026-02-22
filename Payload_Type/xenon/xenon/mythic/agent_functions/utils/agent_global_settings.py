@@ -95,3 +95,22 @@ class ProcessInjectKit:
 PROCESS_INJECT_KIT = ProcessInjectKit()
 
 
+class PowerShellImport:
+    '''
+    Manage the PowerShell import scripts
+    '''
+    def __init__(self, file: str = ""):
+        self._file = file
+
+    # Getter for file
+    def get_file(self) -> str:
+        return self._file
+
+    # Setter for file
+    def set_file(self, value: str):
+        if not isinstance(value, str):
+            raise TypeError("file must be a string")
+        self._file = value
+
+# Global
+POWER_SHELL_IMPORT = PowerShellImport()
