@@ -123,10 +123,12 @@ class ExecuteDllCommand(CoffCommandBase):
     description = "Execute a Dynamic Link Library as PIC. (e.g., execute_dll -File mimikatz.x64.dll -Arguments \"sekurlsa::logonpasswords\")"
     version = 1
     author = "@c0rnbread"
+    script_only = True
     attackmapping = []
     argument_class = ExecuteDllArguments
     attributes = CommandAttributes(
         builtin=False,
+        alias=True,
         dependencies=["inline_execute", "inject_shellcode"],        # Required for ProcessInjectKit
         supported_os=[ SupportedOS.Windows ],
         suggested_command=False

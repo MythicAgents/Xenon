@@ -2,6 +2,7 @@ from mythic_container.MythicCommandBase import *
 import json
 from .utils.bof_utilities import *
 from .utils.mythicrpc_utilities import *
+from .utils.agent_global_settings import *
 
 class PowerchellArguments(TaskArguments):
 
@@ -62,6 +63,21 @@ class PowerchellCommand(CoffCommandBase):
             response.Error = f"Failed to upload or check module \"{file_name}\"."
 
 
+        dll_arguments = ""
+
+        #
+        # Add any PowerShell Imports
+        #
+        powershell_import_file = POWER_SHELL_IMPORT.get_file()
+        if powershell_import_file != "":
+            powershell_import_buffer = await POWER_SHELL_IMPORT.get_buffer()
+            dll_arguments += powershell_import_buffer.decode("utf-8") + "\n"
+            logging.info(f"[POWERCHELL] Importing buffer of {len(powershell_import_buffer)} bytes")
+        else:
+            powershell_import_buffer = None
+
+        dll_arguments += taskData.args.get_arg("powershell_params")
+
         # Execute PowerChell
         subtask = await SendMythicRPCTaskCreateSubtask(
             MythicRPCTaskCreateSubtaskMessage(
@@ -70,7 +86,7 @@ class PowerchellCommand(CoffCommandBase):
                 SubtaskCallbackFunction="coff_completion_callback",
                 Params=json.dumps({
                     "dll_name": file_name,
-                    "dll_arguments": taskData.args.get_arg("powershell_params")
+                    "dll_arguments": dll_arguments
                 }),
                 Token=taskData.Task.TokenID,
             )

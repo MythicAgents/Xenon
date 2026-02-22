@@ -8,9 +8,8 @@ x64:
 		push $DLL
 			link "dll"
 
-		# DLL args
-		pack $DLLARGS "z" %DLLARGS
-		push $DLLARGS
+		# DLL Args from File
+		load %ARGFILE
 			preplen
 			link "dll_args"
 

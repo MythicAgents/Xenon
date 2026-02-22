@@ -33,11 +33,17 @@ async def convert_postex_dll_to_pic(file_id: str, dll_arguments: str) -> bytes:
     with os.fdopen(fd, 'wb') as tmp:
         tmp.write(dll_contents.Content)
     
+    # Temporarily write Arguments to file
+    fd, dll_arg_file = tempfile.mkstemp(suffix='.args')
+    logging.info(f"[CRYSTAL] Writing DLL arguments to temporary file \"{dll_arg_file}\"")
+    with os.fdopen(fd, 'w') as tmp:
+        tmp.write(dll_arguments)
+
     # Run Crystal Palace linker on DLL
     # ./link {post-ex}/loader.spec temppath out.x64.bin
     output_file = f"{post_ex_path}/out.x64.bin"
-    command = f"./link {post_ex_path}/loader.spec {temppath} {output_file} %DLLARGS='{dll_arguments}'"
-    
+    command = f"./link {post_ex_path}/loader.spec {temppath} {output_file} %ARGFILE='{dll_arg_file}'"
+
     proc = await asyncio.create_subprocess_shell(command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=crystal_palace_path)
     stdout, stderr = await proc.communicate()
     stdout_err = ""
@@ -57,6 +63,7 @@ async def convert_postex_dll_to_pic(file_id: str, dll_arguments: str) -> bytes:
     
     # Clean up files
     os.remove(temppath)
+    os.remove(dll_arg_file)
     os.remove(output_file)
     
     return pic_bytes
