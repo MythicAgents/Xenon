@@ -29,7 +29,7 @@ PowerChell.x64.exe: $(SRC_FILES)
 # DLL Target
 PowerChell.x64.dll: $(SRC_FILES)
 	$(CXX) $^ -o $@ -shared -D_WINDLL $(CFLAGS) $(LFLAGS) -mwindows
-	cp $@ ../bin
+	cp $@ ../bin/powerchell.x64.dll
 
 # Clean up
 clean:

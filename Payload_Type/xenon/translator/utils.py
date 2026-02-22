@@ -41,7 +41,6 @@ commands = {
     "inject_shellcode": 0x56,
     "socks": 0x57,
     "shell": 0x60, 
-    "powershell": 0x61, 
     "getuid": 0x70, 
     "steal_token": 0x71, 
     "make_token": 0x72, 

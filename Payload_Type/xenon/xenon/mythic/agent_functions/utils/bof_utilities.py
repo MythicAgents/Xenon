@@ -30,7 +30,7 @@ class CoffCommandBase(CommandBase):
 
 async def upload_module_if_missing(file_name: str, taskData):
     """
-    Upload a BOF to Mythic only if it doesn't already exist for the given task.
+    Upload a Module to Mythic only if it doesn't already exist for the given task.
     """
 
     try:

