@@ -1,1 +1,2 @@
-java -Dcrystalpalace.verbose=false -jar crystalpalace.jar buildPic "$@"
+#!/usr/bin/env bash
+java -Dcrystalpalace.verbose=false -jar ${BASH_SOURCE%/*}/crystalpalace.jar buildPic "$@"
