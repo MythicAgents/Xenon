@@ -18,3 +18,4 @@ mythic_go_services.bin
 Payload_Type/xenon/xenon/agent_code/*.exe
 Payload_Type/xenon/xenon/agent_code/*.dll
 Payload_Type/xenon/xenon/agent_code/*.bin
+Payload_Type/xenon/xenon/agent_code/Loader/postex_*/

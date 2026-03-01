@@ -5,41 +5,57 @@ from .mythicrpc_utilities import *
 
 logging.basicConfig(level=logging.INFO)
 
-async def convert_postex_dll_to_pic(file_id: str, dll_arguments: str) -> bytes:
+async def convert_postex_dll_to_pic(file_id: str, dll_arguments: str, agent_uuid: int = None) -> bytes:
     """
     Convert DLL to PIC with Crystal Palace
-    
-    :param self: Description
+
     :param file_id: Mythic file UUID
     :param dll_arguments: Arguments to pass to the DLL
-    :return: Shellcode Mythic file UUID
+    :param agent_uuid: Optional agent UUID to look up agent's build config for custom postex loader
+    :return: PIC bytes
     """
-    
     # Directories and files
-    cwd = os.getcwd()                                                                   # /root/Xenon/Payload_Type/xenon
-    agent_code_path = os.path.join(cwd, "xenon", "agent_code")                          # /root/Xenon/Payload_Type/xenon/xenon/agent_code
-    crystal_palace_path = os.path.join(agent_code_path, "Loader", "crystal-linker")     # /root/Xenon/Payload_Type/xenon/xenon/agent_code/Loader/crystal-linker
-    post_ex_path = os.path.join(agent_code_path, "Loader", "post-ex")                   # /root/Xenon/Payload_Type/xenon/xenon/agent_code/Loader/post-ex
+    cwd = os.getcwd()
+    agent_code_path = os.path.join(cwd, "xenon", "agent_code")
+    crystal_palace_path = os.path.join(agent_code_path, "Loader", "crystal-linker")
+    default_post_ex_path = os.path.join(agent_code_path, "Loader", "post-ex")
+
+    # Resolve which post-ex loader to use based on payload build config
+    post_ex_path = default_post_ex_path
+    if agent_uuid is not None:
+        try:
+            callback_resp = await SendMythicRPCCallbackSearch(MythicRPCCallbackSearchMessage(AgentCallbackID=agent_uuid))
+            if callback_resp.Success:
+                callback = callback_resp.Results[0]
+                payload_build_uuid = callback.RegisteredPayloadUUID
+                post_ex_path = os.path.join(agent_code_path, "Loader", "postex_" + payload_build_uuid)
+                if os.path.exists(post_ex_path):
+                    logging.info(f"[CRYSTAL] Using Custom Post-Ex DLL Loader (postex_{payload_build_uuid})")
+        except Exception as e:
+            logging.warning(f"[CRYSTAL] Payload lookup failed, using default loader: {e}")
+
+    if post_ex_path == default_post_ex_path:
+        logging.info(f"[CRYSTAL] Using Default Post-Ex DLL Loader")
 
     # Get DLL bytes from Mythic
     dll_contents = await SendMythicRPCFileGetContent(MythicRPCFileGetContentMessage(AgentFileId=file_id))
-    
+
     if not dll_contents.Success:
         raise Exception("[CRYSTAL] Failed to fetch find file from Mythic (ID: {})".format(file_id))
-    
+
     # Temporarily write DLL to file
     fd, temppath = tempfile.mkstemp(suffix='.dll')
     logging.info(f"[CRYSTAL] Writing DLL to temporary file \"{temppath}\"")
     with os.fdopen(fd, 'wb') as tmp:
         tmp.write(dll_contents.Content)
-    
+
     # Temporarily write Arguments to file
     fd, dll_arg_file = tempfile.mkstemp(suffix='.args')
     logging.info(f"[CRYSTAL] Writing DLL arguments to temporary file \"{dll_arg_file}\"")
     with os.fdopen(fd, 'w') as tmp:
         tmp.write(dll_arguments)
+        tmp.write(f"\0")
 
-    # Run Crystal Palace linker on DLL
     # ./link {post-ex}/loader.spec temppath out.x64.bin
     output_file = f"{post_ex_path}/out.x64.bin"
     command = f"./link {post_ex_path}/loader.spec {temppath} {output_file} %ARGFILE='{dll_arg_file}'"

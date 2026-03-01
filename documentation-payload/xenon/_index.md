@@ -27,7 +27,6 @@ Xenon is a Cobalt Strike-like Windows agent built for the Mythic C2 framework. T
 ### Credits
 
 - Cody Thomas, [@its_a_feature_](https://twitter.com/its_a_feature_)
-- kyxiaxiang, [@kyxiaxiang](https://github.com/kyxiaxiang)
 - Cracked5pider, [@Cracked5pider](https://5pider.net/)
 
 ## Table of Contents

@@ -192,15 +192,17 @@ class ExecuteDllCommand(CoffCommandBase):
             #
             # Convert DLL -> PIC with Crystal Palace linker
             #
-            
+            agent_uuid = taskData.Callback.AgentCallbackID if taskData.Callback else None
+            logging.info(f"[CRYSTAL] Agent UUID: {agent_uuid}")
             shellcode_file_contents = await convert_postex_dll_to_pic(
-                file_resp.Files[0].AgentFileId, 
-                taskData.args.get_arg("dll_arguments")
+                file_resp.Files[0].AgentFileId,
+                taskData.args.get_arg("dll_arguments"),
+                agent_uuid=agent_uuid
             )
 
             logging.info(f"Converted DLL to PIC. Size: {len(shellcode_file_contents)} bytes")
 
-            # Create DLL shellcode stub in Mythic
+            # Upload PIC file to Mythic
             shellcode_file_resp = await SendMythicRPCFileCreate(
                 MythicRPCFileCreateMessage(TaskID=taskData.Task.ID, FileContents=shellcode_file_contents, DeleteAfterFetch=True)
             )
@@ -210,7 +212,7 @@ class ExecuteDllCommand(CoffCommandBase):
             else:
                 raise Exception("Failed to register DLL PIC stub: " + shellcode_file_resp.Error)
             
-            # Send subtask to inject shellcode
+            # Send subtask to inject PIC
             subtask = await SendMythicRPCTaskCreateSubtask(
                 MythicRPCTaskCreateSubtaskMessage(
                     taskData.Task.ID,

@@ -88,7 +88,6 @@ void PowerChellMain(LPVOID lpCmdLine)
             if (pwszScript != NULL)
             {
                 if (MultiByteToWideChar(CP_UTF8, 0, Arguments->Buffer, -1, pwszScript, nWide) > 0) {
-                    
                     /* Execute PowerShell script */
                     ExecutePowerShellScript(pwszScript);
                 }

@@ -76,6 +76,7 @@ class PowerchellCommand(CoffCommandBase):
         else:
             powershell_import_buffer = None
 
+        # Add user arguments
         dll_arguments += taskData.args.get_arg("powershell_params")
 
         # Execute PowerChell

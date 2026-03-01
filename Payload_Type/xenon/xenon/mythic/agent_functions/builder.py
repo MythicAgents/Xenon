@@ -68,7 +68,7 @@ class XenonAgent(PayloadType):
             name = "custom_udrl",
             parameter_type=BuildParameterType.Boolean,
             default_value="false",
-            description="User-Defined Reflective Loader: Define your own RDL for agent execution. Must be based on Crystal Palace - See docs for details.",
+            description="User-Defined Reflective Loader: To load Agent DLL. Must be based on Crystal Palace - See docs for details.",
             group_name="Shellcode",
             hide_conditions=[
                 HideCondition(name="output_type", operand=HideConditionOperand.NotEQ, value="shellcode")
@@ -77,11 +77,26 @@ class XenonAgent(PayloadType):
         BuildParameter(
             name = "udrl_file",
             parameter_type=BuildParameterType.File,
-            # default_value="xenon",
             description="Crystal UDRL: ZIP or TAR must follow specified format - See docs for details.",
             group_name="Shellcode",
             hide_conditions=[
                 HideCondition(name="custom_udrl", operand=HideConditionOperand.NotEQ, value=True)
+            ]
+        ),
+        BuildParameter(
+            name = "custom_postex_udrl",
+            parameter_type=BuildParameterType.Boolean,
+            default_value="false",
+            description="User-Defined Reflective Loader: Define your own RDL for agent execution. Must be based on Crystal Palace - See docs for details.",
+            group_name="Post-Ex"
+        ),
+        BuildParameter(
+            name = "postex_udrl_file",
+            parameter_type=BuildParameterType.File,
+            description="Custom Post-Ex DLL Kit: ZIP or TAR must follow specified format - See docs for details.",
+            group_name="Post-Ex",
+            hide_conditions=[
+                HideCondition(name="custom_postex_udrl", operand=HideConditionOperand.NotEQ, value=True)
             ]
         )
     ]
@@ -92,7 +107,7 @@ class XenonAgent(PayloadType):
     
     build_steps = [
         BuildStep(step_name="Gathering Files", step_description="Making sure all commands have backing files on disk"),
-        BuildStep(step_name="Configuring", step_description="Stamping in configuration values"),
+        BuildStep(step_name="Configuring Post-Ex", step_description="Configuring Post-Ex DLL Kit"),
         BuildStep(step_name="Installing Modules", step_description="Compile and include necessary BOFs"),
         BuildStep(step_name="Compiling", step_description="Compiling with Mingw-w64")
 
@@ -232,12 +247,53 @@ class XenonAgent(PayloadType):
         else:
             logging.info(f"[stdout]: {stdout.decode()}")
         
-    
+        #######################################
+        ### Write Postex Kit to disk       ####
+        #######################################
+        if self.get_parameter('custom_postex_udrl') == True:
+            # Make per-payload custom dir to avoid overwriting other builds
+            custom_postex_path = os.path.join(self.agent_code_path, "Loader", "postex_" + self.uuid)
+            zip_path = os.path.join(custom_postex_path, "loader-postex.zip")
+            os.makedirs(custom_postex_path, exist_ok=True)
+            # Get file
+            custom_postex_file_id = self.get_parameter('postex_udrl_file')
+            custom_postex_contents = await SendMythicRPCFileGetContent(
+                MythicRPCFileGetContentMessage(AgentFileId=custom_postex_file_id)
+            )
+            # Write to disk
+            with open(zip_path, "wb") as f:
+                f.seek(0)
+                f.write(custom_postex_contents.Content)
+                f.truncate()
+            # Unzip
+            with zipfile.ZipFile(zip_path, 'r') as z:
+                z.extractall(custom_postex_path)
+
+            # Compile Postex Kit (must be based on Crystal Palace)
+            command = "make"
+            proc = await asyncio.create_subprocess_shell(
+                command, 
+                stdout=asyncio.subprocess.PIPE, 
+                stderr=asyncio.subprocess.PIPE, 
+                cwd=custom_postex_path
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                build_success = False
+                logging.error(f"Command failed with exit code {proc.returncode}")
+                logging.error(f"[stderr]: {stderr.decode()}")
+                raise Exception("make failed")
+            else:
+                logging.info(f"[stdout]: {stdout.decode()}")
+            # Clean up zip file
+            os.remove(zip_path)
+
+
         # Notify: Installed Modules
         await SendMythicRPCPayloadUpdatebuildStep(MythicRPCPayloadUpdateBuildStepMessage(
                 PayloadUUID=self.uuid,
-                StepName="Installing Modules",
-                StepStdout="Installed needed BOF files",
+                StepName="Configuring Post-Ex",
+                StepStdout="Configured Post-Ex",
                 StepSuccess=True
         ))
 

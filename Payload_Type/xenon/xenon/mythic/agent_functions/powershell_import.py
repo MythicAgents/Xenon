@@ -104,8 +104,8 @@ class PowerShellImportArguments(TaskArguments):
 class PowerShellImportCommand(CommandBase):
     cmd = "powershell_import"
     needs_admin = False
-    help_cmd = "powershell_import -File [script.ps1] --clear"
-    description = "Import PowerShell script into the current process."
+    help_cmd = "powershell_import -File [script.ps1] | --clear"
+    description = "Import PowerShell script to cache."
     version = 1
     script_only = True
     author = "@c0rnbread"
@@ -197,7 +197,6 @@ class PowerShellImportCommand(CommandBase):
 
             # TODO - Delete old script if it exists
            
-                    
             # Set the file UUID for the PowerShell script
             POWER_SHELL_IMPORT.set_file(script_file_id)
 

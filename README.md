@@ -63,6 +63,8 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 | `execute_assembly` | `execute_assembly -Assembly [SharpUp.exe] [-Arguments [assembly arguments]]` | Execute a .NET Assembly in a remote processes and retrieve the output. |
 | `execute_dll` | `execute_dll -File [mimikatz.x64.dll]` | Execute a Dynamic Link Library as PIC. (e.g., execute_dll -File mimikatz.x64.dll) |
 | `spawnto` | `spawnto -path [C:\Windows\System32\svchost.exe]` | Set the full path of the process to use for spawn & inject commands. |
+| `powerchell` | `powerchell -Command <command>` | Execute PowerShell script using PowerChell post-ex DLL. |
+| `powershell_import` | `powershell_import -File [script.ps1] \| --clear` | Import PowerShell script to cache. |
 | `download`     | `download -path <file path>`                           | Download a file off the target system (supports UNC path). |
 | `upload`       | `upload (modal)`                                            | Upload a file to the target machine by selecting a file from your computer. |
 | `status`         | `status`                                              | List C2 connection hosts and their status. |
