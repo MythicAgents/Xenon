@@ -1,7 +1,7 @@
 +++
 title = "Commands"
 chapter = false
-weight = 20
+weight = 10
 pre = "<b>1. </b>"
 +++
 
