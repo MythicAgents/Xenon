@@ -41,6 +41,7 @@ commands = {
     "blockdlls": 0x63,
     "jump_psexec": 0x64,
     "jump_wmi": 0x65,
+    "job_kill": 0x66,
     "spawnto": 0x55,
     "inject_shellcode": 0x56,
     "socks": 0x57,

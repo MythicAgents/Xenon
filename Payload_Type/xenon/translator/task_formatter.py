@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 # Explicit packing order for commands whose create_go_tasking dynamically adds/removes args.
 COMMAND_PARAM_ORDER: dict = {
-    "jump_psexec": ["target", "file_name", "payload_data", "command", "service_name", "username", "password", "hash"],
-    "jump_wmi":    ["target", "file_name", "payload_data", "command", "username", "password", "hash"],
+    "jump_psexec": ["target", "file_name", "file_id", "command", "service_name", "username", "password", "hash"],
+    "jump_wmi":    ["target", "file_name", "file_id", "command", "username", "password", "hash"],
 }
 
 

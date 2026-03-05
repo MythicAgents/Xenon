@@ -74,6 +74,7 @@
 #define INCLUDE_CMD_LINK
 #define INCLUDE_CMD_UNLINK
 #define INCLUDE_CMD_SOCKS
+#define INCLUDE_CMD_JOB_KILL
 
 #else //_MANUAL
 

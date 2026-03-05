@@ -1,4 +1,3 @@
-import base64
 import random
 import string
 from mythic_container.MythicCommandBase import *
@@ -128,17 +127,11 @@ class JumpPsexecCommand(CommandBase):
             if password and hash_val:
                 raise Exception("Supply either Password or Hash, not both.")
 
-            file_resp = await SendMythicRPCFileGetContent(
-                MythicRPCFileGetContentMessage(AgentFileId=file_id)
-            )
-            if not file_resp.Success:
-                raise Exception("Failed to fetch payload from Mythic: " + file_resp.Error)
-
             rand_name = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10)) + ".exe"
 
             taskData.args.remove_arg("payload")
             taskData.args.add_arg("file_name", rand_name)
-            taskData.args.add_arg("payload_data", base64.b64encode(file_resp.Content).decode("utf-8"))
+            taskData.args.add_arg("file_id", file_id)
 
             auth_note = ""
             username = taskData.args.get_arg("username") or ""

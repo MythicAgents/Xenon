@@ -57,6 +57,7 @@
 // Lateral movement
 #define JUMP_PSEXEC_CMD 0x64
 #define JUMP_WMI_CMD    0x65
+#define JOB_KILL_CMD    0x66
 // MISC
 #define SHELL_CMD       0x60
 #define PWSH_CMD        0x61        // TODO

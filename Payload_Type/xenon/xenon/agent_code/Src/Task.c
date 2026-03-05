@@ -17,6 +17,7 @@
 #include "Tasks/Link.h"
 #include "Tasks/Exit.h"
 #include "Tasks/LateralMovement.h"
+#include "Tasks/JobKill.h"
 
 /**
  * @brief Process commands from GET_TASKING
@@ -295,6 +296,14 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
         {
             _dbg("JUMP_WMI_CMD was called");
             LateralMovementWmi(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_JOB_KILL
+        case JOB_KILL_CMD:
+        {
+            _dbg("JOB_KILL_CMD was called");
+            JobKill(taskUuid, taskParser);
             return;
         }
 #endif
