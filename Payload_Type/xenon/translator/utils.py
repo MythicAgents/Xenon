@@ -37,6 +37,8 @@ commands = {
     "download": 0x51,
     "ps": 0x52, 
     "inline_execute": 0x53,
+    "kill": 0x62,
+    "blockdlls": 0x63,
     "spawnto": 0x55,
     "inject_shellcode": 0x56,
     "socks": 0x57,
@@ -45,6 +47,7 @@ commands = {
     "steal_token": 0x71, 
     "make_token": 0x72, 
     "rev2self": 0x73,
+    "getprivs": 0x74,
     "link": 0x90,
     "unlink": 0x91,
     

