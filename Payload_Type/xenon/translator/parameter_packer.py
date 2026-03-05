@@ -87,6 +87,13 @@ def pack_parameter_value(packer: TlvPacker, param_name: str, param_value: Any) -
                 packer.add_bytes(decoded, include_length=True)
             except Exception as e:
                 raise ValueError(f"Invalid base64 bof_data: {e}")
+        # Special handling for base64-encoded lateral-movement payload data
+        elif param_name == "payload_data":
+            try:
+                decoded = base64.b64decode(param_value)
+                packer.add_bytes(decoded, include_length=True)
+            except Exception as e:
+                raise ValueError(f"Invalid base64 payload_data: {e}")
         # Special handling for base64-encoded SOCKS data
         elif param_name == "data":
             try:

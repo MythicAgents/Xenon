@@ -34,6 +34,8 @@ pre = "<b>1. </b>"
 | `spawnto` | `spawnto -path [C:\Windows\System32\svchost.exe]` | Set the full path of the process to use for spawn & inject commands. |
 | `download`     | `download -path <file path>`                           | Download a file off the target system (supports UNC path). |
 | `upload`       | `upload (modal)`                                            | Upload a file to the target machine by selecting a file from your computer. |
+| `jump_psexec`  | `jump_psexec -Target <host> -Payload <file> [-Command <extra args>] [-ServiceName <name>]` | Lateral movement via Windows Service Control Manager. Uploads a payload to `ADMIN$\Temp` under a random 10-character name, creates a temporary service to execute it directly, then deletes the service. Requires admin rights on the target. |
+| `jump_wmi`     | `jump_wmi -Target <host> -Payload <file> [-Command <extra args>] [-Username DOMAIN\user] [-Password pass]` | Lateral movement via WMI `Win32_Process::Create` over DCOM. Uploads a payload to `ADMIN$\Temp` under a random 10-character name and spawns it via WMI. Optionally supply explicit credentials; otherwise the current token is used. |
 | `status`         | `status`                                              | List C2 connection hosts and their status. |
 | `link`           | `link <target> <named pipe>`                          | Connect to an SMB Link Agent. |
 | `unlink`         | `unlink <Display Id>`                                 | Disconnect from an SMB Link Agent. |

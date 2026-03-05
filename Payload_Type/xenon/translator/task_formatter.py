@@ -16,6 +16,12 @@ from .utils import get_operator_command, MYTHIC_GET_TASKING
 
 logger = logging.getLogger(__name__)
 
+# Explicit packing order for commands whose create_go_tasking dynamically adds/removes args.
+COMMAND_PARAM_ORDER: dict = {
+    "jump_psexec": ["target", "file_name", "payload_data", "command", "service_name", "username", "password", "hash"],
+    "jump_wmi":    ["target", "file_name", "payload_data", "command", "username", "password", "hash"],
+}
+
 
 def format_normal_task(task: Dict[str, Any]) -> bytes:
     """
@@ -77,7 +83,8 @@ def format_normal_task(task: Dict[str, Any]) -> bytes:
     # Parameters (ls requires filepath then file_browser for agent)
     if parameters:
         try:
-            param_data = pack_parameters(parameters)
+            param_order = COMMAND_PARAM_ORDER.get(command_name)
+            param_data = pack_parameters_ordered(parameters, param_order)
             packer.add_raw(param_data)
         except Exception as e:
             logger.error(f"Failed to pack parameters: {e}")
