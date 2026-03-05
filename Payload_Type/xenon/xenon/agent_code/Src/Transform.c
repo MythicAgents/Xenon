@@ -107,8 +107,42 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
 	{
 		switch (step)
 		{
-            // Base64 contents of payload
+            // URL-safe Base64 contents of payload
             case TRANSFORM_BASE64URL:
+            {
+                // _dbg("[TRANSFORM_BASE64URL] Applying...");//DEBUG
+
+                outlen = calculate_base64_encoded_size(transformedLength);
+                char* temp_encoded_url = (char *)LocalAlloc(LPTR, outlen + 1);
+
+                if (temp_encoded_url == NULL)
+                {
+                    _err("Base64url encoding failed");
+                    return FALSE;
+                }
+
+                int status_url = base64url_encode((const unsigned char *)transform->transformed, transformedLength, temp_encoded_url, &outlen);
+                if (status_url != 0) {
+                    LocalFree(temp_encoded_url);
+                    return FALSE;
+                }
+
+                if (outlen > transform->outputLength)
+                {
+                    _err("Base64url encoded data exceeds buffer size. Encoded size: %d, Buffer size: %d", outlen, transform->outputLength);
+                    LocalFree(temp_encoded_url);
+                    return FALSE;
+                }
+
+                memset(transform->transformed, 0, transform->outputLength);
+                memcpy(transform->transformed, temp_encoded_url, outlen);
+
+                transformedLength = outlen;
+
+                LocalFree(temp_encoded_url);
+                break;
+            }
+            // Standard Base64 contents of payload
 			case TRANSFORM_BASE64:
 			{
                 // _dbg("[TRANSFORM_BASE64] Applying...");//DEBUG
@@ -122,16 +156,15 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
                     return FALSE;
                 }
 
-                int status = base64_encode((const unsigned char *)transform->transformed,  transformedLength, temp_encoded, &outlen);
+                int status = base64_encode((const unsigned char *)transform->transformed, transformedLength, temp_encoded, &outlen);
                 if (status != 0) {
                     LocalFree(temp_encoded);
                     return FALSE;
                 }
 
-
                 if (outlen > transform->outputLength)
                 {
-                    _err("Base64_url encoded data exceeds buffer size. Encoded size: %d, Buffer size: %d", outlen, transform->outputLength);
+                    _err("Base64 encoded data exceeds buffer size. Encoded size: %d, Buffer size: %d", outlen, transform->outputLength);
                     LocalFree(temp_encoded);
                     return FALSE;
                 }
@@ -144,42 +177,6 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
                 LocalFree(temp_encoded);
                 break;
 			}
-            // TODO : Not working with HTTPX profile
-            // case TRANSFORM_BASE64URL:
-            // {
-            //     _dbg("[TRANSFORM_BASE64URL] Applying...");//DEBUG
-
-            //     outlen = calculate_base64_encoded_size(transformedLength);
-            //     char* temp_encoded = (char *)LocalAlloc(LPTR, outlen + 1);
-
-            //     if (temp_encoded == NULL)
-            //     {
-            //         _err("Base64_url encoding failed");
-            //         return FALSE;
-            //     }
-
-            //     int status = base64url_encode((const unsigned char *)transform->transformed,  transformedLength, temp_encoded, &outlen);
-            //     if (status != 0) {
-            //         LocalFree(temp_encoded);
-            //         return FALSE;
-            //     }
-
-
-            //     if (outlen > transform->outputLength)
-            //     {
-            //         _err("Base64_url encoded data exceeds buffer size. Encoded size: %d, Buffer size: %d", outlen, transform->outputLength);
-            //         LocalFree(temp_encoded);
-            //         return FALSE;
-            //     }
-
-            //     memset(transform->transformed, 0, transform->outputLength);
-            //     memcpy(transform->transformed, temp_encoded, outlen);
-
-            //     transformedLength = outlen;
-
-            //     LocalFree(temp_encoded);
-            //     break;
-			// }
             // XOR encodes payload
             case TRANSFORM_XOR:
             {
