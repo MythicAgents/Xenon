@@ -312,13 +312,18 @@ The **first** `ParserGetInt32` call always reads the argument count.
 | `PackageError(uuid, errorCode)` | Mark task failed with a Win32 error code |
 | `PackageDestroy(pkg)` | Free the package after sending |
 
-#### 2.7 Add to the Makefile
+#### 2.7 Register the Command ID in the Translator
 
-If you created a new `.c` file, add it to the source list in `agent_code/Makefile`:
+Open `Payload_Type/xenon/translator/utils.py` and add the command name and its byte ID to the `commands` dictionary. **This is required** — without it `get_operator_command` returns `None`, the translator raises an error, and the task is never forwarded to the agent.
 
-```makefile
-SRCS += Src/Tasks/MyCategory.c
+```python
+commands = {
+    # ...existing entries...
+    "my_command": 0x62,   # must match #define MY_COMMAND_CMD in Task.h
+}
 ```
+
+The key must exactly match the `cmd` field on your `CommandBase` class (lowercase).
 
 ---
 
@@ -331,18 +336,40 @@ SRCS += Src/Tasks/MyCategory.c
 2. create_go_tasking() runs → validates args, sets DisplayParams
        |
        v
-3. Translator packs arguments into TLV binary:
-       [UINT32 arg_count] [UINT32 size][bytes] [UINT32 size][bytes] ...
+3. Translator looks up command byte ID in translator/utils.py commands dict
+       get_operator_command("my_command") → 0x62
        |
        v
-4. Agent receives GET_TASKING response, calls TaskDispatch(cmd_id, uuid, parser)
+4. Translator packs task into TLV binary:
+       [BYTE cmd_id] [BYTES[36] task_uuid] [UINT32 arg_count] [UINT32 size][bytes] ...
        |
        v
-5. Handler reads args with Parser API, executes logic
+5. Agent receives GET_TASKING response, calls TaskDispatch(cmd_id, uuid, parser)
        |
        v
-6. Handler calls PackageComplete(uuid, package) → enqueued in POST_RESPONSE
+6. Handler reads args with Parser API, executes logic
        |
        v
-7. process_response() on Mythic server receives the raw output
+7. Handler calls PackageComplete(uuid, package) → enqueued in POST_RESPONSE
+       |
+       v
+8. process_response() on Mythic server receives the raw output
 ```
+
+> **Note:** If the command name is missing from `translator/utils.py`, step 3 returns `None` and the translator raises an error — the task is silently dropped and the agent never receives it.
+
+---
+
+### Part 4 — Checklist for a New Command
+
+- [ ] Create `agent_functions/<cmd_name>.py` with `TaskArguments` and `CommandBase`
+- [ ] Set `cmd` on `CommandBase` to the lowercase command name
+- [ ] Implement `parse_arguments` (CLI) and `parse_dictionary` (modal) on `TaskArguments`
+- [ ] Implement `create_go_tasking` to set `DisplayParams` and validate
+- [ ] **Add `"<cmd_name>": 0xNN` to the `commands` dict in `translator/utils.py`** — without this the task is never sent to the agent
+- [ ] Add `#define <CMD_NAME>_CMD  0xNN` to `Include/Task.h` (must match the value in `utils.py`)
+- [ ] Add `#include "Tasks/<Category>.h"` to `Src/Task.c`
+- [ ] Add the `#ifdef INCLUDE_CMD_<CMD_NAME>` + `case` block to `TaskDispatch()` in `Src/Task.c`
+- [ ] Declare the handler function in `Include/Tasks/<Category>.h` behind `#ifdef INCLUDE_CMD_<CMD_NAME>`
+- [ ] Implement the handler in `Src/Tasks/<Category>.c`, reading args in order and calling `PackageComplete` / `PackageError`
+- [ ] Rebuild and test
