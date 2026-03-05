@@ -127,10 +127,12 @@ def format_task_response_as_task(response: Dict[str, Any]) -> Optional[Dict[str,
     # Upload response
     if file_id and chunk_data:
         response_type = "upload_resp"
-        if total_chunks is not None:
-            params["total_chunks"] = total_chunks
-        if chunk_num is not None:
-            params["chunk_num"] = chunk_num
+        # Always pack all three integer fields so UploadSync's fixed-offset
+        # parsing (Status/param_count, TotalChunks, CurrentChunk) stays aligned.
+        # Use 0 as a sentinel for "Mythic didn't provide total_chunks yet" —
+        # UploadSync will fall back to its cached value in that case.
+        params["total_chunks"] = total_chunks if total_chunks is not None else 0
+        params["chunk_num"] = chunk_num if chunk_num is not None else 0
         if chunk_data:
             params["chunk_data"] = chunk_data  # Will be decoded in pack_parameters
     

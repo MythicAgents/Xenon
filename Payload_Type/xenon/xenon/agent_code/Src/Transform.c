@@ -110,7 +110,7 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
             // URL-safe Base64 contents of payload
             case TRANSFORM_BASE64URL:
             {
-                // _dbg("[TRANSFORM_BASE64URL] Applying...");//DEBUG
+                // _dbg("[TRANSFORM_BASE64URL] Applying..."); // DEBUG
 
                 outlen = calculate_base64_encoded_size(transformedLength);
                 char* temp_encoded_url = (char *)LocalAlloc(LPTR, outlen + 1);
