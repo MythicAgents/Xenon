@@ -10,12 +10,13 @@ class MakeTokenArguments(TaskArguments):
         super().__init__(command_line, **kwargs)
         self.args = [
             CommandParameter(
-                name="domain", 
+                name="domain",
                 cli_name="Domain",
                 type=ParameterType.String,
-                description="Domain of the account credentials. e.g., acme.corp",
+                description="Domain of the account credentials. Leave blank for local machine.",
+                default_value=".",
                 parameter_group_info=[ParameterGroupInfo(
-                    required=True,
+                    required=False,
                     ui_position=1
                 )]
             ),

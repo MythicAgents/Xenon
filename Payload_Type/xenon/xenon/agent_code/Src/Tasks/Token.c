@@ -243,13 +243,19 @@ VOID TokenMake(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
 		}
 
 		char accountName[0x200];
-		if (!IdentityGetUserInfo(gIdentityToken, accountName, sizeof(accountName)))
+		PCHAR displayDomain = Domain;
+		char localMachine[MAX_COMPUTERNAME_LENGTH + 1] = { 0 };
+		if (!Domain || Domain[0] == '\0' || (Domain[0] == '.' && Domain[1] == '\0'))
 		{
-			DWORD error = GetLastError();
-			_err("Could not get identity for token. ERROR : %d", error);
-			PackageError(taskUuid, error);
-			return;
+			DWORD machineLen = sizeof(localMachine);
+			if (GetComputerNameA(localMachine, &machineLen))
+				displayDomain = localMachine;
+			else
+				displayDomain = ".";
 		}
+		snprintf(accountName, sizeof(accountName), "%s\\%s", displayDomain, User);
+		accountName[sizeof(accountName) - 1] = 0;
+
 		PPackage data = PackageInit(0, FALSE);
 		PackageAddString(data, accountName, FALSE);
 		

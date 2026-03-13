@@ -17,7 +17,7 @@ class XenonAgent(PayloadType):
     author = "@c0rnbread"
     supported_os = [SupportedOS.Windows]
     wrapper = False
-    wrapped_payloads = []
+    wrapped_payloads = ["erebus_wrapper", "service_wrapper"]
     note = """A Cobalt Strike-like agent for Windows targets. Version: v0.0.5"""
     supports_dynamic_loading = True
     c2_profiles = ["httpx", "smb", "tcp"]

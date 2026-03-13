@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y \
 
 RUN python3 -m pip install toml donut-shellcode
 
+COPY [".", "/Mythic/"]
+
 WORKDIR /Mythic/
 
 CMD ["python3", "main.py"]
