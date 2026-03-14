@@ -111,8 +111,11 @@ class wmiexecuteCommand(CommandBase):
             if password:
                 wmic_parts.append(f"/password:\"{password}\"")
 
-        # WMIC requires escaped quotes around the command argument.
-        escaped = command.replace('"', '\\"')
+        # Wrap in cmd.exe /Q /c so the process spawns a shell on the remote host.
+        # This matches impacket's wmiexec behaviour and is required for reliable
+        # remote process creation via Win32_Process::Create.
+        wrapped = f"cmd.exe /Q /c {command}"
+        escaped = wrapped.replace('"', '\\"')
         wmic_parts.append(f"process call create \"{escaped}\"")
         shell_cmd = " ".join(wmic_parts)
 
