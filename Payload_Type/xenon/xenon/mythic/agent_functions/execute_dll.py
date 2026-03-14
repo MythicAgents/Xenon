@@ -70,9 +70,22 @@ class ExecuteDllArguments(TaskArguments):
                     ),
                 ],
             ),
-            
-            
-            # TODO - Add arguments for x64/x86, Method name (optional), Class name (optional)
+            CommandParameter(
+                name="dll_arguments_encoded",
+                cli_name="Encoded Arguments",
+                display_name="Encoded Arguments",
+                type=ParameterType.String,
+                description="Encoded arguments to pass to the DLL.",
+                default_value=None,
+                parameter_group_info=[
+                    ParameterGroupInfo(
+                        required=False, group_name="Default", ui_position=3,
+                    ),
+                    ParameterGroupInfo(
+                        required=False, group_name="New DLL", ui_position=3
+                    ),
+                ],
+            ),
         ]
     
     async def get_files(self, callback: PTRPCDynamicQueryFunctionMessage) -> PTRPCDynamicQueryFunctionMessageResponse:
@@ -193,10 +206,15 @@ class ExecuteDllCommand(CoffCommandBase):
             # Convert DLL -> PIC with Crystal Palace linker
             #
             agent_uuid = taskData.Callback.AgentCallbackID if taskData.Callback else None
-            logging.info(f"[CRYSTAL] Agent UUID: {agent_uuid}")
+            dll_file_uuid = file_resp.Files[0].AgentFileId
+            dll_arguments_encoded = taskData.args.get_arg("dll_arguments_encoded")
+            dll_arguments = taskData.args.get_arg("dll_arguments")
+            logging.info(f"Agent UUID: {agent_uuid}")
+
             shellcode_file_contents = await convert_postex_dll_to_pic(
-                file_resp.Files[0].AgentFileId,
-                taskData.args.get_arg("dll_arguments"),
+                dll_file_uuid,
+                dll_arguments,
+                dll_arguments_encoded,
                 agent_uuid=agent_uuid
             )
 

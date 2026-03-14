@@ -1,0 +1,5 @@
+; mscoree.dll exports for CLR hosting (MinGW: dlltool -k -d mscoree.def -l bin/libmscoree.a -D mscoree.dll)
+LIBRARY mscoree.dll
+EXPORTS
+    CLRCreateInstance
+    LoadLibraryShim

@@ -6,8 +6,6 @@ from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
 from distutils.dir_util import copy_tree
 import asyncio, tempfile
-from .utils.agent_global_settings import PROCESS_INJECT_KIT
-import donut
 from ..utils.packer import serialize_int, serialize_bool, serialize_string, generate_raw_c2_transform_definitions
 
 
@@ -642,17 +640,11 @@ class XenonAgent(PayloadType):
 
                     logging.info(f"[+] Linker converted DLL to PIC written to {bin_file}")
                 
-                
-                # bin_file = f"{agent_build_path.name}/loader.bin"
-                # # Use donut-shellcode here
-                # export_function = self.get_parameter('dll_export_function')
-                # donut.create(file=output_path, output=bin_file, arch=3, bypass=1, method=export_function)
-   
                 if os.path.exists(bin_file):
                     # Shellcode is new output file path
                     output_path = bin_file
                 else:
-                    # Some error occurred with donut
+                    # Some error occurred with CPL
                     stdout_err += f'[stderr]\nFile not found {bin_file}'
                     build_success = False
 
