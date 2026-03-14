@@ -309,9 +309,16 @@ class XenonAgent(PayloadType):
                     else:
                         raise ValueError("Invalid URL scheme")
 
-                    # Split hostname and port
-                    hostname, port = url_without_scheme.split(':')
-                    port = int(port)
+                    # Check if port was supplied, if not use defaults (http:80, https:443)
+                    if ':' in url_without_scheme:
+                        hostname, port = url_without_scheme.split(':')
+                        port = int(port)
+                    else:
+                        hostname = url_without_scheme
+                        if ssl:
+                            port = 443
+                        else:
+                            port = 80
 
                     # Serialize hostname, port, and SSL flag
                     serialized_data += serialize_string(hostname)
