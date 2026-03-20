@@ -150,9 +150,9 @@ If you have suggestions/requests open an issue or you can message me on discord.
 ### Features
 - [x] Socks5 proxy
 - [x] Support File Browser UI
-- [ ] `powershell` command
+- [x] `powerchell` command
+- [ ] Mythic features (process browser, TTPs)
 - [ ] Support dns external transport
-- [ ] hook into more Mythic features (file browser, etc)
 
 ### Bugs
 - [X] Work on memory issues (duplicate buffers etc)
