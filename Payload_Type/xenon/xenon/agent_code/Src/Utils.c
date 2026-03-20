@@ -68,6 +68,43 @@ size_t calculate_base64_encoded_size(size_t inlen)
     return ret;
 }
 
+int to_netbios(const char nb, const char* in, const int inlen, char* out, const int outlen)
+{
+	const int need = inlen * 2;
+	int i;
+
+	if (in == NULL || out == NULL || inlen < 0 || outlen < need)
+		return 0;
+
+	for (i = 0; i < inlen; i++) {
+		unsigned char b = (unsigned char)in[i];
+		out[i * 2]     = (char)(((b >> 4) & 0x0F) + (unsigned char)nb);
+		out[i * 2 + 1] = (char)((b & 0x0F) + (unsigned char)nb);
+	}
+	return need;
+}
+
+int from_netbios(const char nb, const char* in, const int inlen, char* out, const int outlen)
+{
+	const int need = inlen / 2;
+	int i;
+
+	if (in == NULL || out == NULL || inlen < 0 || (inlen & 1) != 0 || outlen < need)
+		return 0;
+
+	{
+		const unsigned char base = (unsigned char)nb;
+		const unsigned char* uin = (const unsigned char*)in;
+
+		for (i = 0; i < need; i++) {
+			unsigned char left  = uin[i * 2] - base;
+			unsigned char right = uin[i * 2 + 1] - base;
+			out[i] = (char)((unsigned char)((left << 4) | right));
+		}
+	}
+	return need;
+}
+
 /*
     Ref: https://github.com/libtom/libtomcrypt/blob/develop/src/misc/base64/base64_encode.c
     LibTomCrypt, modular cryptographic library -- Tom St Denis

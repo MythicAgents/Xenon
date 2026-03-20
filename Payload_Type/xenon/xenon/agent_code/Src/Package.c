@@ -373,7 +373,6 @@ BOOL PackageSend(PPackage package, PPARSER response)
 
     ParserDecrypt(response);
 
-
     _dbg("\n\n================================================\n");    
 
     bStatus = TRUE;

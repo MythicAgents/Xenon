@@ -15,7 +15,9 @@ TRANSFORM_TYPES = {
     "_header": 0xA,
     "_cookie": 0xB,           # not implemented
     "_body": 0xC,
-    "_hostheader": 0xD        # not implemented
+    "_hostheader": 0xD,        # not implemented
+    "netbios": 0xE,
+    "netbiosu": 0xF
 }
 
 # Binary serialization functions
