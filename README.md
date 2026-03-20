@@ -131,7 +131,7 @@ Xenon currently supports these features of the HTTPX profile:
 * Callback Jitter and Sleep intervals
 * Agent Message and Server Response configurations provided via JSON or TOML files at Build time that offer:
   * Message location in cookies, headers, query parameters, or body
-  * Message transforms with base64, base64url, append, prepend, xor
+  * Message transforms with base64, base64url, append, prepend, xor, netbios/netbiosu
   * Custom Client/Server headers
   * Custom Client query parameters
 
