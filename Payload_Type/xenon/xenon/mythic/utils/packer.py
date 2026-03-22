@@ -87,14 +87,14 @@ def generate_raw_c2_transform_definitions(data):
                     # User-agent is not packed here due to when it is needed on agent
                     if key.lower() == 'user-agent':
                         continue
+
+                    # Custom host header are handled
                     
                     # Handle arbitrary cookies
                     elif key.lower() == 'cookie':
                         type_header = TRANSFORM_TYPES.get('_cookie', 0x0)
                         definitions += serialize_int(type_header)
                         definitions += serialize_string(f'{key}: {value}')
-                    
-                    # TODO host header handled special
                     
                     # Handle all other arbitrary headers
                     else:

@@ -29,7 +29,7 @@ artifact_x64.exe: $(SRC_FILES)
 	$(CC) $^ -o $@ $(CFLAGS) -D_EXE $(LFLAGS) -mwindows
 
 artifact_x64-debug.exe: $(SRC_FILES)
-	$(CC) $^ -o $@ -D_EXE $(LFLAGS) $(DFLAGS) -Wall -w -g -IInclude
+	$(CC) $^ -o $@ -D_EXE $(CFLAGS) $(LFLAGS) $(DFLAGS)
 
 # DLL Target
 artifact_x64.dll: $(SRC_FILES)

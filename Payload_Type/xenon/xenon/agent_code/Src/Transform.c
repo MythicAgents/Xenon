@@ -278,9 +278,11 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
                 memcpy(transform->cookies, transform->temp, MAX_COOKIES);
                 break;
             }
-            case TRANSFORM__HOSTHEADER: // Not implemented
+            case TRANSFORM__HOSTHEADER:
             {
                 //_dbg("[TRANSFORM__HOSTHEADER] Applying...");
+                /* Custom host headers will be added under TRANSFORM_HEADER 
+                for now I don't feel the need to implement this */
                 break;
             }
             case TRANSFORM_PARAMETER:
