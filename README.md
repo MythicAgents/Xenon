@@ -110,13 +110,14 @@ forge_collections -collectionName SliverArmory
 
 
 
-### Post-Ex Commands (PEs)
-These are post-ex commands that follow the classic **fork & run** style injection. They use either a separate portable executable (DLL or EXE) converted to PIC with `donut-shellcode` (OPSEC warning!).
+### Post-Ex Commands
+These are post-ex commands that follow the classic **fork & run** style injection. They are implemented as DLLs turned to PIC with Crystal Palace, with the exception of `mimikatz`.
 
 | Command                  | Usage                                                         | Description |
 |--------------------------|---------------------------------------------------------------|-------------|
 | `mimikatz`          | `mimikatz [args]`                                               | Execute mimikatz in a remote process. |
 | `execute_assembly` | `execute_assembly -Assembly [SharpUp.exe] [-Arguments [assembly arguments]]` | Execute a .NET Assembly in a remote processes and retrieve the output. |
+| `powerchell` | `powerchell -Command <command>` | Execute PowerShell script using PowerChell post-ex DLL. |
 
 
 ## Supported C2 Profiles
@@ -157,7 +158,7 @@ If you have suggestions/requests open an issue or you can message me on discord.
 ### Bugs
 - [X] Work on memory issues (duplicate buffers etc)
 - [X] Fix initial install files not found
-- [ ] Use random pipe names or anon pipes for fork n run
+- [x] Random named pipes per payload generation
 - [ ] Weirdness with File Browser UI (remote hosts, etc)
 - [ ] `execute_assembly` can cause PIPE_BUSY if doesnt exit properly
 - [ ] Issues executing BOFs compiled with MSVC
