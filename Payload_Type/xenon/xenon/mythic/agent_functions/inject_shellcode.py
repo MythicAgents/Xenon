@@ -195,7 +195,6 @@ class InjectShellcodeCommand(CommandBase):
                 with open(named_pipe_stub_path, 'rb') as f:
                     stub_bytes = f.read()
                 prefixed_shellcode = stub_bytes + shellcode_contents.Content
-                # prefixed_shellcode = shellcode_contents.Content
                 
                 # Use TypedArray format to send raw bytes (same format as kit bytes)
                 shellcode_typed_array = [["bytes", prefixed_shellcode.hex()]]
