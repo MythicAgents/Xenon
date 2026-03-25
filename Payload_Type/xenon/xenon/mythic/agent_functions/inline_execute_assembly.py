@@ -165,7 +165,8 @@ class InlineExecuteAssemblyCommand(CoffCommandBase):
     argument_class = InlineExecuteAssemblyArguments
     attributes = CommandAttributes(
         dependencies=["inline_execute"],
-        alias=True
+        alias=True,
+        suggested_command=True
     )
 
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:

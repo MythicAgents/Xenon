@@ -37,7 +37,7 @@ class CdCommand(CommandBase):
     attributes = CommandAttributes(
         builtin=False,
         supported_os=[ SupportedOS.Windows ],
-        suggested_command=False
+        suggested_command=True
     )
 
     # async def create_tasking(self, task: MythicTask) -> MythicTask:

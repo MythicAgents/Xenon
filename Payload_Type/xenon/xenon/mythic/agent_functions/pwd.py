@@ -24,7 +24,7 @@ class PwdCommand(CommandBase):
     attributes = CommandAttributes(
         builtin=False,
         supported_os=[ SupportedOS.Windows ],
-        suggested_command=False
+        suggested_command=True
     )
 
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:

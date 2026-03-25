@@ -152,7 +152,7 @@ class InjectShellcodeCommand(CommandBase):
         builtin=False,
         dependencies=["inline_execute"],
         supported_os=[ SupportedOS.Windows ],
-        suggested_command=False
+        suggested_command=True
     )
 
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:

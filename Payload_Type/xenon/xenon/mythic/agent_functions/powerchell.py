@@ -43,7 +43,8 @@ class PowerchellCommand(CoffCommandBase):
     attackmapping = ["T1059", "T1562"]
     attributes = CommandAttributes(
         dependencies=["execute_dll"],
-        alias=True
+        alias=True,
+        suggested_command=False
     )
 
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:

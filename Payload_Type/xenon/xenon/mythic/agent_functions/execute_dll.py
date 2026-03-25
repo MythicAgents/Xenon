@@ -144,7 +144,7 @@ class ExecuteDllCommand(CoffCommandBase):
         alias=True,
         dependencies=["inline_execute", "inject_shellcode"],        # Required for ProcessInjectKit
         supported_os=[ SupportedOS.Windows ],
-        suggested_command=False
+        suggested_command=True
     )
 
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:

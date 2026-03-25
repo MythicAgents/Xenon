@@ -113,7 +113,8 @@ class PowerShellImportCommand(CommandBase):
     attackmapping = []
     attributes = CommandAttributes(
         dependencies=["powerchell"],
-        alias=True
+        alias=True,
+        suggested_command=False
     )
 
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:

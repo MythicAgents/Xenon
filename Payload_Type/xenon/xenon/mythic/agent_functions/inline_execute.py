@@ -180,7 +180,7 @@ class InlineExecuteCommand(CommandBase):
     attributes = CommandAttributes(
         builtin=False,
         supported_os=[ SupportedOS.Windows ],
-        suggested_command=False
+        suggested_command=True
     )
 
 
