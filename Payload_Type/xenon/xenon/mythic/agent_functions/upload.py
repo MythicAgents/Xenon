@@ -8,7 +8,11 @@ class UploadArguments(TaskArguments):
         super().__init__(command_line, **kwargs)
         self.args = [
             CommandParameter(
-                name="file", cli_name="new-file", display_name="File to upload", type=ParameterType.File, description="Select new file to upload",
+                name="file", 
+                cli_name="new-file", 
+                display_name="File to upload", 
+                type=ParameterType.File, 
+                description="Select new file to upload",
                 parameter_group_info=[
                     ParameterGroupInfo(
                         required=True,
@@ -18,7 +22,10 @@ class UploadArguments(TaskArguments):
                 ]
             ),
             CommandParameter(
-                name="filename", cli_name="registered-filename", display_name="Filename within Mythic", description="Supply existing filename in Mythic to upload",
+                name="filename", 
+                cli_name="registered-filename", 
+                display_name="Filename within Mythic", 
+                description="Supply existing filename in Mythic to upload",
                 type=ParameterType.ChooseOne,
                 dynamic_query_function=self.get_files,
                 parameter_group_info=[
@@ -123,7 +130,12 @@ class UploadCommand(CommandBase):
                             taskData.args.add_arg("remote_path", original_file_name)
                         elif taskData.args.get_arg("remote_path")[-1] == "/":
                             taskData.args.add_arg("remote_path", taskData.args.get_arg("remote_path") + original_file_name)
-                        response.DisplayParams = f"{original_file_name} to {taskData.args.get_arg('remote_path')}"
+
+                        # Set display parameters
+                        response.DisplayParams = "{} {}".format(
+                            original_file_name,
+                            taskData.args.get_arg("remote_path")
+                        )
                     else:
                         raise Exception("Failed to find that file")
                 else:
@@ -140,7 +152,12 @@ class UploadCommand(CommandBase):
                     if len(file_resp.Files) > 0:
                         taskData.args.add_arg("file", file_resp.Files[0].AgentFileId)
                         taskData.args.remove_arg("filename")
-                        response.DisplayParams = f"existing {file_resp.Files[0].Filename} to {taskData.args.get_arg('remote_path')}"
+                        
+                        # Set display parameters
+                        response.DisplayParams = "{} {}".format(
+                            file_resp.Files[0].Filename,
+                            taskData.args.get_arg("remote_path")
+                        )
                     elif len(file_resp.Files) == 0:
                         raise Exception("Failed to find the named file. Have you uploaded it before? Did it get deleted?")
                 else:

@@ -164,24 +164,38 @@ class RegisterProcessInjectKitCommand(CommandBase):
         
         # inject_explicit = taskData.args.get_arg("inject_explicit")
         
-        # Set the file UUID for the Kit
-        if is_enabled:            
-            PROCESS_INJECT_KIT.set_inject_spawn(kit_spawn_file_id)
-            # PROCESS_INJECT_KIT.set_inject_explicit(kit_explicit_file_id)
-        else:
-            PROCESS_INJECT_KIT.set_inject_spawn("")         
-            PROCESS_INJECT_KIT.set_inject_explicit("")
-        
-        response.DisplayParams = "--enabled {} --inject_spawn {} ".format(
-            "True" if is_enabled else "False",
-            file_resp.Files[0].Filename if file_resp.Success else ""
-            # inject_explicit_file.Files[0].Filename if inject_explicit else ""
-        )
-        
-        # logging.info(taskData.args.to_json())
-        
-        return response
+        try: 
+            # Set the file UUID for the Kit
+            if is_enabled:            
+                PROCESS_INJECT_KIT.set_inject_spawn(kit_spawn_file_id)
+                # PROCESS_INJECT_KIT.set_inject_explicit(kit_explicit_file_id)
+            else:
+                PROCESS_INJECT_KIT.set_inject_spawn("")         
+                PROCESS_INJECT_KIT.set_inject_explicit("")
+            
+            response.DisplayParams = "{} --inject_spawn {} ".format(
+                "--enabled" if is_enabled else "",
+                file_resp.Files[0].Filename if file_resp.Success else ""
+                # inject_explicit_file.Files[0].Filename if inject_explicit else ""
+            )
 
+            response.TaskStatus = MythicStatus.Success
+            response.Completed = True
+            await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+                TaskID=taskData.Task.ID,
+                Response=f"[+] Process Inject Kit registered".encode()
+            ))
+            return response
+
+        except Exception as e:
+            response.TaskStatus = MythicStatus.Error
+            response.Stderr = str(e)
+            await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+                TaskID=taskData.Task.ID,
+                Response=f"[-] Error registering Process Inject Kit: {str(e)}".encode()
+            ))
+            return response
+        
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
         resp = PTTaskProcessResponseMessageResponse(TaskID=task.Task.ID, Success=True)
         return resp

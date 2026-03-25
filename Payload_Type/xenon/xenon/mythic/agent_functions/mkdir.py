@@ -8,6 +8,7 @@ class MkdirArguments(TaskArguments):
         self.args = [
             CommandParameter(
                 name="path", 
+                cli_name="Directory",
                 type=ParameterType.String, 
                 description="Path to create directory.",
                 parameter_group_info=[ParameterGroupInfo(
@@ -36,18 +37,18 @@ class MkdirCommand(CommandBase):
     attributes = CommandAttributes(
         builtin=False,
         supported_os=[ SupportedOS.Windows ],
-        suggested_command=False
+        suggested_command=True
     )
 
-    # async def create_tasking(self, task: MythicTask) -> MythicTask:
-    #     task.display_params = task.args.get_arg("command")
-    #     return task
-    
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
         response = PTTaskCreateTaskingMessageResponse(
             TaskID=taskData.Task.ID,
             Success=True,
         )
+
+        # Set display parameters
+        response.DisplayParams = taskData.args.get_arg("path")
+
         return response
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:

@@ -67,10 +67,6 @@ class SleepCommand(CommandBase):
         suggested_command=False
     )
 
-    # async def create_tasking(self, task: MythicTask) -> MythicTask:
-    #     task.display_params = task.args.get_arg("command")
-    #     return task
-    
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
         response = PTTaskCreateTaskingMessageResponse(
             TaskID=taskData.Task.ID,

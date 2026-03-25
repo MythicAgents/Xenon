@@ -86,7 +86,8 @@ class MimikatCommand(CoffCommandBase):
     argument_class = MimikatzArguments
     attributes = CommandAttributes(
         dependencies=["inject_shellcode", "inline_execute"],
-        alias=True
+        alias=True,
+        suggested_command=False
     )
     
 

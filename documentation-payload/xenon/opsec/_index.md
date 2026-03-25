@@ -8,13 +8,14 @@ pre = "<b>3. </b>"
 ![logo](/agents/xenon/Xenon.png?width=600px)
 
 ## Fork & Run Commands
-These commands spawn a sacrificial process to perform their actions and call `inject_shellcode` under the hood using donut-shellcode. 
+These commands spawn a sacrificial process to perform their actions and call `inject_shellcode`. 
 They are compatible with Cobalt Strike's Process Injection Kits.
 
 | Command                  | Usage                                                         | Description |
 |--------------------------|---------------------------------------------------------------|-------------|
 | `mimikatz`          | `mimikatz [args]`                                               | Execute mimikatz on the host. (e.g., mimikatz sekurlsa::logonpasswords) OPSEC Warning: Uses donut shellcode. |
 | `execute_assembly` | `execute_assembly -Assembly [SharpUp.exe] [-Arguments [assembly arguments]]` | Execute a .NET Assembly in a remote processes and retrieve the output. OPSEC Warning: Uses donut shellcode. |
+| `powerchell` | `powerchell -Command <command>` | Execute PowerShell script using PowerChell post-ex DLL. |
 
 ## User-Defined Reflective Loader (UDRL)
 In previous versions, Xenon used donut-shellcode to generate shellcode from its DLL output type. That has changed.
@@ -107,6 +108,17 @@ x64:
 If you want to modify/create your own reflective loader I highly recommend watching the overview videos from Raphael [here](https://tradecraftgarden.org/videos.html).
 
 [Rasta Mouse](https://github.com/rasta-mouse) also has some great resources more specifically for Cobalt Strike in [Crystal-Kit](https://github.com/rasta-mouse/Crystal-Kit).
+
+
+## User-Defined Post-Ex Loader
+The UDRL for post-ex DLLs is a Crystal Palace PICO used to boostrap a post-ex DLL for execution. The default post-ex loader can be found under `xenon/agent_code/Loader/post-ex`.
+
+This loader is used any time the agent is sent a task that uses a post-ex DLL. Currently these are the only commands that use post-ex DLLs.
+
+- `powerchell`
+
+### Overriding Default Post-Ex Loader
+
 
 
 ## Process Injection Kit

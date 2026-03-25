@@ -53,7 +53,7 @@ class CpCommand(CommandBase):
     attributes = CommandAttributes(
         builtin=False,
         supported_os=[ SupportedOS.Windows ],
-        suggested_command=False
+        suggested_command=True
     )
 
     # async def create_tasking(self, task: MythicTask) -> MythicTask:
@@ -65,6 +65,13 @@ class CpCommand(CommandBase):
             TaskID=taskData.Task.ID,
             Success=True,
         )
+
+        # Set display parameters
+        response.DisplayParams = "{} {}".format(
+            taskData.args.get_arg("existing_file"),
+            taskData.args.get_arg("new_file")
+        )
+
         return response
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:

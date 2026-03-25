@@ -1,6 +1,6 @@
 # Compiler
 CC = x86_64-w64-mingw32-gcc
-CFLAGS = -Wall -w -s -IInclude
+CFLAGS = -Wall -w -Os -s -IInclude
 LFLAGS = -liphlpapi -lnetapi32 -lwininet -lws2_32 
 DFLAGS = -D_DEBUG
 
@@ -29,7 +29,7 @@ artifact_x64.exe: $(SRC_FILES)
 	$(CC) $^ -o $@ $(CFLAGS) -D_EXE $(LFLAGS) -mwindows
 
 artifact_x64-debug.exe: $(SRC_FILES)
-	$(CC) $^ -o $@ $(CFLAGS) -D_EXE $(LFLAGS) $(DFLAGS)
+	$(CC) $^ -o $@ -D_EXE $(CFLAGS) $(LFLAGS) $(DFLAGS)
 
 # DLL Target
 artifact_x64.dll: $(SRC_FILES)

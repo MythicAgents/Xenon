@@ -95,3 +95,29 @@ class ProcessInjectKit:
 PROCESS_INJECT_KIT = ProcessInjectKit()
 
 
+class PowerShellImport:
+    '''
+    Manage the PowerShell import scripts
+    '''
+    def __init__(self, file: str = ""):
+        self._file = file
+
+    # Getter for file
+    def get_file(self) -> str:
+        return self._file
+
+    # Setter for file
+    def set_file(self, value: str):
+        if not isinstance(value, str):
+            raise TypeError("file must be a string")
+        self._file = value
+
+    async def get_buffer(self) -> bytes:
+        file_id = self.get_file()
+        file_contents = await SendMythicRPCFileGetContent(MythicRPCFileGetContentMessage(AgentFileId=file_id))
+        if not file_contents.Success:
+            raise Exception("Failed to get file contents from Mythic (ID: {})".format(file_id))
+        return file_contents.Content
+
+# Global
+POWER_SHELL_IMPORT = PowerShellImport()

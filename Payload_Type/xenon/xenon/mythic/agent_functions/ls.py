@@ -13,6 +13,7 @@ class LsArguments(TaskArguments):
         self.args = [
             CommandParameter(
                 name="filepath", 
+                cli_name="Path",
                 type=ParameterType.String, 
                 description="Path of file or folder on the current system to list",
                 parameter_group_info=[ParameterGroupInfo(
@@ -105,7 +106,13 @@ class LsCommand(CommandBase):
 
             taskData.args.set_arg("host", host)
 
-        logging.info(f"Arguments: {taskData.args}")
+        # Set display parameters
+        response.DisplayParams = "{}{}".format(
+            ("\\\\" + host + "\\") if host else "",
+            taskData.args.get_arg("filepath")
+        )
+
+        #logging.info(f"Arguments: {taskData.args}")
         
         return response
 

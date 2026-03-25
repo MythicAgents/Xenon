@@ -6,6 +6,7 @@ import os
 import tempfile
 from .utils.bof_utilities import *
 from .utils.crystal_utilities import *
+import base64
 
 logging.basicConfig(level=logging.INFO)
 
@@ -50,10 +51,10 @@ class ExecuteAssemblyArguments(TaskArguments):
                 default_value="",
                 parameter_group_info=[
                     ParameterGroupInfo(
-                        required=True, group_name="Default", ui_position=2,
+                        required=False, group_name="Default", ui_position=2,
                     ),
                     ParameterGroupInfo(
-                        required=True, group_name="New Assembly", ui_position=2
+                        required=False, group_name="New Assembly", ui_position=2
                     ),
                 ],
             ),
@@ -144,17 +145,11 @@ class ExecuteAssemblyArguments(TaskArguments):
         else:
             parts = self.command_line.split(" ", maxsplit=1)
             self.add_arg("assembly_name", parts[0])
-            self.add_arg("assembly_arguments", "")
             if len(parts) == 2:
                 self.add_arg("assembly_arguments", parts[1])
+            else:
+                self.add_arg("assembly_arguments", "")
 
-def print_attributes(obj):
-    for attr in dir(obj):
-        if not attr.startswith("__"):  # Ignore built-in dunder methods
-            try:
-                logging.info(f"{attr}: {getattr(obj, attr)}")
-            except Exception as e:
-                logging.info(f"{attr}: [Error retrieving attribute] {e}")
 
 class ExecuteAssemblyCommand(CoffCommandBase):
     cmd = "execute_assembly"
@@ -170,7 +165,7 @@ class ExecuteAssemblyCommand(CoffCommandBase):
         builtin=False,
         dependencies=["inline_execute", "inject_shellcode"],
         supported_os=[ SupportedOS.Windows ],
-        suggested_command=False
+        suggested_command=True
     )
 
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
@@ -199,16 +194,7 @@ class ExecuteAssemblyCommand(CoffCommandBase):
                         raise Exception("Failed to find that file")
                 else:
                     raise Exception("Error from Mythic trying to get file: " + str(file_resp.Error))
-                
-                # Set display parameters
-                response.DisplayParams = "-Assembly {} -Arguments {} --patchexit {} --amsi {} --etw {}".format(
-                    file_resp.Files[0].Filename,
-                    taskData.args.get_arg("assembly_arguments"),
-                    taskData.args.get_arg("patch_exit"),
-                    taskData.args.get_arg("amsi"),
-                    taskData.args.get_arg("etw")
-                )
-                
+                                
                 taskData.args.add_arg("assembly_name", file_resp.Files[0].Filename)
                 taskData.args.remove_arg("assembly_file")
             
@@ -225,31 +211,35 @@ class ExecuteAssemblyCommand(CoffCommandBase):
                         logging.info(f"Found existing Assembly with File ID : {file_resp.Files[0].AgentFileId}")
 
                         taskData.args.remove_arg("assembly_name")    # Don't need this anymore
-                        
-                        # Set display parameters
-                        response.DisplayParams = "-Assembly {} -Arguments {} --patchexit {} --amsi {} --etw {}".format(
-                            file_resp.Files[0].Filename,
-                            taskData.args.get_arg("assembly_arguments"),
-                            taskData.args.get_arg("patch_exit"),
-                            taskData.args.get_arg("amsi"),
-                            taskData.args.get_arg("etw")
-                        )
 
                     elif len(file_resp.Files) == 0:
                         raise Exception("Failed to find the named file. Have you uploaded it before? Did it get deleted?")
                 else:
                     raise Exception("Error from Mythic trying to search files:\n" + str(file_resp.Error))
 
-            
+            # Set display parameters
+            response.DisplayParams = "{} {} {} {} {}".format(
+                file_resp.Files[0].Filename,
+                taskData.args.get_arg("assembly_arguments"),
+                "--patchexit" if taskData.args.get_arg("patch_exit") else "",
+                "--amsi" if taskData.args.get_arg("amsi") else "",
+                "--etw" if taskData.args.get_arg("etw") else "",
+            )
+
             # TODO
-            # Check if execute_assembly PICO capability is built, if not build it
+            # Check if execute_assembly DLL capability is compiled
             #            
-            #   /root/Xenon/Payload_Type/xenon/xenon/agent_code/Modules/execute-assembly/bin/execute_assembly.x64.bin
-            #   /root/Xenon/Payload_Type/xenon/xenon/agent_code/Modules/execute-assembly/bin/loader.x64.bin
+            #   /root/Xenon/Payload_Type/xenon/xenon/agent_code/Modules/bin/execute_assembly.x64.dll
             
+            # Upload desired module if it hasn't been before (per payload uuid)
+            file_name = "execute_assembly.x64.dll"
+            succeeded = await upload_module_if_missing(file_name=file_name, taskData=taskData)
+            if not succeeded:
+                response.Success = False
+                response.Error = f"Failed to upload or check module \"{file_name}\"."
             
             #
-            # Link COFF -> PIC with Crystal Palace linker
+            # Pack data for Post-Ex DLL
             #
             
             # Args
@@ -257,35 +247,28 @@ class ExecuteAssemblyCommand(CoffCommandBase):
             is_patchexit = taskData.args.get_arg("patch_exit")
             is_patchamsi = taskData.args.get_arg("amsi")
             is_patchetw = taskData.args.get_arg("etw")
-            # Convert to PIC
-            assembly_shellcode_contents = await convert_dotnet_to_pic(
-                file_resp.Files[0].AgentFileId, 
-                assembly_args, 
-                "x64",
-                is_patchexit,
-                is_patchamsi,
-                is_patchetw
-            )
-                        
-            # .NET shellcode stub in Mythic
-            shellcode_file_resp = await SendMythicRPCFileCreate(
-                MythicRPCFileCreateMessage(TaskID=taskData.Task.ID, FileContents=assembly_shellcode_contents, DeleteAfterFetch=True)
-            )
             
-            if shellcode_file_resp.Success:
-                shellcode_file_uuid = shellcode_file_resp.AgentFileId
-            else:
-                raise Exception("Failed to register execute_assembly binary: " + shellcode_file_resp.Error)
+            # Get .NET assembly bytes
+            file_content_resp = await SendMythicRPCFileGetContent(MythicRPCFileGetContentMessage(AgentFileId=file_resp.Files[0].AgentFileId))
+            if not file_content_resp.Success:
+                raise Exception("Failed to fetch find file from Mythic (ID: {})".format(file_resp.Files[0].AgentFileId))
+            assembly_bytes = file_content_resp.Content
+            assembly_len = len(assembly_bytes)
+            # Arguments passed to .NET Assembly
+            args_bytes = (assembly_args or "").encode("utf-16-le") + b"\x00\x00"
+            args_len = len(args_bytes)
             
-            # Send subtask to inject shellcode
+            dll_arguments = struct.pack("<I", assembly_len) + assembly_bytes + struct.pack("<I", args_len) + args_bytes
+            
+            # Execute Post-Ex DLL
             subtask = await SendMythicRPCTaskCreateSubtask(
                 MythicRPCTaskCreateSubtaskMessage(
                     taskData.Task.ID,
-                    CommandName="inject_shellcode",
+                    CommandName="execute_dll",
                     SubtaskCallbackFunction="coff_completion_callback",
                     Params=json.dumps({
-                        "shellcode_file": shellcode_file_uuid,
-                        "method": "default"
+                        "dll_name": file_name,
+                        "dll_arguments_encoded": base64.b64encode(dll_arguments).decode("utf-8")
                     }),
                     Token=taskData.Task.TokenID,
                 )

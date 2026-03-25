@@ -80,7 +80,9 @@ class SocksCommand(CommandBase):
     argument_class = SocksArguments
     attackmapping = ["T1090"]
     attributes=CommandAttributes(
-        dependencies=[]
+        builtin=False,
+        dependencies=[],
+        suggested_command=False
     )
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
         response = PTTaskCreateTaskingMessageResponse(

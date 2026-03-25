@@ -28,6 +28,8 @@ void print_bytes(PBYTE buffer, SIZE_T length);
 SIZE_T calculate_base64_decoded_size(const char *in, SIZE_T inLen);
 size_t calculate_base64_encoded_size(size_t inlen);
 
+int to_netbios(const char nb, const char* in, const int inlen, char* out, const int outlen);
+int from_netbios(const char nb, const char* in, const int inlen, char* out, const int outlen);
 
 // Functions from @https://github.com/libtom/libtomcrypt
 /* ---- LTC_BASE64 Routines ---- */

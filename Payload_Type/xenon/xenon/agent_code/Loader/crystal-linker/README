@@ -1,7 +1,7 @@
 About
 =====
 
-Crystal Palace is a linker and linker script language specialized to the needs of writing position-independent DLL and COFF loaders.
+Crystal Palace is a linker and linker script language specialized to the needs of writing position-independent code.
 
 https://tradecraftgarden.org
 
@@ -27,8 +27,8 @@ https://tradecraftgarden.org/wslsetup.html
 Usage
 =====
 
-Use the link script to link a Windows DLL to a position-independent loader (and other resources) using steps provided in a
-specification file. Specification files are specific to each loader.
+Use the link script to link a Windows DLL or COFF to a position-independent loader (and other resources) using steps
+provided in a specification file. Specification files are specific to each loader.
 
 	./link [loader.spec] [/path/to/dll] [out.bin]
 

@@ -1,0 +1,4 @@
+; Minimal .def for CLR hosting (MinGW: generate import lib with dlltool -k -d mscoree.def -l libmscoree.a)
+LIBRARY mscoree.dll
+EXPORTS
+    CLRCreateInstance

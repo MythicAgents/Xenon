@@ -180,7 +180,7 @@ class InlineExecuteCommand(CommandBase):
     attributes = CommandAttributes(
         builtin=False,
         supported_os=[ SupportedOS.Windows ],
-        suggested_command=False
+        suggested_command=True
     )
 
 
@@ -247,9 +247,9 @@ class InlineExecuteCommand(CommandBase):
                 taskData.args.remove_arg("bof_entrypoint") # Hardcoded in Agent for now
                 
                 # Set display parameters
-                response.DisplayParams = "-bof_file {} -bof_arguments {}".format(
+                response.DisplayParams = "{} {}".format(
                     bof_filename,
-                    taskData.args.get_arg("bof_arguments")
+                    " ".join([f"{arg[0]}:{arg[1]}" for arg in taskData.args.get_arg("bof_arguments")])
                 )
             else:
                 raise Exception("Failed to get BOF file ID")

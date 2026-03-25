@@ -201,8 +201,7 @@ The agent uses the following parsing functions (from `Parser.c`):
 
 ## Notes
 
-1. **No Null Terminators**: Strings are length-prefixed and do not include null terminators
-2. **UUID Format**: All UUIDs are exactly 36 bytes (standard UUID string format)
-3. **Parameter Ordering**: Parameters are packed in dictionary iteration order (Python 3.7+)
-4. **Error Handling**: Invalid data should be rejected with appropriate error codes
+1. **UUID Format**: All UUIDs are exactly 36 bytes (standard UUID string format)
+2. **Parameter Ordering**: Parameters are packed in dictionary iteration order (Python 3.7+)
+3. **Error Handling**: Invalid data should be rejected with appropriate error codes
 

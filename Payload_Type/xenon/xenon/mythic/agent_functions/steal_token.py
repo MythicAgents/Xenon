@@ -10,7 +10,8 @@ class StealTokenArguments(TaskArguments):
         super().__init__(command_line, **kwargs)
         self.args = [
             CommandParameter(
-                name="pid", 
+                name="pid",
+                cli_name="Pid",
                 type=ParameterType.Number, 
                 description="Process ID",
                 parameter_group_info=[ParameterGroupInfo(
@@ -45,15 +46,17 @@ class StealTokenCommand(CommandBase):
         suggested_command=False
     )
 
-    # async def create_tasking(self, task: MythicTask) -> MythicTask:
-    #     task.display_params = task.args.get_arg("command")
-    #     return task
-    
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:
         response = PTTaskCreateTaskingMessageResponse(
             TaskID=taskData.Task.ID,
             Success=True,
         )
+
+        # Set display parameters
+        response.DisplayParams = "{}".format(
+            taskData.args.get_arg("pid")
+        )
+
         return response
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
