@@ -1,7 +1,7 @@
 +++
 title = "OPSEC"
 chapter = false
-weight = 20
+weight = 30
 pre = "<b>3. </b>"
 +++
 

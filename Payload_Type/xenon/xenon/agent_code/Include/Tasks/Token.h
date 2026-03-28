@@ -18,4 +18,8 @@ VOID TokenSteal(_In_ PCHAR taskUuid, _In_ PPARSER arguments);
 VOID TokenRevert(_In_ PCHAR taskUuid, _In_ PPARSER arguments);
 #endif  //INCLUDE_CMD_REV2SELF
 
+#ifdef INCLUDE_CMD_GETPRIVS
+VOID TokenGetPrivs(_In_ PCHAR taskUuid, _In_ PPARSER arguments);
+#endif  //INCLUDE_CMD_GETPRIVS
+
 #endif  //TOKEN_H
