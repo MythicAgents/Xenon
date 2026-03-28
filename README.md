@@ -171,6 +171,7 @@ Special thanks to all contributors who help improve this project.
 - **@c0rnbread** — Author & Maintainer
 - **@dstepanov** — TCP Transport support
 - **vnp-dev**
+- **@Lavender-exe**
 
 If you would like to contribute to the project, please work off of the **next version branch** (named like "v1.2.3") as merges will go into that.
 

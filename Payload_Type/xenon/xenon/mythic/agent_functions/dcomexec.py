@@ -74,13 +74,13 @@ class DcomExecuteCommand(CommandBase):
 
         # Escape single quotes inside command for PowerShell single-quoted strings
         escaped_cmd = command.replace("'", "''")
-        # cmd.exe /Q /c wrapper — matches impacket's approach for reliable remote exec
+        # cmd.exe /Q /c wrapper - matches impacket's approach for reliable remote exec
         ps_params = f"/Q /c {escaped_cmd}"
         target = f"'{host}'" if host else "'127.0.0.1'"
 
         if method == "shellwindows":
             # ShellWindows (CLSID 9BA05972-F6A8-11CF-A442-00A0C90A8F39)
-            # Requires at least one open Explorer window on the target — Item(0) gets it.
+            # Requires at least one open Explorer window on the target - Item(0) gets it.
             # ShellExecute(file, params, dir, verb, show)
             ps_block = (
                 f"$c = [activator]::CreateInstance([type]::GetTypeFromCLSID("
@@ -90,7 +90,7 @@ class DcomExecuteCommand(CommandBase):
             )
         elif method == "shellbrowserwindow":
             # ShellBrowserWindow (CLSID C08AFD90-F2A1-11D1-8455-00A0C91F3880)
-            # Does NOT require an existing Explorer window — more reliable than ShellWindows.
+            # Does NOT require an existing Explorer window - more reliable than ShellWindows.
             # ShellExecute(file, params, dir, verb, show)
             ps_block = (
                 f"$c = [activator]::CreateInstance([type]::GetTypeFromCLSID("
@@ -98,7 +98,7 @@ class DcomExecuteCommand(CommandBase):
                 f"$c.Document.Application.ShellExecute('cmd.exe', '{ps_params}', 'C:\\Windows\\System32', $null, 0)"
             )
         else:
-            # MMC20.Application (CLSID 49B2791A-B1AE-4C90-9B8E-E860BA07F889) — default
+            # MMC20.Application (CLSID 49B2791A-B1AE-4C90-9B8E-E860BA07F889) - default
             # ExecuteShellCommand(file, reserved, params, windowstate)
             ps_block = (
                 f"$c = [activator]::CreateInstance([type]::GetTypeFromCLSID("

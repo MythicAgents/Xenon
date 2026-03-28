@@ -10,9 +10,9 @@ Execute a command on a local or remote host via DCOM using PowerShell (`powerche
 
 | Method | CLSID | Notes |
 |--------|-------|-------|
-| `mmc20` (default) | `49B2791A-B1AE-4C90-9B8E-E860BA07F889` | MMC20.Application — widely available, no Explorer dependency |
-| `shellwindows` | `9BA05972-F6A8-11CF-A442-00A0C90A8F39` | ShellWindows — requires an open Explorer window on the target |
-| `shellbrowserwindow` | `C08AFD90-F2A1-11D1-8455-00A0C91F3880` | ShellBrowserWindow — no Explorer window required |
+| `mmc20` (default) | `49B2791A-B1AE-4C90-9B8E-E860BA07F889` | MMC20.Application - widely available, no Explorer dependency |
+| `shellwindows` | `9BA05972-F6A8-11CF-A442-00A0C90A8F39` | ShellWindows - requires an open Explorer window on the target |
+| `shellbrowserwindow` | `C08AFD90-F2A1-11D1-8455-00A0C91F3880` | ShellBrowserWindow - no Explorer window required |
 
 ### Arguments
 

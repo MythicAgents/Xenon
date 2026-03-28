@@ -147,3 +147,43 @@ VOID ProcessBlockDlls(PCHAR taskUuid, PPARSER arguments)
     LocalFree(state);
 }
 #endif	//INCLUDE_CMD_BLOCKDLLS
+
+
+#ifdef INCLUDE_CMD_KILL
+
+VOID ProcessKill(PCHAR taskUuid, PPARSER arguments)
+{
+    UINT32 nbArg = ParserGetInt32(arguments);
+    if (nbArg < 1)
+    {
+        PackageError(taskUuid, ERROR_INVALID_PARAMETER);
+        return;
+    }
+
+    UINT32 pid = ParserGetInt32(arguments);
+    _dbg("[kill] Terminating PID %d", pid);
+
+    HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, (DWORD)pid);
+    if (!hProcess)
+    {
+        PackageError(taskUuid, GetLastError());
+        return;
+    }
+
+    BOOL ok = TerminateProcess(hProcess, 1);
+    DWORD err = GetLastError();
+    CloseHandle(hProcess);
+
+    if (!ok)
+    {
+        PackageError(taskUuid, err);
+        return;
+    }
+
+    PPackage data = PackageInit(0, FALSE);
+    PackageAddFormatPrintf(data, FALSE, "Killed process %d\n", pid);
+    PackageComplete(taskUuid, data);
+    PackageDestroy(data);
+}
+
+#endif	//INCLUDE_CMD_KILL

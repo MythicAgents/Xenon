@@ -16,6 +16,7 @@ pre = "<b>1. </b>"
     * [cp](/agents/xenon/commands/cp/)
     * [rm](/agents/xenon/commands/rm/)
     * [mkdir](/agents/xenon/commands/mkdir/)
+    * [cat](/agents/xenon/commands/cat/)
     * [download](/agents/xenon/commands/download/)
     * [upload](/agents/xenon/commands/upload/)
 - Credential / Token Commands
@@ -26,6 +27,7 @@ pre = "<b>1. </b>"
     * [getprivs](/agents/xenon/commands/getprivs/)
 - Process Management
     * [ps](/agents/xenon/commands/ps/)
+    * [kill](/agents/xenon/commands/kill/)
     * [shell](/agents/xenon/commands/shell/)
 - Execution
     * [inline_execute](/agents/xenon/commands/inline_execute/)

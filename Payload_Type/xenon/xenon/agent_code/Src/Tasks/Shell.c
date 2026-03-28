@@ -19,11 +19,11 @@
 #define PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY 0x00020007UL
 #endif
 
-/* Mirror of STARTUPINFOEXA / STARTUPINFOEXW — identical layout, avoids SDK dependency */
+/* Mirror of STARTUPINFOEXA / STARTUPINFOEXW - identical layout, avoids SDK dependency */
 typedef struct { STARTUPINFOA StartupInfo; PVOID lpAttributeList; } XENON_SIEX_A;
 typedef struct { STARTUPINFOW StartupInfo; PVOID lpAttributeList; } XENON_SIEX_W;
 
-/* Dynamic function pointer types — required for PIC */
+/* Dynamic function pointer types - required for PIC */
 typedef BOOL (WINAPI* FN_InitProcAttrList)  (PVOID, DWORD, DWORD, PSIZE_T);
 typedef BOOL (WINAPI* FN_UpdateProcAttr)    (PVOID, DWORD, DWORD_PTR, PVOID, SIZE_T, PVOID, PSIZE_T);
 typedef VOID (WINAPI* FN_DeleteProcAttrList)(PVOID);

@@ -14,4 +14,8 @@ VOID ProcessList(PCHAR taskUuid, PPARSER arguments);
 VOID ProcessBlockDlls(PCHAR taskUuid, PPARSER arguments);
 #endif
 
+#ifdef INCLUDE_CMD_KILL
+VOID ProcessKill(PCHAR taskUuid, PPARSER arguments);
+#endif
+
 #endif  //PROCESS_H

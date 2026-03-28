@@ -106,6 +106,14 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             return;
         }
 #endif
+#ifdef INCLUDE_CMD_CAT
+        case CAT_CMD:
+        {
+            _dbg("CAT_CMD was called");
+            FileSystemCat(taskUuid, taskParser);
+            return;
+        }
+#endif
 #ifdef INCLUDE_CMD_DOWNLOAD
         case DOWNLOAD_CMD:
         {
@@ -163,6 +171,14 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
         {
             _dbg("BLOCKDLLS_CMD was called");
             ProcessBlockDlls(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_KILL
+        case KILL_CMD:
+        {
+            _dbg("KILL_CMD was called");
+            ProcessKill(taskUuid, taskParser);
             return;
         }
 #endif
