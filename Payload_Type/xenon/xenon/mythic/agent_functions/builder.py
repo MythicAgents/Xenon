@@ -1,4 +1,4 @@
-import logging, json, toml, os, random, zipfile
+import logging, json, toml, os, random, zipfile, shutil
 import traceback
 import pathlib
 from mythic_container.PayloadBuilder import *
@@ -16,7 +16,8 @@ class XenonAgent(PayloadType):
     supported_os = [SupportedOS.Windows]
     wrapper = False
     wrapped_payloads = []
-    note = """A Cobalt Strike-like agent for Windows targets. Version: v0.0.5"""
+    semver = "v0.0.6"
+    note = f"""A Cobalt Strike-like agent for Windows targets. Version: {semver}"""
     supports_dynamic_loading = True
     c2_profiles = ["httpx", "smb", "tcp"]
     mythic_encrypts = True
@@ -266,6 +267,29 @@ class XenonAgent(PayloadType):
             # Unzip
             with zipfile.ZipFile(zip_path, 'r') as z:
                 z.extractall(custom_postex_path)
+
+            # Flatten wrapper subdirectory if present.
+            # Operators sometimes zip from a parent dir (e.g. zip -r kit.zip my-loader/)
+            # or download a GitHub archive, producing custom_postex_path/wrapper/Makefile
+            # instead of the expected custom_postex_path/Makefile.
+            if not os.path.exists(os.path.join(custom_postex_path, "Makefile")):
+                subdirs = [
+                    e for e in os.listdir(custom_postex_path)
+                    if os.path.isdir(os.path.join(custom_postex_path, e))
+                    and e not in ("__MACOSX", ".git")
+                    and e != os.path.basename(zip_path)
+                ]
+                if len(subdirs) == 1:
+                    wrapper = os.path.join(custom_postex_path, subdirs[0])
+                    for item in os.listdir(wrapper):
+                        shutil.move(os.path.join(wrapper, item), custom_postex_path)
+                    os.rmdir(wrapper)
+                    logging.info(f"[POSTEX] Flattened wrapper directory '{subdirs[0]}' to kit root")
+                else:
+                    raise Exception(
+                        "No Makefile found at post-ex kit root. "
+                        "Zip the kit contents directly: cd your-kit && zip -r kit.zip ."
+                    )
 
             # Compile Postex Kit (must be based on Crystal Palace)
             command = "make"
@@ -598,7 +622,26 @@ class XenonAgent(PayloadType):
                     # Unzip
                     with zipfile.ZipFile(zip_path, 'r') as z:
                         z.extractall(custom_udrl_path)
-                    
+
+                    # Flatten wrapper subdirectory if present (same issue as post-ex kit)
+                    if not os.path.exists(os.path.join(custom_udrl_path, "Makefile")):
+                        subdirs = [
+                            e for e in os.listdir(custom_udrl_path)
+                            if os.path.isdir(os.path.join(custom_udrl_path, e))
+                            and e not in ("__MACOSX", ".git")
+                        ]
+                        if len(subdirs) == 1:
+                            wrapper = os.path.join(custom_udrl_path, subdirs[0])
+                            for item in os.listdir(wrapper):
+                                shutil.move(os.path.join(wrapper, item), custom_udrl_path)
+                            os.rmdir(wrapper)
+                            logging.info(f"[UDRL] Flattened wrapper directory '{subdirs[0]}' to kit root")
+                        else:
+                            raise Exception(
+                                "No Makefile found at UDRL root. "
+                                "Zip the kit contents directly: cd your-kit && zip -r loader.zip ."
+                            )
+
                     udrl_path = custom_udrl_path
                 # Use Default Loader
                 else:

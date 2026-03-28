@@ -1,7 +1,7 @@
 +++
 title = "Contributing"
 chapter = true
-weight = 20
+weight = 40
 pre = "<b>4. </b>"
 +++
 
