@@ -93,7 +93,7 @@ void* ProcessBeaconSymbols(char* SymbolName, BOOL InternalFunction) {
     return NULL;
 }
 
-BOOL ExecuteEntry(COFF_t* COFF, char* func, char* args, unsigned long argSize) {
+BOOL ExecuteEntry(COFF_t* COFF, void** SectionMapped, char* func, char* args, unsigned long argSize) {
     VOID(*foo)(char* in, UINT32 datalen) = NULL;
 
     if (!func || !COFF->FileBase)
@@ -114,7 +114,15 @@ BOOL ExecuteEntry(COFF_t* COFF, char* func, char* args, unsigned long argSize) {
             symName = stringTable + COFF->SymbolTable[counter].first.value[1];
         }
         if (strcmp(symName, func) == 0) {
-            foo = (void(*)(char*, UINT32))((char*)COFF->RawTextData + COFF->SymbolTable[counter].Value);
+            /* Use the symbol's own SectionNumber to find the right mapped section.
+               RawTextData is NOT used — MSVC names the text section ".text$mn", not ".text",
+               so any approach relying on section name matching fails for MSVC BOFs. */
+            UINT16 secNum = COFF->SymbolTable[counter].SectionNumber;
+            if (secNum == 0 || SectionMapped[secNum - 1] == NULL) {
+                _dbg("Entry symbol found but section not loaded (secNum=%d)\n", secNum);
+                continue;
+            }
+            foo = (void(*)(char*, UINT32))((char*)SectionMapped[secNum - 1] + COFF->SymbolTable[counter].Value);
             _dbg("Trying to run: 0x%p\n\n", foo);
         }
     }
@@ -131,11 +139,14 @@ void RelocationTypeParse(COFF_t* COFF, void** SectionMapped, int SectionNumber, 
     UINT64 longOffsetAddr = 0;
     unsigned int Type = COFF->Relocation->Type;
 
-    /* Guard: undefined externals (SectionNumber == 0) with no resolved function address
-       would cause sectionMapped[SectionNumber - 1] = sectionMapped[-1] out-of-bounds. */
-    if (FunctionAddrPTR == NULL &&
-        COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].SectionNumber == 0)
-        return;
+    /* Guard: skip when there is no resolved function address AND the symbol either:
+         - has SectionNumber == 0 (undefined external) → sectionMapped[-1] out-of-bounds
+         - references a section that was filtered/not loaded (NULL mapping) */
+    if (FunctionAddrPTR == NULL) {
+        UINT16 symSecNum = COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].SectionNumber;
+        if (symSecNum == 0) return;
+        if (SectionMapped[symSecNum - 1] == NULL) return;
+    }
 
     if (Type == IMAGE_REL_AMD64_ADDR64)
     {
@@ -230,9 +241,13 @@ BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdat
         Section_t* section = (Section_t*)(COFF.FileBase + sizeof(FileHeader_t) + (i * sizeof(Section_t)));
         _dbg("********* COFF Section %d: \"%s\" *********\n", i, section->Name);
 
-        /* Skip MSVC metadata sections: .drectve, .debug$*, .pdata, .xdata.
-           These are flagged INFO, REMOVE, or DISCARDABLE and must not be executed. */
-        if (section->Characteristics & (IMAGE_SCN_LNK_REMOVE | IMAGE_SCN_LNK_INFO | IMAGE_SCN_MEM_DISCARDABLE)) {
+        /* Skip MSVC metadata sections:
+             .drectve, .debug$*          — flagged LNK_INFO / LNK_REMOVE / DISCARDABLE
+             .pdata, .xdata, .chks64     — exception tables / unwind info / checksum;
+                                           flagged as plain data so must be excluded by name */
+        if (section->Characteristics & (IMAGE_SCN_LNK_REMOVE | IMAGE_SCN_LNK_INFO | IMAGE_SCN_MEM_DISCARDABLE) ||
+            strncmp(section->Name, ".pdata", 6) == 0 ||
+            strncmp(section->Name, ".xdata", 6) == 0) {
             sectionMapped[i] = NULL;
             continue;
         }
@@ -293,7 +308,7 @@ BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdat
 ///////////////
 /// EXECUTE ///
 ///////////////
-    ExecuteEntry(&COFF, EntryName, argumentdata, argumentsize);
+    ExecuteEntry(&COFF, sectionMapped, EntryName, argumentdata, argumentsize);
 ///////////////
 /// EXECUTE ///
 ///////////////
