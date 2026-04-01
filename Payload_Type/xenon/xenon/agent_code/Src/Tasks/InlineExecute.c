@@ -12,6 +12,24 @@
     Most code is from here https://github.com/Ap3x/COFF-Loader/tree/main/Src
 */
 
+/* Additional AMD64 relocation types produced by MSVC but not MinGW */
+#define IMAGE_REL_AMD64_REL32_1     0x0005
+#define IMAGE_REL_AMD64_REL32_2     0x0006
+#define IMAGE_REL_AMD64_REL32_3     0x0007
+#define IMAGE_REL_AMD64_REL32_4     0x0008
+#define IMAGE_REL_AMD64_REL32_5     0x0009
+
+/* Section Characteristics for filtering MSVC metadata sections */
+#ifndef IMAGE_SCN_LNK_INFO
+#define IMAGE_SCN_LNK_INFO          0x00000200
+#endif
+#ifndef IMAGE_SCN_LNK_REMOVE
+#define IMAGE_SCN_LNK_REMOVE        0x00000800
+#endif
+#ifndef IMAGE_SCN_MEM_DISCARDABLE
+#define IMAGE_SCN_MEM_DISCARDABLE   0x02000000
+#endif
+
 /*
     COFF Loader Supporting Functions
 */
@@ -21,7 +39,10 @@ BOOL InternalFunctionMatch(char* StrippedSymbolName) {
         STR_EQUALS(StrippedSymbolName, "GetModuleHandleA") ||
         STR_EQUALS(StrippedSymbolName, "toWideChar") ||
         STR_EQUALS(StrippedSymbolName, "LoadLibraryA") ||
-        STR_EQUALS(StrippedSymbolName, "FreeLibrary"))
+        STR_EQUALS(StrippedSymbolName, "FreeLibrary") ||
+        STR_EQUALS(StrippedSymbolName, "__C_specific_handler") ||
+        STR_EQUALS(StrippedSymbolName, "__GSHandlerCheck") ||
+        STR_EQUALS(StrippedSymbolName, "__GSHandlerCheck_SEH"))
     {
         return TRUE;
     }
@@ -59,14 +80,17 @@ void* ProcessBeaconSymbols(char* SymbolName, BOOL InternalFunction) {
         //_dbg("\t\tExternal Symbol\n");
         locallib = strtok_s(localSymbolNameCopy + sizeof(PREPENDSYMBOLVALUE) - 1, "$", &context);
         llHandle = LoadLibraryA(locallib);
+        if (llHandle == NULL) return NULL; /* no '$' in name or library not found */
 
         //_dbg("\t\tHandle: 0x%lx\n", llHandle);
         localfunc = strtok_s(NULL, "$", &context);
+        if (localfunc == NULL) return NULL;
         localfunc = strtok_s(localfunc, "@", &context);
         functionaddress = GetProcAddress(llHandle, localfunc);
         //_dbg("\t\tProcAddress: 0x%p\n", functionaddress);
         return functionaddress;
     }
+    return NULL;
 }
 
 BOOL ExecuteEntry(COFF_t* COFF, char* func, char* args, unsigned long argSize) {
@@ -75,9 +99,21 @@ BOOL ExecuteEntry(COFF_t* COFF, char* func, char* args, unsigned long argSize) {
     if (!func || !COFF->FileBase)
         _dbg("No entry provided");
 
-    for (UINT32 counter = 0; counter < COFF->FileHeader->NumberOfSymbols; counter++)
+    /* String table immediately follows the symbol table */
+    char* stringTable = (char*)(COFF->SymbolTable + COFF->FileHeader->NumberOfSymbols);
+    for (UINT32 counter = 0; counter < COFF->FileHeader->NumberOfSymbols;
+         counter += 1 + COFF->SymbolTable[counter].NumberOfAuxSymbols)
     {
-        if (strcmp(COFF->SymbolTable[counter].first.Name, func) == 0) {
+        /* Resolve symbol name: inline (<= 8 bytes) or via string table offset */
+        char* symName;
+        char inlineName[9] = {0};
+        if (COFF->SymbolTable[counter].first.Name[0] != 0) {
+            memcpy(inlineName, COFF->SymbolTable[counter].first.Name, 8);
+            symName = inlineName;
+        } else {
+            symName = stringTable + COFF->SymbolTable[counter].first.value[1];
+        }
+        if (strcmp(symName, func) == 0) {
             foo = (void(*)(char*, UINT32))((char*)COFF->RawTextData + COFF->SymbolTable[counter].Value);
             _dbg("Trying to run: 0x%p\n\n", foo);
         }
@@ -95,7 +131,13 @@ void RelocationTypeParse(COFF_t* COFF, void** SectionMapped, int SectionNumber, 
     UINT64 longOffsetAddr = 0;
     unsigned int Type = COFF->Relocation->Type;
 
-    if (Type == IMAGE_REL_AMD64_ADDR64) 
+    /* Guard: undefined externals (SectionNumber == 0) with no resolved function address
+       would cause sectionMapped[SectionNumber - 1] = sectionMapped[-1] out-of-bounds. */
+    if (FunctionAddrPTR == NULL &&
+        COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].SectionNumber == 0)
+        return;
+
+    if (Type == IMAGE_REL_AMD64_ADDR64)
     {
         memcpy(&longOffsetAddr, (char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress, sizeof(UINT64));
         //_dbg("\tReadin longOffsetValue : 0x%llX\n", longOffsetAddr);
@@ -136,7 +178,28 @@ void RelocationTypeParse(COFF_t* COFF, void** SectionMapped, int SectionNumber, 
             memcpy((char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress, &offsetAddr, sizeof(UINT32));
         }
     }
-    else 
+    else if (Type >= IMAGE_REL_AMD64_REL32_1 && Type <= IMAGE_REL_AMD64_REL32_5)
+    {
+        /* Same as REL32 but the encoded addend includes an extra N-byte adjustment
+           (used by MSVC for RIP-relative refs inside multi-byte instructions). */
+        int adjustment = Type - IMAGE_REL_AMD64_REL32;
+        if (FunctionAddrPTR != NULL) {
+            memcpy(FunctionMapping + (COFF->FunctionMappingCount * 8), &FunctionAddrPTR, sizeof(UINT64));
+            offsetAddr = (INT32)((FunctionMapping + (COFF->FunctionMappingCount * 8)) - ((char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress + 4));
+            offsetAddr += COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].Value;
+            offsetAddr -= adjustment;
+            memcpy((char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress, &offsetAddr, sizeof(UINT32));
+            COFF->FunctionMappingCount++;
+        }
+        else {
+            memcpy(&offsetAddr, (void*)((char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress), sizeof(UINT32));
+            offsetAddr += (UINT32)((char*)SectionMapped[COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].SectionNumber - 1] - ((char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress + 4));
+            offsetAddr += COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].Value;
+            offsetAddr -= adjustment;
+            memcpy((char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress, &offsetAddr, sizeof(UINT32));
+        }
+    }
+    else
     {
         //_dbg("[!] Relocation Type Not Implemented\n");
     }
@@ -167,6 +230,13 @@ BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdat
         Section_t* section = (Section_t*)(COFF.FileBase + sizeof(FileHeader_t) + (i * sizeof(Section_t)));
         //_dbg("********* COFF Section %d: \"%s\" *********\n", i, section->Name);
 
+        /* Skip MSVC metadata sections: .drectve, .debug$*, .pdata, .xdata.
+           These are flagged INFO, REMOVE, or DISCARDABLE and must not be executed. */
+        if (section->Characteristics & (IMAGE_SCN_LNK_REMOVE | IMAGE_SCN_LNK_INFO | IMAGE_SCN_MEM_DISCARDABLE)) {
+            sectionMapped[i] = NULL;
+            continue;
+        }
+
         sectionMapped[i] = (char*)VirtualAlloc(NULL, section->SizeOfRawData, MEM_COMMIT | MEM_RESERVE | MEM_TOP_DOWN, PAGE_EXECUTE_READWRITE);
         //_dbg("Allocated section %d at 0x%p\n", i, sectionMapped[i]);
 
@@ -189,6 +259,7 @@ BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdat
     functionMapping = (char*)VirtualAlloc(NULL, COFF.RelocationsCount * 8, MEM_COMMIT | MEM_RESERVE | MEM_TOP_DOWN, PAGE_EXECUTE_READWRITE);
     int currentSection = 0;
     for (int s = 0; s < COFF.FileHeader->NumberOfSections; s++) {
+        if (sectionMapped[s] == NULL) continue; /* filtered/skipped section */
         Section_t* section = (Section_t*)(COFF.FileBase + sizeof(FileHeader_t) + (s * sizeof(Section_t)));
         COFF.RelocationsTextPTR = COFF.FileBase + section->PointerToRelocations;
         //_dbg("********* Performing Relocations for \"%s\" Section *********\n", section->Name);
