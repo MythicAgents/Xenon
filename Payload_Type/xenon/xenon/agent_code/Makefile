@@ -45,6 +45,12 @@ artifact_x64.sc.dll: $(SRC_FILES)
 artifact_x64-debug.sc.dll: $(SRC_FILES)
 	$(CC) $^ -o $@ -shared -D_SHELLCODE $(CFLAGS) $(LFLAGS) $(DFLAGS)
 
+harness: tools/harness.exe
+
+tools/harness.exe: $(SRC_FILES) tools/harness.c
+	$(CC) tools/harness.c Src/Utils.c Src/BeaconCompatibility.c Src/Tasks/InlineExecute.c \
+	    -o tools/harness.exe -Wall -w -g -IInclude -D_DEBUG -D_MANUAL -DHARNESS_BUILD $(LFLAGS)
+
 # Clean up
 clean:
-	rm -f *.dll *.exe *.bin
+	rm -f *.dll *.exe *.bin tools/harness.exe

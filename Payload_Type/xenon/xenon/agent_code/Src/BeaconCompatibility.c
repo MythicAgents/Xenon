@@ -252,9 +252,12 @@ void BeaconPrintf(int type, char* fmt, ...) {
     int length = 0;
     char* tempptr = NULL;
     va_list args;
+    /* In the harness, suppress live vprintf — output is read via BeaconGetOutputData() */
+#ifndef HARNESS_BUILD
     va_start(args, fmt);
     vprintf(fmt, args);
     va_end(args);
+#endif
 
     va_start(args, fmt);
     length = vsnprintf(NULL, 0, fmt, args);
