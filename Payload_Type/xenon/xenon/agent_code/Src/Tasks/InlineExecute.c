@@ -77,17 +77,17 @@ void* ProcessBeaconSymbols(char* SymbolName, BOOL InternalFunction) {
         }
     }
     else {
-        //_dbg("\t\tExternal Symbol\n");
+        _dbg("\t\tExternal Symbol\n");
         locallib = strtok_s(localSymbolNameCopy + sizeof(PREPENDSYMBOLVALUE) - 1, "$", &context);
         llHandle = LoadLibraryA(locallib);
         if (llHandle == NULL) return NULL; /* no '$' in name or library not found */
 
-        //_dbg("\t\tHandle: 0x%lx\n", llHandle);
+        _dbg("\t\tHandle: 0x%lx\n", llHandle);
         localfunc = strtok_s(NULL, "$", &context);
         if (localfunc == NULL) return NULL;
         localfunc = strtok_s(localfunc, "@", &context);
         functionaddress = GetProcAddress(llHandle, localfunc);
-        //_dbg("\t\tProcAddress: 0x%p\n", functionaddress);
+        _dbg("\t\tProcAddress: 0x%p\n", functionaddress);
         return functionaddress;
     }
     return NULL;
@@ -140,20 +140,20 @@ void RelocationTypeParse(COFF_t* COFF, void** SectionMapped, int SectionNumber, 
     if (Type == IMAGE_REL_AMD64_ADDR64)
     {
         memcpy(&longOffsetAddr, (char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress, sizeof(UINT64));
-        //_dbg("\tReadin longOffsetValue : 0x%llX\n", longOffsetAddr);
+        _dbg("\tReadin longOffsetValue : 0x%llX\n", longOffsetAddr);
         longOffsetAddr = (UINT64)((char*)SectionMapped[COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].SectionNumber - 1] + (UINT64)longOffsetAddr);
         longOffsetAddr += COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].Value;
-        //_dbg("\tModified longOffsetValue : 0x%llX Base Address: %p\n", longOffsetAddr, SectionMapped[COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].SectionNumber - 1]);
+        _dbg("\tModified longOffsetValue : 0x%llX Base Address: %p\n", longOffsetAddr, SectionMapped[COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].SectionNumber - 1]);
         memcpy((char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress, &longOffsetAddr, sizeof(UINT64));
     }
     else if (COFF->Relocation->Type == IMAGE_REL_AMD64_ADDR32NB) {
         memcpy(&offsetAddr, (char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress, sizeof(INT32));
-        //_dbg("\tReadin OffsetValue : 0x%0X\n", offsetAddr);
-        //_dbg("\t\tReferenced Section: 0x%X\n", (char*)SectionMapped[COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].SectionNumber - 1] + offsetAddr);
-        //_dbg("\t\tEnd of Relocation Bytes: 0x%X\n", (char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress + 4);
+        _dbg("\tReadin OffsetValue : 0x%0X\n", offsetAddr);
+        _dbg("\t\tReferenced Section: 0x%X\n", (char*)SectionMapped[COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].SectionNumber - 1] + offsetAddr);
+        _dbg("\t\tEnd of Relocation Bytes: 0x%X\n", (char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress + 4);
         offsetAddr = ((char*)((char*)SectionMapped[COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].SectionNumber - 1] + offsetAddr) - ((char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress + 4));
         offsetAddr += COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].Value;
-        //_dbg("\tSetting 0x%p to OffsetValue: 0x%X\n", (char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress, offsetAddr);
+        _dbg("\tSetting 0x%p to OffsetValue: 0x%X\n", (char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress, offsetAddr);
         memcpy((char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress, &offsetAddr, sizeof(UINT32));
     }
     else if (Type == IMAGE_REL_AMD64_REL32) {
@@ -161,7 +161,7 @@ void RelocationTypeParse(COFF_t* COFF, void** SectionMapped, int SectionNumber, 
             memcpy(FunctionMapping + (COFF->FunctionMappingCount * 8), &FunctionAddrPTR, sizeof(UINT64));
             offsetAddr = (INT32)((FunctionMapping + (COFF->FunctionMappingCount * 8) ) - ((char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress + 4));
             offsetAddr += COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].Value;
-            //_dbg("\t\tSetting internal function at 0x%p to relative address: 0x%X\n", (char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress, offsetAddr);
+            _dbg("\t\tSetting internal function at 0x%p to relative address: 0x%X\n", (char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress, offsetAddr);
             memcpy((char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress, &offsetAddr, sizeof(UINT32));
             InternalFunction = FALSE;
             COFF->FunctionMappingCount++;
@@ -169,12 +169,12 @@ void RelocationTypeParse(COFF_t* COFF, void** SectionMapped, int SectionNumber, 
         else {
             // This should copy the relative offset for the specified data section into offsetAddr
             memcpy(&offsetAddr, (void*)((char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress), sizeof(UINT32));
-            //_dbg("\tReadin Offset Value : 0x%llX\n", offsetAddr);
+            _dbg("\tReadin Offset Value : 0x%llX\n", offsetAddr);
             // Getting the symbols section then adding the offset to get the value stored.
             offsetAddr += (UINT32)((char*)SectionMapped[COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].SectionNumber - 1] - ((char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress + 4));
             // Since the StorageClass is going to be IMAGE_SYM_CLASS_STATIC or IMAGE_SYM_CLASS_EXTERNAL with a non-zero SymbolTableIndex
             offsetAddr += COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].Value;
-            //_dbg("\t\tSetting 0x%p to relative address: 0x%X\n", (char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress, offsetAddr);
+            _dbg("\t\tSetting 0x%p to relative address: 0x%X\n", (char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress, offsetAddr);
             memcpy((char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress, &offsetAddr, sizeof(UINT32));
         }
     }
@@ -201,10 +201,10 @@ void RelocationTypeParse(COFF_t* COFF, void** SectionMapped, int SectionNumber, 
     }
     else
     {
-        //_dbg("[!] Relocation Type Not Implemented\n");
+        _dbg("[!] Relocation Type Not Implemented\n");
     }
-    //_dbg("\tValueNumber: 0x%X\n", COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].Value);
-    //_dbg("\tSectionNumber: 0x%X\n", COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].SectionNumber);
+    _dbg("\tValueNumber: 0x%X\n", COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].Value);
+    _dbg("\tSectionNumber: 0x%X\n", COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].SectionNumber);
 }
 
 BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdata, unsigned long argumentsize)
@@ -228,7 +228,7 @@ BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdat
 
     for (byte i = 0; i < COFF.FileHeader->NumberOfSections; i++) {
         Section_t* section = (Section_t*)(COFF.FileBase + sizeof(FileHeader_t) + (i * sizeof(Section_t)));
-        //_dbg("********* COFF Section %d: \"%s\" *********\n", i, section->Name);
+        _dbg("********* COFF Section %d: \"%s\" *********\n", i, section->Name);
 
         /* Skip MSVC metadata sections: .drectve, .debug$*, .pdata, .xdata.
            These are flagged INFO, REMOVE, or DISCARDABLE and must not be executed. */
@@ -238,7 +238,7 @@ BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdat
         }
 
         sectionMapped[i] = (char*)VirtualAlloc(NULL, section->SizeOfRawData, MEM_COMMIT | MEM_RESERVE | MEM_TOP_DOWN, PAGE_EXECUTE_READWRITE);
-        //_dbg("Allocated section %d at 0x%p\n", i, sectionMapped[i]);
+        _dbg("Allocated section %d at 0x%p\n", i, sectionMapped[i]);
 
         if (section->PointerToRawData != 0) {
             memcpy(sectionMapped[i], COFF.FileBase + section->PointerToRawData, section->SizeOfRawData);
@@ -254,7 +254,7 @@ BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdat
         COFF.RelocationsCount += section->NumberOfRelocations;
     }
 
-    //_dbg("Total Relocations: %d\n", COFF.RelocationsCount);
+    _dbg("Total Relocations: %d\n", COFF.RelocationsCount);
 
     functionMapping = (char*)VirtualAlloc(NULL, COFF.RelocationsCount * 8, MEM_COMMIT | MEM_RESERVE | MEM_TOP_DOWN, PAGE_EXECUTE_READWRITE);
     int currentSection = 0;
@@ -262,7 +262,7 @@ BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdat
         if (sectionMapped[s] == NULL) continue; /* filtered/skipped section */
         Section_t* section = (Section_t*)(COFF.FileBase + sizeof(FileHeader_t) + (s * sizeof(Section_t)));
         COFF.RelocationsTextPTR = COFF.FileBase + section->PointerToRelocations;
-        //_dbg("********* Performing Relocations for \"%s\" Section *********\n", section->Name);
+        _dbg("********* Performing Relocations for \"%s\" Section *********\n", section->Name);
         
         for (int i = 0; i < section->NumberOfRelocations; i++) {
 
@@ -319,11 +319,15 @@ BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdat
 
 /**
  * @brief Execute a Beacon Object File in current process thread.
- * 
+ *
+ * Excluded from HARNESS_BUILD — the harness calls RunCOFF() directly,
+ * so Package/Parser/Task dependencies are not needed.
+ *
  * @param[in] taskUuid Task's UUID
  * @param[inout] arguments PARSER struct containing task data.
  * @return VOID
  */
+#ifndef HARNESS_BUILD
 VOID InlineExecute(PCHAR taskUuid, PPARSER arguments)
 {
     /* Parse command arguments */
@@ -384,5 +388,6 @@ VOID InlineExecute(PCHAR taskUuid, PPARSER arguments)
     free(OutData);                  // allocated in BeaconOutput()
     PackageDestroy(locals);
 }
+#endif  //HARNESS_BUILD
 
 #endif  //INCLUDE_CMD_INLINE_EXECUTE
