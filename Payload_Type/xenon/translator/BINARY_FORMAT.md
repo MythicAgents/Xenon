@@ -92,7 +92,7 @@ When the task is `ls` with `file_browser=true`, the agent sends a dedicated mess
 BYTE:    0x09 (MYTHIC_FILE_BROWSER)
 BYTES[36]: task_uuid
 BYTE:    status (0x95=complete, 0x97=update, 0x99=failed)
-BYTES:   TLV payload (see below; no length prefix—rest of message is raw TLV)
+BYTES:   TLV payload (see below; no length prefix-rest of message is raw TLV)
 ```
 
 TLV payload:

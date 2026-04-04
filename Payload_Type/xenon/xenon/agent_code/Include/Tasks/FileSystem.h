@@ -30,5 +30,8 @@ VOID FileSystemList(PCHAR taskUuid, PPARSER arguments);
 VOID FileSystemRemove(PCHAR taskUuid, PPARSER arguments);
 #endif
 
+#ifdef INCLUDE_CMD_CAT
+VOID FileSystemCat(PCHAR taskUuid, PPARSER arguments);
+#endif
 
 #endif //FILESYSTEM_H

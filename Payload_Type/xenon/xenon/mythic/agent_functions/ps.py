@@ -1,4 +1,5 @@
 from mythic_container.MythicCommandBase import *
+from mythic_container.MythicRPC import *
 import json
 
 
@@ -41,4 +42,36 @@ class PsCommand(CommandBase):
 
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
         resp = PTTaskProcessResponseMessageResponse(TaskID=task.Task.ID, Success=True)
+        try:
+            # Normalise bytes vs str
+            if isinstance(response, bytes):
+                text = response.decode("utf-8", errors="replace")
+            else:
+                text = str(response) if response is not None else ""
+
+            host = task.Callback.Host if task.Callback else ""
+
+            processes = []
+            # Agent emits tab-separated lines: name\tppid\tpid[\tarch\tuser\tsession]
+            for line in text.split("\n"):
+                parts = line.rstrip("\r").split("\t")
+                if len(parts) < 3 or not parts[2].strip().isdigit():
+                    continue
+                processes.append(MythicRPCProcessCreateData(
+                    Host=host,
+                    Name=parts[0],
+                    ParentProcessID=int(parts[1]) if parts[1].strip().lstrip("-").isdigit() else 0,
+                    ProcessID=int(parts[2]),
+                    Architecture=parts[3] if len(parts) > 3 else "",
+                    User=parts[4] if len(parts) > 4 else "",
+                ))
+
+            if processes:
+                await SendMythicRPCProcessCreate(MythicRPCProcessesCreateMessage(
+                    TaskID=task.Task.ID,
+                    Processes=processes,
+                ))
+        except Exception as e:
+            resp.Error = str(e)
+            resp.Success = False
         return resp

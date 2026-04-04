@@ -52,6 +52,12 @@
 
 // System enumeration
 #define PS_CMD          0x52
+#define KILL_CMD        0x62
+#define BLOCKDLLS_CMD   0x63
+// Lateral movement
+#define JUMP_PSEXEC_CMD 0x64
+#define JUMP_WMI_CMD    0x65
+#define JOB_KILL_CMD    0x66
 // MISC
 #define SHELL_CMD       0x60
 #define PWSH_CMD        0x61        // TODO
@@ -60,6 +66,7 @@
 #define STEAL_TOKEN_CMD 0x71
 #define MAKE_TOKEN_CMD  0x72
 #define REV2SELF_CMD    0x73
+#define GETPRIVS_CMD    0x74
 // Tunnel / Connector
 #define LINK_CMD        0x90
 #define UNLINK_CMD      0x91

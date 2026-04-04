@@ -1,42 +1,63 @@
 +++
 title = "Commands"
-chapter = false
-weight = 20
+chapter = true
+weight = 10
 pre = "<b>1. </b>"
 +++
 
 ![logo](/agents/xenon/Xenon.png?width=600px)
 
-## Supported Commands
+## Table of Contents
 
-| Command         | Usage                                               | Description |
-|----------------|-----------------------------------------------------|-------------|
-| `pwd`          | `pwd`                                               | Show present working directory. |
-| `ls`           | `ls [path]`                                    | List directory information for `<directory>`. |
-| `cd`           | `cd <directory>`                           | Change working directory. |
-| `cp`           | `cp <source file> <destination file>`             | Copy a file to a new destination. |
-| `rm`           | `rm <path\|file>`                     | Remove a directory or file. |
-| `mkdir`        | `mkdir <path>`                            | Create a new directory. |
-| `getuid`       | `getuid`                                            | Get the current identity. |
-| `make_token`   | `make_token <DOMAIN> <username> <password> [LOGON_TYPE]` | Create a token and impersonate it using plaintext credentials. |
-| `steal_token`  | `steal_token <pid>`                                 | Steal and impersonate the token of a target process. |
-| `rev2self`     | `rev2self`                                          | Revert identity to the original process's token. |
-| `ps`           | `ps`                                                | List host processes. |
-| `shell`        | `shell <command>`                                   | Runs `{command}` in a terminal. |
-| `sleep`        | `sleep <seconds> [jitter]`                          | Change sleep timer and jitter. |
-| `inline_execute` | `inline_execute -BOF [COFF.o] [-Arguments [optional arguments]]` | Execute a Beacon Object File in the current process thread and see output. **Warning:** Incorrect argument types can crash the Agent process. |
-| `inline_execute_assembly` | `inline_execute_assembly -Assembly [file] [-Arguments [assembly args] [--patchexit] [--amsi] [--etw]]` | Execute a .NET Assembly in the current process using @EricEsquivel's BOF "Inline-EA" (e.g., inline_execute_assembly -Assembly SharpUp.exe -Arguments "audit" --patchexit --amsi --etw) |
-| `execute_assembly` | `execute_assembly -Assembly [SharpUp.exe] [-Arguments [assembly arguments]]` | Execute a .NET Assembly in a remote processes and retrieve the output. |
-| `execute_dll` | `execute_dll -File [mimikatz.x64.dll]` | Execute a Dynamic Link Library as PIC. (e.g., execute_dll -File mimikatz.x64.dll) |
-| `spawnto` | `spawnto -path [C:\Windows\System32\svchost.exe]` | Set the full path of the process to use for spawn & inject commands. |
-| `download`     | `download -path <file path>`                           | Download a file off the target system (supports UNC path). |
-| `upload`       | `upload (modal)`                                            | Upload a file to the target machine by selecting a file from your computer. |
-| `status`         | `status`                                              | List C2 connection hosts and their status. |
-| `link`           | `link <target> <named pipe>`                          | Connect to an SMB Link Agent. |
-| `unlink`         | `unlink <Display Id>`                                 | Disconnect from an SMB Link Agent. |
-| `socks` | `socks <start/stop> <port number>` | Enable SOCKS 5 compliant proxy to send data to the target network. |
-| `register_process_inject_kit`       | `register_process_inject_kit (pops modal)`                                            | Register a custom BOF to use for process injection (CS compatible). See documentation for requirements. |
-| `exit`         | `exit`                                              | Task the implant to exit. |
+- File Operations
+    * [pwd](/agents/xenon/commands/pwd/)
+    * [ls](/agents/xenon/commands/ls/)
+    * [cd](/agents/xenon/commands/cd/)
+    * [cp](/agents/xenon/commands/cp/)
+    * [rm](/agents/xenon/commands/rm/)
+    * [mkdir](/agents/xenon/commands/mkdir/)
+    * [cat](/agents/xenon/commands/cat/)
+    * [download](/agents/xenon/commands/download/)
+    * [upload](/agents/xenon/commands/upload/)
+- Credential / Token Commands
+    * [getuid](/agents/xenon/commands/getuid/)
+    * [make_token](/agents/xenon/commands/make_token/)
+    * [steal_token](/agents/xenon/commands/steal_token/)
+    * [rev2self](/agents/xenon/commands/rev2self/)
+    * [getprivs](/agents/xenon/commands/getprivs/)
+- Process Management
+    * [ps](/agents/xenon/commands/ps/)
+    * [kill](/agents/xenon/commands/kill/)
+    * [shell](/agents/xenon/commands/shell/)
+- Execution
+    * [inline_execute](/agents/xenon/commands/inline_execute/)
+    * [inline_execute_assembly](/agents/xenon/commands/inline_execute_assembly/)
+    * [execute_assembly](/agents/xenon/commands/execute_assembly/)
+    * [execute_dll](/agents/xenon/commands/execute_dll/)
+    * [inject_shellcode](/agents/xenon/commands/inject_shellcode/)
+    * [mimikatz](/agents/xenon/commands/mimikatz/)
+- PowerShell
+    * [powershell](/agents/xenon/commands/powershell/)
+    * [powershell_import](/agents/xenon/commands/powershell_import/)
+- Lateral Movement
+    * [jump](/agents/xenon/commands/jump/)
+    * [sc](/agents/xenon/commands/sc/)
+    * [wmiexecute](/agents/xenon/commands/wmiexecute/)
+    * [dcomexec](/agents/xenon/commands/dcomexec/)
+- Evasion
+    * [blockdlls](/agents/xenon/commands/blockdlls/)
+    * [spawnto](/agents/xenon/commands/spawnto/)
+    * [register_process_inject_kit](/agents/xenon/commands/register_process_inject_kit/)
+- Peer-to-Peer / C2
+    * [link](/agents/xenon/commands/link/)
+    * [unlink](/agents/xenon/commands/unlink/)
+    * [socks](/agents/xenon/commands/socks/)
+    * [status](/agents/xenon/commands/status/)
+- Job Management
+    * [job_kill](/agents/xenon/commands/job_kill/)
+- Agent Management
+    * [sleep](/agents/xenon/commands/sleep/)
+    * [exit](/agents/xenon/commands/exit/)
 
 ---
 
