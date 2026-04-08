@@ -24,7 +24,7 @@ class RemoteExecArguments(TaskArguments):
                 choices=[
                     "winrm",
                     "wmi",
-                    "psexec"
+                    "scshell"
                 ],
                 description="The module to execute on the remote machine.",
                 default_value="winrm",
@@ -77,7 +77,7 @@ class RemoteExecArguments(TaskArguments):
                     ParameterGroupInfo(
                         required=False,
                         group_name="Default",
-                        ui_position=4,
+                        ui_position=5,
                     )
                 ]
             ),
@@ -92,7 +92,7 @@ class RemoteExecArguments(TaskArguments):
                     ParameterGroupInfo(
                         required=False,
                         group_name="Default",
-                        ui_position=5,
+                        ui_position=6,
                     )
                 ]
             ),
@@ -107,7 +107,7 @@ class RemoteExecArguments(TaskArguments):
                     ParameterGroupInfo(
                         required=False,
                         group_name="Default",
-                        ui_position=6,
+                        ui_position=7,
                     )
                 ]
             ),
@@ -121,19 +121,26 @@ class RemoteExecArguments(TaskArguments):
                 )
             )
         if self.command_line[0] == "{":
-            self.load_args_from_json_string(self.command_line)
+            try:
+                self.load_args_from_json_string(self.command_line)
+                return
+            except Exception as e:
+                raise Exception(f"Error loading arguments from JSON string: {e}")
         else:
-            parts = self.command_line.split(" ")
-            self.add_arg("module", parts[0])
-            self.add_arg("target", parts[1])
-            self.add_arg("command", parts[2])
+            try:
+                parts = self.command_line.split(" ")
+                self.add_arg("module", parts[0])
+                self.add_arg("target", parts[1])
+                self.add_arg("command", parts[2])
+            except Exception as e:
+                raise Exception(f"Error loading arguments from command line: {e}")
             
 
 class RemoteExecCommand(CoffCommandBase):
     cmd = "remote_exec"
     needs_admin = False
-    help_cmd = "remote_exec -Module [module] -Target [target] -Command [command] -Domain [domain] -Username [username] -Password [password]"
-    description = "Execute a command on a remote machine."
+    help_cmd = "remote_exec -Module [module] -Target [target] -Command [command + args] -Domain [domain] -Username [username] -Password [password]"
+    description = "Execute a command on a remote machine using WMI, WinRM, or SCShell."
     version = 1
     author = "@c0rnbread"
     script_only = True
@@ -175,8 +182,10 @@ class RemoteExecCommand(CoffCommandBase):
                 bof_file = "remote-exec-winrm.x64.o"
             elif module == "wmi":
                 bof_file = "remote-exec-wmi.x64.o"
-            elif module == "psexec":
-                bof_file = "remote-exec-psexec.x64.o"
+            elif module == "scshell":
+                bof_file = "remote-exec-scshell.x64.o"
+            else:
+                raise Exception(f"Invalid module: {module}")
 
             # Upload desired BOF if it hasn't been before (per payload uuid)
             succeeded = await upload_module_if_missing(file_name=bof_file, taskData=taskData)

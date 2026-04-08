@@ -149,7 +149,7 @@ void go(char* buff, int len) {
 	// Doesnt currently work but should let you use current context
 	if (IsCurrent == 1)
 	{
-	authidentity = NULL;
+		authidentity = NULL;
 	}
 
 	hr = OLE32$CoInitializeEx(0, COINIT_APARTMENTTHREADED);

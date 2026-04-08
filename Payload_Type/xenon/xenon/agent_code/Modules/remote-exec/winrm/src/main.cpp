@@ -1,3 +1,6 @@
+/**
+ * Credits: https://github.com/Adaptix-Framework/Extension-Kit/blob/main/LateralMovement-BOF/winrm-client/winrm.cpp
+ */
 #include <windows.h>
 #define WSMAN_API_VERSION_1_0
 #include <wsman.h>
