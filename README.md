@@ -161,9 +161,9 @@ If you have suggestions/requests open an issue or you can message me on discord.
 - [X] Work on memory issues (duplicate buffers etc)
 - [X] Fix initial install files not found
 - [x] Random named pipes per payload generation
+- [x] Issues executing BOFs compiled with MSVC
 - [ ] Weirdness with File Browser UI (remote hosts, etc)
 - [ ] `execute_assembly` can cause PIPE_BUSY if doesnt exit properly
-- [ ] Issues executing BOFs compiled with MSVC
 
 ## Contributors
 Special thanks to all contributors who help improve this project.
