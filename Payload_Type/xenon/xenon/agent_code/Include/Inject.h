@@ -10,6 +10,7 @@
 #if defined(INCLUDE_CMD_INJECT_SHELLCODE) && defined(INCLUDE_CMD_INLINE_EXECUTE)
 
 BOOL InjectShellcodeViaKit(
+	_In_  PCHAR   PostexPipename,
 	_In_  PBYTE   buffer, 
 	_In_  SIZE_T  bufferLen, 
 	_In_  PCHAR   InjectKit, 

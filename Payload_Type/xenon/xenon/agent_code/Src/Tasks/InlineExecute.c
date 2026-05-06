@@ -246,7 +246,7 @@ BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdat
                 BOOL internalFunctionCheck = FALSE;
                 funcptrlocation = ProcessBeaconSymbols(((char*)(COFF.SymbolTable + COFF.FileHeader->NumberOfSymbols)) + symbolOffset, &internalFunctionCheck);
                 if (funcptrlocation == NULL && COFF.SymbolTable[COFF.Relocation->SymbolTableIndex].SectionNumber == 0) {
-                    _dbg("[!] Failed to resolve symbol\n");
+                    _dbg("[!] Failed to resolve symbol. Symbol : %s\n", ((char*)(COFF.SymbolTable + COFF.FileHeader->NumberOfSymbols)) + symbolOffset);
                 }
 
                 RelocationTypeParse(&COFF, sectionMapped, s, &internalFunctionCheck, funcptrlocation, functionMapping);
