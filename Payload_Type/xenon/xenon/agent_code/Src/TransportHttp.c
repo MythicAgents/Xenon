@@ -532,8 +532,8 @@ void HttpConfigureHttp(LPCSTR lpszServerName, INTERNET_PORT nServerPort, LPCSTR 
 
 void HttpClose(void)
 {
-	InternetCloseHandle(gInternetConnect);
-	InternetCloseHandle(gInternetOpen);
+	if (gInternetConnect) InternetCloseHandle(gInternetConnect);
+	if (gInternetOpen) InternetCloseHandle(gInternetOpen);
 }
 
 

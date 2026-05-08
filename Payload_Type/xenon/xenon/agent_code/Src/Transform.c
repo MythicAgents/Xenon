@@ -379,13 +379,17 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
             
             if ((status = base64_decode((const char*)recoverable, recoverableLength, temp, &outlen)) != 0) {
                 _err("base64_decode failed ERROR : %d", status);
+                free(temp);
                 return FALSE;
             }
 
             recoverableLength = outlen;
 
             if (recoverableLength == 0)
+            {
+                free(temp);
                 return FALSE;
+            }
 
             memcpy(recoverable, temp, recoverableLength);
             break;
@@ -401,6 +405,7 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
 
             if ((status = base64url_decode((const char*)recoverable, recoverableLength, temp, &outlen)) != 0) {
                 _err("base64url_decode failed. ERROR : %d", status);
+                free(temp);
                 return FALSE;
             }
             
@@ -408,6 +413,7 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
 
             if (recoverableLength == 0) {
                 _err("No data recovered");
+                free(temp);
                 return FALSE;
             }
 
@@ -426,11 +432,15 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
             
             if (!xor_encode((char*)recoverable, recoverableLength, value, len, temp)) {
                 _err("xor_encode transformation failed");
+                free(temp);
                 return FALSE;
             }
 
             if (recoverableLength == 0)
+            {
+                free(temp);
                 return FALSE;
+            }
 
             memcpy(recoverable, temp, recoverableLength);
             recoverable[recoverableLength] = 0;
@@ -445,7 +455,10 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
             recoverableLength = from_netbios(step == TRANSFORM_NETBIOSU ? 'A' : 'a', recoverable, recoverableLength, temp, maxGet);
 
             if (recoverableLength == 0)
+            {
+                free(temp);
                 return FALSE;
+            }
 
             memcpy(recoverable, temp, recoverableLength);
             recoverable[recoverableLength] = 0;
@@ -459,6 +472,7 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
             if (len > recoverableLength)
             {
                 _err("Prepend parameter %d is greater than recoverable length %d", len, recoverableLength);
+                free(temp);
                 return FALSE;
             }
 
@@ -474,7 +488,10 @@ BOOL TransformReverse(char* recoverable, DWORD recoverableLength, SIZE_T* recove
             UINT32 len = ParserGetInt32(&parser);
             recoverableLength -= len;
             if (recoverableLength <= 0)
+            {
+                free(temp);
                 return FALSE;
+            }
 
             break;
         }

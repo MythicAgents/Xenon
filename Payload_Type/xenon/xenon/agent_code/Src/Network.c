@@ -142,9 +142,9 @@ retry_request:
     if (bStatus) {
         gFailureCount = 0;
     } else {
-        gFailureCount++;        
+        gFailureCount++;
+        HttpClose();
         _err("HTTP failed %d times. Retrying...", gFailureCount);
-        
         SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);
         goto retry_request;
     }
