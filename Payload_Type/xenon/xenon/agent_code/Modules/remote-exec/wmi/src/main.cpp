@@ -57,9 +57,11 @@ void CreateCreds(COAUTHINFO** authInfo, COAUTHIDENTITY** authidentity, wchar_t* 
 		id->Flags = SEC_WINNT_AUTH_IDENTITY_UNICODE;
 	}
 
-	if (IsCurrent == 0)
+	/* Use embedded identity only for alternate creds. When IsCurrent==1 the
+	 * process token is used; pAuthIdentityData must be NULL in that case. */
+	if (IsCurrent == 1)
 	{
-	id = NULL;
+		id = NULL;
 	}
 
 	COAUTHINFO* inf = (COAUTHINFO*)KERNEL32$HeapAlloc(KERNEL32$GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(COAUTHINFO));
@@ -134,8 +136,8 @@ void go(char* buff, int len) {
 	// Set bwtarget2 to bwtarget3
 	bwtarget2 = bwtarget3;
 
-	// if domain, username, or password were supplied, set IsCurrent to 0
-	if (MSVCRT$wcslen(bwdomain) > 0 || MSVCRT$wcslen(bwusername) > 0 || MSVCRT$wcslen(bwpassword) > 0) {
+	/* Alternate creds require a username and password (domain optional). */
+	if (MSVCRT$wcslen(bwusername) > 0 && MSVCRT$wcslen(bwpassword) > 0) {
 		IsCurrent = 0;
 		BeaconPrintf(CALLBACK_OUTPUT, "Using supplied credentials\n");
 	} else {
@@ -171,8 +173,22 @@ void go(char* buff, int len) {
 	BSTR srv = OLEAUT32$SysAllocString(bwtarget2);
 	BSTR usr = OLEAUT32$SysAllocString(bwusername);
 	BSTR pass = OLEAUT32$SysAllocString(bwpassword);
+	wchar_t domainuser_str[MAX_PATH] = L"";
 	
-	hr = locator->ConnectServer(srv, NULL, NULL, 0, WBEM_FLAG_CONNECT_USE_MAX_WAIT, 0, 0, &pSvc);
+	if (IsCurrent == 0) {
+		/* Format the domain and username */
+		BSTR domain_user;
+		if (MSVCRT$wcslen(bwdomain) > 0) {
+			MSVCRT$swprintf(domainuser_str, L"%ls\\%ls", bwdomain, bwusername);
+		} else {
+			MSVCRT$swprintf(domainuser_str, L"%ls", bwusername);
+		}
+		domain_user = OLEAUT32$SysAllocString(domainuser_str);
+		/* Connect to the server */
+		hr = locator->ConnectServer(srv, domain_user, pass, 0, WBEM_FLAG_CONNECT_USE_MAX_WAIT, 0, 0, &pSvc);
+	} else {
+		hr = locator->ConnectServer(srv, NULL, NULL, 0, WBEM_FLAG_CONNECT_USE_MAX_WAIT, 0, 0, &pSvc);
+	}
 
 	if (!SUCCEEDED(hr)) {
 		BeaconPrintf(CALLBACK_ERROR, "ConnectServer failed: 0x%08x", hr);
