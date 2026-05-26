@@ -91,22 +91,6 @@ BOOL NetworkRequest(_In_ PPackage package, _Out_ PBYTE* ppOutData, _Out_ SIZE_T*
  */
 BOOL NetworkHttpXSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 {
-    /*
-        This is a hacky work-around for avoiding a race condition.
-        The NetworkHttpXSend() function uses global HINTERNET handles under-the-hood, so
-        with multi-threading there is a possibilty of gInternetConnect/gInternetOpen 
-        handles being freed while they're being used in another thread.
-    */
-    if ( gHttpMutex == NULL ) {
-        gHttpMutex = CreateMutex(NULL, FALSE, NULL);
-    }
-
-    if ( WaitForSingleObject(gHttpMutex, INFINITE) != WAIT_OBJECT_0 )     // Locks 
-    {
-        _dbg("WaitForSingleObject failed : ERROR %d", GetLastError());
-    }
-
-
     SIZE_T bufferLen = package->length;
     BYTE reqProfile = (bufferLen > 500) ? POST_REQUEST : GET_REQUEST;   // Choose request type based on payload size
 
@@ -139,20 +123,20 @@ retry_request:
             break;
     }
 
-    if (bStatus) {
+    if (bStatus)
+    {
         gFailureCount = 0;
-    } else {
-        gFailureCount++;        
+    } 
+    else 
+    {
+        gFailureCount++;
+        HttpClose();
         _err("HTTP failed %d times. Retrying...", gFailureCount);
-        
         SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);
         goto retry_request;
     }
 
     HttpClose();    // Releases HINTERNET handles
-
-    ReleaseMutex(gHttpMutex);   // Unlock
-
     return bStatus;
 }
 

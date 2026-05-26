@@ -1,5 +1,5 @@
 from mythic_container.MythicRPC import *
-import os, asyncio, logging
+import os, asyncio, logging, typing
 
 logging.basicConfig(level=logging.INFO)
 
@@ -90,6 +90,31 @@ class ProcessInjectKit:
             self.set_inject_explicit(upload_resp.AgentFileId)
         else:
             raise Exception(f"[PIK] Failed to upload {explicit_kit_filename}: {upload_resp.Error}")
+
+#######################################
+### Compile Postex named pipe stub ####
+#######################################
+
+async def compile_postex_named_pipe_stub(postex_pipename: str) -> bool:
+    """
+    Compile postex named pipe stub and return True if successful, otherwise return False
+    """
+    try: 
+        # CWD - Xenon/Payload_Type/xenon/
+        stub_dir = 'xenon/agent_code/stub'
+        cmd_stub = f"make PIPENAME={postex_pipename}"
+        proc = await asyncio.create_subprocess_shell(cmd_stub, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=stub_dir)
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            logging.error(f"Command failed with exit code {proc.returncode}")
+            logging.error(f"[stderr]: {stderr.decode()}")
+            return False
+        else:
+            # logging.info(f"[stdout]: {stdout.decode()}")
+            return True
+    except Exception as err:
+        logging.error(f"Failed to compile postex named pipe stub: {err}")
+        return False
 
 # Global
 PROCESS_INJECT_KIT = ProcessInjectKit()

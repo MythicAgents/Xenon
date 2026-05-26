@@ -161,9 +161,9 @@ If you have suggestions/requests open an issue or you can message me on discord.
 - [X] Work on memory issues (duplicate buffers etc)
 - [X] Fix initial install files not found
 - [x] Random named pipes per payload generation
+- [x] Issues executing BOFs compiled with MSVC
 - [ ] Weirdness with File Browser UI (remote hosts, etc)
 - [ ] `execute_assembly` can cause PIPE_BUSY if doesnt exit properly
-- [ ] Issues executing BOFs compiled with MSVC
 
 ## Contributors
 Special thanks to all contributors who help improve this project.
@@ -171,8 +171,15 @@ Special thanks to all contributors who help improve this project.
 - **@c0rnbread** — Author & Maintainer
 - **@dstepanov** — TCP Transport support
 - **vnp-dev**
+- **steve-embling**
 
 If you would like to contribute to the project, please work off of the **next version branch** (named like "v1.2.3") as merges will go into that.
+
+If you'd like your PRs to be merged then:
+- Do not submit completely vibe-coded additions
+- Follow the existing programming styling
+- Keep PRs < 1k lines of code focused on single features
+- C is inherently prone to memory bugs, do not refactor large portions of code unless explicitly stating why
 
 ## Credits
 

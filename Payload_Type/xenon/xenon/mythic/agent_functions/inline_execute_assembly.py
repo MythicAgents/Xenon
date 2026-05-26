@@ -161,7 +161,7 @@ class InlineExecuteAssemblyCommand(CoffCommandBase):
     version = 1
     author = "@c0rnbread"
     script_only = True
-    attackmapping = []
+    attackmapping = ["T1620"]
     argument_class = InlineExecuteAssemblyArguments
     attributes = CommandAttributes(
         dependencies=["inline_execute"],

