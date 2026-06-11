@@ -18,9 +18,10 @@ It's during this time that the configuration is saved locally so that it can be 
 This C2 Profile allows you to specify multiple callback domains, such as: `["https://redirector1.com", "https://redirector2.com:8443"]`.
 
 ### Domain Rotation
-With multiple callback domains, you need to specify some way of rotating between them. This profile currently offers two options:
+With multiple callback domains, you need to specify some way of rotating between them. This profile currently offers three options:
 * `round-robin` - each request goes to the next domain in the list and circles back around
 * `fail-over` - the first domain is used until it hits a certain number of failed messages, then it moves to the next one
+* `random` - each request uses a randomly selected domain from the list
 
 ### Agent Configuration
 Your agent configuration can be specified via either TOML or JSON files. These are uploaded with a payload's build and have their own `name`.
@@ -122,7 +123,10 @@ Date for the agent to automatically exit, typically the after an assessment is f
 True or False for if you want to perform a key exchange with the Mythic Server. When this is true, the agent uses the key specified by the base64 32Byte key to send an initial message to the Mythic server with a newly generated RSA public key. If this is set to `F`, then the agent tries to just use the base64 of the key as a static AES key for encryption. If that key is also blanked out, then the requests will all be in plaintext.
 
 #### Domain Rotation
-This indicates how you want your domains to be used (only really matters if you specify more than one domain). `fail-over` will use the first domain until it fails `failover_threshold` times, then it moves to the next one. `round-robin` will just keep using the next one in sequence for each message.
+This indicates how you want your domains to be used (only really matters if you specify more than one domain). `fail-over` will use the first domain until it fails `failover_threshold` times, then it moves to the next one. `round-robin` will just keep using the next one in sequence for each message. `random` will select a domain at random for each message.
+
+#### Domain Fallback Threshold
+When using `fail-over` domain rotation, this is the number of failed attempts before moving to the next callback domain.
 
 
 ## OPSEC
