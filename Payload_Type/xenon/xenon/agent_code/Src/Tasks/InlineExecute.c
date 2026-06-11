@@ -73,18 +73,45 @@ BOOL ExecuteEntry(COFF_t* COFF, char* func, char* args, unsigned long argSize) {
     VOID(*foo)(char* in, UINT32 datalen) = NULL;
 
     if (!func || !COFF->FileBase)
-        _dbg("No entry provided");
+	{
+		_dbg("No entry provided");
+		return FALSE;
+	}
 
-    for (UINT32 counter = 0; counter < COFF->FileHeader->NumberOfSymbols; counter++)
+    char* stringTable = (char*)(COFF->SymbolTable + COFF->FileHeader->NumberOfSymbols);
+    for (UINT32 counter = 0; counter < COFF->FileHeader->NumberOfSymbols; counter += 1 + COFF->SymbolTable[counter].NumberOfAuxSymbols)
     {
-        if (strcmp(COFF->SymbolTable[counter].first.Name, func) == 0) {
-            foo = (void(*)(char*, UINT32))((char*)COFF->RawTextData + COFF->SymbolTable[counter].Value);
-            _dbg("Trying to run: 0x%p\n\n", foo);
+        char* symName;
+        char inlineName[9] = {0};
+        if (COFF->SymbolTable[counter].first.Name[0] != 0)
+		{
+            memcpy(inlineName, COFF->SymbolTable[counter].first.Name, 8);
+            symName = inlineName;
+        }
+		else 
+		{
+            symName = stringTable + COFF->SymbolTable[counter].first.value[1];
+        }
+		
+        if (strcmp(symName, func) == 0)
+		{
+            UINT16 secNum = COFF->SymbolTable[counter].SectionNumber;
+            if (secNum == 0 || COFF->SectionMapped[secNum - 1] == NULL)
+			{
+                //_dbg("Entry symbol found but section not loaded (secNum=%d)\n", secNum);
+                continue;
+            }
+            foo = (void(*)(char*, UINT32))((char*)COFF->SectionMapped[secNum - 1] + COFF->SymbolTable[counter].Value);
         }
     }
 
     if (!foo)
-        _dbg("Couldn't find entry point");
+	{
+		_dbg("Couldn't find entry point");
+		return FALSE;
+	}
+
+	_dbg("Trying to run: 0x%p\n\n", foo);
 
     foo((char*)args, argSize);
     return TRUE;
@@ -95,7 +122,13 @@ void RelocationTypeParse(COFF_t* COFF, void** SectionMapped, int SectionNumber, 
     UINT64 longOffsetAddr = 0;
     unsigned int Type = COFF->Relocation->Type;
 
-    if (Type == IMAGE_REL_AMD64_ADDR64) 
+    if (FunctionAddrPTR == NULL) {
+        UINT16 symSecNum = COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].SectionNumber;
+        if (symSecNum == 0) return;
+        if (SectionMapped[symSecNum - 1] == NULL) return;
+    }
+
+    if (Type == IMAGE_REL_AMD64_ADDR64)
     {
         memcpy(&longOffsetAddr, (char*)SectionMapped[SectionNumber] + COFF->Relocation->VirtualAddress, sizeof(UINT64));
         //_dbg("\tReadin longOffsetValue : 0x%llX\n", longOffsetAddr);
@@ -156,6 +189,7 @@ BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdat
     
     char* functionMapping = NULL;
     void** sectionMapped = (void**)calloc(sizeof(char*) * (COFF.FileHeader->NumberOfSections + 1), 1);
+    COFF.SectionMapped = sectionMapped;
 
     if ((int)COFF.FileHeader->Machine != IMAGE_FILE_MACHINE_AMD64) {
         _dbg("[!] This common object file format is not supported yet :)");
@@ -189,6 +223,7 @@ BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdat
     functionMapping = (char*)VirtualAlloc(NULL, COFF.RelocationsCount * 8, MEM_COMMIT | MEM_RESERVE | MEM_TOP_DOWN, PAGE_EXECUTE_READWRITE);
     int currentSection = 0;
     for (int s = 0; s < COFF.FileHeader->NumberOfSections; s++) {
+        if (sectionMapped[s] == NULL) continue; /* filtered/skipped section */
         Section_t* section = (Section_t*)(COFF.FileBase + sizeof(FileHeader_t) + (s * sizeof(Section_t)));
         COFF.RelocationsTextPTR = COFF.FileBase + section->PointerToRelocations;
         //_dbg("********* Performing Relocations for \"%s\" Section *********\n", section->Name);
@@ -211,7 +246,7 @@ BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdat
                 BOOL internalFunctionCheck = FALSE;
                 funcptrlocation = ProcessBeaconSymbols(((char*)(COFF.SymbolTable + COFF.FileHeader->NumberOfSymbols)) + symbolOffset, &internalFunctionCheck);
                 if (funcptrlocation == NULL && COFF.SymbolTable[COFF.Relocation->SymbolTableIndex].SectionNumber == 0) {
-                    _dbg("[!] Failed to resolve symbol\n");
+                    _dbg("[!] Failed to resolve symbol. Symbol : %s\n", ((char*)(COFF.SymbolTable + COFF.FileHeader->NumberOfSymbols)) + symbolOffset);
                 }
 
                 RelocationTypeParse(&COFF, sectionMapped, s, &internalFunctionCheck, funcptrlocation, functionMapping);

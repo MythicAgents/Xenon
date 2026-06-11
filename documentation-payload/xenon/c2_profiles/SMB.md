@@ -16,7 +16,7 @@ The format for messages on the wire is simple. We have `messageA`, a properly fo
 | uint32 (4 Bytes)     | big endian format for the current chunk number (starting at 0)                       |
 | []byte (variable)    | the raw bytes of this chunk of messageA                                              |
 
-Note: THe 1KB chunk here is just an example. The chunk size can be whatever you want as long as it's under the max size for SMB writes (about 60MB).
+Note: The 1KB chunk here is just an example. The chunk size can be whatever you want as long as it's under the max size for SMB writes (about 60MB).
 
 If this is the callback that generated `messageA`, then this is the same message that you would send as if you were trying to send out through an egress profile (i.e. base64(uuid+data)).
 If you're another callback in a chain that's getting this message then this is either:

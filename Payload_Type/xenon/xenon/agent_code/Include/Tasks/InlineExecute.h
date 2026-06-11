@@ -81,6 +81,7 @@ typedef struct COFF {
     Symbol_t* SymbolTable;
 
     void* RawTextData;
+    void** SectionMapped;
     char* RelocationsTextPTR;
     int RelocationsCount;
     int FunctionMappingCount;

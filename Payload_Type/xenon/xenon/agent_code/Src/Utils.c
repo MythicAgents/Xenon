@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>  // for rand() and srand()
 #include <time.h>    // for time()
+#include <windows.h>
 
 #if defined(_MANUAL) || defined(_DEBUG)
 void print_bytes(PBYTE buffer, SIZE_T length) {
@@ -51,8 +52,9 @@ BOOL xor_encode(char* data, size_t data_len, char* key, size_t key_len, char* ou
     }
 
     for (size_t i = 0; i < data_len; i++) {
-        output[i] = data[i] ^ key[i % key_len]; // Use modulo to loop key
+        output[i] = data[i] ^ key[i % key_len];
     }
+    return TRUE;
 }
 
 size_t calculate_base64_encoded_size(size_t inlen)

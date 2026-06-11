@@ -23,17 +23,20 @@ pre = "<b>1. </b>"
 | `rev2self`     | `rev2self`                                          | Revert identity to the original process's token. |
 | `ps`           | `ps`                                                | List host processes. |
 | `shell`        | `shell <command>`                                   | Runs `{command}` in a terminal. |
+| `remote_exec`  | `remote_exec -Module [module] -Target [target] -Command [command + args] [-Domain [domain]] [-Username [username]] [-Password [password]]` | Execute a command on a remote machine using WMI, WinRM, or SCShell. |
 | `sleep`        | `sleep <seconds> [jitter]`                          | Change sleep timer and jitter. |
 | `inline_execute` | `inline_execute -BOF [COFF.o] [-Arguments [optional arguments]]` | Execute a Beacon Object File in the current process thread and see output. **Warning:** Incorrect argument types can crash the Agent process. |
 | `inline_execute_assembly` | `inline_execute_assembly -Assembly [file] [-Arguments [assembly args] [--patchexit] [--amsi] [--etw]]` | Execute a .NET Assembly in the current process using @EricEsquivel's BOF "Inline-EA" (e.g., inline_execute_assembly -Assembly SharpUp.exe -Arguments "audit" --patchexit --amsi --etw) |
 | `execute_assembly` | `execute_assembly -Assembly [SharpUp.exe] [-Arguments [assembly arguments]]` | Execute a .NET Assembly in a remote processes and retrieve the output. |
 | `execute_dll` | `execute_dll -File [mimikatz.x64.dll]` | Execute a Dynamic Link Library as PIC. (e.g., execute_dll -File mimikatz.x64.dll) |
 | `spawnto` | `spawnto -path [C:\Windows\System32\svchost.exe]` | Set the full path of the process to use for spawn & inject commands. |
+| `powerchell` | `powerchell -Command <command>` | Execute PowerShell script using PowerChell post-ex DLL. |
+| `powershell_import` | `powershell_import -File [script.ps1] \| --clear` | Import PowerShell script to cache. |
 | `download`     | `download -path <file path>`                           | Download a file off the target system (supports UNC path). |
 | `upload`       | `upload (modal)`                                            | Upload a file to the target machine by selecting a file from your computer. |
 | `status`         | `status`                                              | List C2 connection hosts and their status. |
-| `link`           | `link <target> <named pipe>`                          | Connect to an SMB Link Agent. |
-| `unlink`         | `unlink <Display Id>`                                 | Disconnect from an SMB Link Agent. |
+| `link`           | `link <target> [<named pipe>\|<tcp_port>]`                          | Connect to an SMB/TCP Link Agent. |
+| `unlink`         | `unlink <Display Id>`                                 | Disconnect from an SMB/TCP Link Agent. |
 | `socks` | `socks <start/stop> <port number>` | Enable SOCKS 5 compliant proxy to send data to the target network. |
 | `register_process_inject_kit`       | `register_process_inject_kit (pops modal)`                                            | Register a custom BOF to use for process injection (CS compatible). See documentation for requirements. |
 | `exit`         | `exit`                                              | Task the implant to exit. |
@@ -44,3 +47,12 @@ pre = "<b>1. </b>"
 Forge is a command augmentation container that enables Xenon to use a ton of tools from SharpCollections and Sliver Armory BOFs.
 
 Refer to the forge documentation [here](https://github.com/MythicAgents/forge.git)
+
+### Post-Ex Commands
+These are post-ex commands that follow the classic **fork & run** style injection. They are implemented as DLLs turned to PIC with Crystal Palace, with the exception of `mimikatz`.
+
+| Command                  | Usage                                                         | Description |
+|--------------------------|---------------------------------------------------------------|-------------|
+| `mimikatz`          | `mimikatz [args]`                                               | Execute mimikatz in a remote process. |
+| `execute_assembly` | `execute_assembly -Assembly [SharpUp.exe] [-Arguments [assembly arguments]]` | Execute a .NET Assembly in a remote processes and retrieve the output. |
+| `powerchell` | `powerchell -Command <command>` | Execute PowerShell script using PowerChell post-ex DLL. |

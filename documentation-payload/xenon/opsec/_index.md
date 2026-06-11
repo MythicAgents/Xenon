@@ -17,6 +17,13 @@ They are compatible with Cobalt Strike's Process Injection Kits.
 | `execute_assembly` | `execute_assembly -Assembly [SharpUp.exe] [-Arguments [assembly arguments]]` | Execute a .NET Assembly in a remote processes and retrieve the output. OPSEC Warning: Uses donut shellcode. |
 | `powerchell` | `powerchell -Command <command>` | Execute PowerShell script using PowerChell post-ex DLL. |
 
+## Lateral Movement Commands
+These commands execute Beacon Object Files inline in the current agent process via `inline_execute`. They do not spawn a sacrificial process.
+
+| Command                  | Usage                                                         | Description |
+|--------------------------|---------------------------------------------------------------|-------------|
+| `remote_exec` | `remote_exec -Module [module] -Target [target] -Command [command + args] [-Domain [domain]] [-Username [username]] [-Password [password]]` | Execute a command on a remote machine. Supported modules: `winrm`, `wmi`, `scshell`. |
+
 ## User-Defined Reflective Loader (UDRL)
 In previous versions, Xenon used donut-shellcode to generate shellcode from its DLL output type. That has changed.
 Now by default, Xenon uses a simple reflective DLL loader based on the [Crystal Palace](https://tradecraftgarden.org/crystalpalace.html) linker created by Raphael Mudge.

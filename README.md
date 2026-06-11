@@ -59,6 +59,7 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 | `rev2self`     | `rev2self`                                          | Revert identity to the original process's token. |
 | `ps`           | `ps`                                                | List host processes. |
 | `shell`        | `shell <command>`                                   | Runs `{command}` in a terminal. |
+| `remote_exec`  | `remote_exec -Module [module] -Target [target] -Command [command + args] [-Domain [domain]] [-Username [username]] [-Password [password]]` | Execute a command on a remote machine using WMI, WinRM, or SCShell. |
 | `sleep`        | `sleep <seconds> [jitter]`                          | Change sleep timer and jitter. |
 | `inline_execute` | `inline_execute -BOF [COFF.o] [-Arguments [optional arguments]]` | Execute a Beacon Object File in the current process thread and see output. **Warning:** Incorrect argument types can crash the Agent process. |
 | `inline_execute_assembly` | `inline_execute_assembly -Assembly [file] [-Arguments [assembly args] [--patchexit] [--amsi] [--etw]]` | Execute a .NET Assembly in the current process using @EricEsquivel's BOF "Inline-EA" (e.g., inline_execute_assembly -Assembly SharpUp.exe -Arguments "audit" --patchexit --amsi --etw) |
@@ -161,9 +162,10 @@ If you have suggestions/requests open an issue or you can message me on discord.
 - [X] Work on memory issues (duplicate buffers etc)
 - [X] Fix initial install files not found
 - [x] Random named pipes per payload generation
+- [x] Issues executing BOFs compiled with MSVC
+- [x] `execute_assembly` can cause PIPE_BUSY if doesnt exit properly
 - [ ] Weirdness with File Browser UI (remote hosts, etc)
-- [ ] `execute_assembly` can cause PIPE_BUSY if doesnt exit properly
-- [ ] Issues executing BOFs compiled with MSVC
+
 
 ## Contributors
 Special thanks to all contributors who help improve this project.
@@ -171,8 +173,15 @@ Special thanks to all contributors who help improve this project.
 - **@c0rnbread** — Author & Maintainer
 - **@dstepanov** — TCP Transport support
 - **vnp-dev**
+- **steve-embling**
 
 If you would like to contribute to the project, please work off of the **next version branch** (named like "v1.2.3") as merges will go into that.
+
+If you'd like your PRs to be merged then:
+- Do not submit completely vibe-coded additions
+- Follow the existing programming styling
+- Keep PRs < 1k lines of code focused on single features
+- C is inherently prone to memory bugs, do not refactor large portions of code unless explicitly stating why
 
 ## Credits
 
