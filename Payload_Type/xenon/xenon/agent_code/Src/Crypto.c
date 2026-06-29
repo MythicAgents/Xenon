@@ -9,6 +9,7 @@
 
 // This should be a safe way to compare secret values without leaking timing info
 // https://github.com/veorq/cryptocoding#compare-secret-strings-in-constant-time
+// This function assumes that both sides of the comparison are the same size
 BOOL ConstTimeCompare(const char* lhs, const char* rhs, const SIZE_T size) {
     unsigned char missed = 0;
     for (SIZE_T idx = 0; idx < size; idx++) {
