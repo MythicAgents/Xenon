@@ -7,6 +7,16 @@
 #include "Aes.h"
 
 
+// This should be a safe way to compare secret values without leaking timing info
+// https://github.com/veorq/cryptocoding#compare-secret-strings-in-constant-time
+BOOL ConstTimeCompare(const char* lhs, const char* rhs, const SIZE_T size) {
+    unsigned char missed = 0;
+    for (SIZE_T idx = 0; idx < size; idx++) {
+        missed |= lhs[idx] ^ rhs[idx];
+    }
+    return missed;
+}
+
 // Generate random bytes of size sSize
 VOID GenerateRandomBytes(PBYTE pByte, SIZE_T sSize) {
   for (int i = 0; i < sSize; i++) {
@@ -227,7 +237,7 @@ BOOL CryptoMythicDecryptParser(PPARSER parser) {
     // _dbg("HMAC Calculated:");
     // print_bytes(hmac_calculated, SHA256_HASH_SIZE);
 
-    if (memcmp(hmac_calculated, hmac_provided, SHA256_HASH_SIZE) != 0) {
+    if (ConstTimeCompare(hmac_calculated, hmac_provided, SHA256_HASH_SIZE) != 0) {
         _err("HMAC verification failed.");
         goto end;
     }
