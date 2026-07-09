@@ -107,6 +107,7 @@ def post_response_handler(data):
     mythic_delegates = []
     mythic_edges = []
     mythic_socks = []
+    mythic_rpfwd = []
 
     # Number of tasks to return to agent
     num_of_tasks = int.from_bytes(data[0:4], byteorder='big')
@@ -164,6 +165,12 @@ def post_response_handler(data):
             if socks_msg:
                 mythic_socks.append(socks_msg)
 
+        elif response_type == MYTHIC_RPORTFWD_DATA:
+            task_json, rpfwd_msg, data = rportfwd_to_mythic_format(data)
+            logging.info(f"[MYTHIC_RPORTFWD_DATA]")
+            if rpfwd_msg:
+                mythic_rpfwd.append(rpfwd_msg)
+
         elif response_type == MYTHIC_FILE_BROWSER:
             task_json, data = file_browser_to_mythic_format(data)
             logging.info(f"[MYTHIC_FILE_BROWSER]")
@@ -192,6 +199,9 @@ def post_response_handler(data):
     
     if mythic_socks:
         mythic_json["socks"] = mythic_socks
+
+    if mythic_rpfwd:
+        mythic_json["rpfwd"] = mythic_rpfwd
 
     return mythic_json
 
@@ -706,3 +716,70 @@ def socks_to_mythic_format(data):
     logging.info(f"[SOCKS] IMPLANT -> C2: server_id={server_id}, data_len={len(socks_data)}, exit={exit_flag}")
     
     return task_json, socks_msg, data
+
+
+def rportfwd_to_mythic_format(data):
+    """
+    Parse reverse port forward data message from Agent and return JSON in Mythic format.
+
+    RPORTFWD messages are forwarded to Mythic in the "rpfwd" array:
+    {
+        "action": "get_tasking",
+        "rpfwd": [
+            {
+                "server_id": 12345,
+                "port": 445,
+                "data": "base64_encoded_data",
+                "exit": false
+            }
+        ]
+    }
+
+    Binary format from agent:
+        UINT32: server_id
+        UINT32: port
+        UINT32: data_length
+        BYTES:  data
+        BYTE:   exit_flag (0x00 or 0x01)
+    """
+    task_json = None
+
+    if len(data) < 4:
+        logging.error("[RPORTFWD] Insufficient data for server_id")
+        return None, None, data
+
+    server_id = int.from_bytes(data[0:4], byteorder='big')
+    data = data[4:]
+
+    if len(data) < 4:
+        logging.error("[RPORTFWD] Insufficient data for port")
+        return None, None, data
+
+    port = int.from_bytes(data[0:4], byteorder='big')
+    data = data[4:]
+
+    if len(data) < 4:
+        logging.error("[RPORTFWD] Insufficient data for data_length")
+        return None, None, data
+
+    rpfwd_data, data = get_bytes_with_size(data)
+
+    if len(data) < 1:
+        logging.error("[RPORTFWD] Insufficient data for exit_flag")
+        return None, None, data
+
+    exit_flag = data[0] == 0x01
+    data = data[1:]
+
+    data_b64 = base64.b64encode(rpfwd_data).decode('utf-8') if rpfwd_data else ""
+
+    rpfwd_msg = {
+        "server_id": server_id,
+        "port": port,
+        "data": data_b64,
+        "exit": exit_flag
+    }
+
+    logging.info(f"[RPORTFWD] IMPLANT -> C2: server_id={server_id}, port={port}, data_len={len(rpfwd_data)}, exit={exit_flag}")
+
+    return task_json, rpfwd_msg, data

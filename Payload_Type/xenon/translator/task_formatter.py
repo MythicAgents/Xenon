@@ -236,11 +236,58 @@ def format_socks_as_task(socks_msg: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def format_rportfwd_as_task(rpfwd_msg: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Convert a reverse port forward message into a task format.
+
+    RPFWD messages from Mythic contain:
+        - "server_id": Unique connection identifier (int)
+        - "data": Base64 encoded data to forward
+        - "exit": Boolean indicating if connection should close
+        - "port": Local listen port on the agent
+
+    Args:
+        rpfwd_msg: RPFWD message dictionary
+
+    Returns:
+        Task dictionary for rportfwd_resp command
+    """
+    server_id = rpfwd_msg.get('server_id', 0)
+    data_b64 = rpfwd_msg.get('data') or ''
+    exit_flag = rpfwd_msg.get('exit', False)
+    port = rpfwd_msg.get('port', 0)
+
+    if data_b64:
+        try:
+            data_bytes = base64.b64decode(data_b64)
+        except Exception as e:
+            logger.error(f"Failed to decode RPORTFWD data: {e}")
+            data_bytes = b''
+    else:
+        data_bytes = b''
+
+    params = {
+        "server_id": server_id,
+        "data": data_b64,
+        "exit": exit_flag,
+        "port": port,
+    }
+
+    logger.info(f"[RPORTFWD] Formatting message: server_id={server_id}, port={port}, data_len={len(data_bytes)}, exit={exit_flag}")
+
+    return {
+        "command": "rportfwd_resp",
+        "parameters": json.dumps(params),
+        "id": "00000000-0000-0000-0000-000000000000"
+    }
+
+
 def format_get_tasking_message(
     tasks: List[Dict[str, Any]],
     responses: Optional[List[Dict[str, Any]]] = None,
     delegates: Optional[List[Dict[str, Any]]] = None,
-    socks: Optional[List[Dict[str, Any]]] = None
+    socks: Optional[List[Dict[str, Any]]] = None,
+    rpfwd: Optional[List[Dict[str, Any]]] = None
 ) -> bytes:
     """
     Format a complete get_tasking message with tasks, responses, delegates, and socks.
@@ -255,6 +302,7 @@ def format_get_tasking_message(
         responses: List of task responses (converted to tasks)
         delegates: List of delegate messages (converted to tasks)
         socks: List of SOCKS proxy messages (converted to tasks)
+        rpfwd: List of reverse port forward messages (converted to tasks)
     
     Returns:
         bytes: Complete packed message
@@ -294,6 +342,16 @@ def format_get_tasking_message(
                 all_tasks.append(socks_task)
             except Exception as e:
                 logger.error(f"Failed to format SOCKS message as task: {e}")
+                continue
+
+    # Convert RPORTFWD messages to tasks
+    if rpfwd:
+        for rpfwd_msg in rpfwd:
+            try:
+                rpfwd_task = format_rportfwd_as_task(rpfwd_msg)
+                all_tasks.append(rpfwd_task)
+            except Exception as e:
+                logger.error(f"Failed to format RPORTFWD message as task: {e}")
                 continue
     
     # Build message

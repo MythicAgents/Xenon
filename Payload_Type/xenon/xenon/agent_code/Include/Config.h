@@ -74,6 +74,7 @@
 #define INCLUDE_CMD_LINK
 #define INCLUDE_CMD_UNLINK
 #define INCLUDE_CMD_SOCKS
+#define INCLUDE_CMD_RPORTFWD
 
 #else //_MANUAL
 

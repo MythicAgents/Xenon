@@ -107,6 +107,14 @@ typedef struct
 
 #endif
 
+#if defined(INCLUDE_CMD_RPORTFWD)
+
+    // Reverse port forward listeners and connections
+    struct _RPORTFWD_LISTENER* RportfwdListeners;
+    struct _RPORTFWD_CONN*     RportfwdConnections;
+
+#endif
+
 } CONFIG_XENON, *PCONFIG_XENON;
 
 extern PCONFIG_XENON xenonConfig;
