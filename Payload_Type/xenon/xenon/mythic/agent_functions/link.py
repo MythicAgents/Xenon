@@ -9,6 +9,7 @@ class LinkArguments(TaskArguments):
             CommandParameter(
                 name="target",
                 display_name="Target",
+                cli_name="Target",
                 type=ParameterType.String, 
                 description="Host or IP address of pivot agent.",
                 parameter_group_info=[
@@ -23,6 +24,7 @@ class LinkArguments(TaskArguments):
             CommandParameter(
                 name="named_pipe",
                 display_name="Named Pipe",
+                cli_name="Named Pipe",
                 type=ParameterType.String, 
                 description="Named pipe to connect to.",
                 parameter_group_info=[
@@ -36,6 +38,7 @@ class LinkArguments(TaskArguments):
             CommandParameter(
                 name="tcp_port",
                 display_name="TCP Port",
+                cli_name="TCP Port",
                 type=ParameterType.Number, 
                 description="TCP port to connect to.",
                 parameter_group_info=[
