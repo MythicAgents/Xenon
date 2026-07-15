@@ -18,6 +18,9 @@
 #ifdef TCP_TRANSPORT
 #define CHUNK_SIZE  (12 * 1024)     // 12 KB
 #endif
+#ifdef WEBSOCKET_TRANSPORT
+#define CHUNK_SIZE  512000          // 512 KB
+#endif
 VOID DownloadFree(_In_ PFILE_DOWNLOAD File);
 /**
  * @brief Initialize a file download and return file UUID.

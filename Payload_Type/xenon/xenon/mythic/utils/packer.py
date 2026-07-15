@@ -31,8 +31,11 @@ def serialize_string(string, pack_size=True):
     return data
 
 def serialize_int(data):
-    """Serialize an integer as a 4-byte big-endian value."""
-    return data.to_bytes(4, "big")
+    """Serialize an integer as a 4-byte big-endian value.
+
+    Coerces str/float values from Mythic C2 parameters (e.g. callback_interval).
+    """
+    return int(data).to_bytes(4, "big")
 
 def serialize_bool(data):
     """Serialize a boolean as a byte."""

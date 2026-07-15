@@ -227,7 +227,7 @@ def format_socks_as_task(socks_msg: Dict[str, Any]) -> Dict[str, Any]:
         "exit": exit_flag,
     }
     
-    logger.info(f"[SOCKS] Formatting message: server_id={server_id}, data_len={len(data_bytes)}, exit={exit_flag}")
+    #logger.info(f"[SOCKS] Formatting message: server_id={server_id}, data_len={len(data_bytes)}, exit={exit_flag}")
     
     return {
         "command": "socks_resp",
@@ -273,7 +273,7 @@ def format_rportfwd_as_task(rpfwd_msg: Dict[str, Any]) -> Dict[str, Any]:
         "port": port,
     }
 
-    logger.info(f"[RPORTFWD] Formatting message: server_id={server_id}, port={port}, data_len={len(data_bytes)}, exit={exit_flag}")
+    #logger.info(f"[RPORTFWD] Formatting message: server_id={server_id}, port={port}, data_len={len(data_bytes)}, exit={exit_flag}")
 
     return {
         "command": "rportfwd_resp",

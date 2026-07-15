@@ -2,6 +2,15 @@ from mythic_container.MythicCommandBase import *
 import json
 from mythic_container.MythicRPC import *
 
+
+def _callback_uses_httpx(taskData: PTTaskMessageAllData) -> bool:
+    """True when this callback's C2 profile is httpx (poll-style sleep 0 needed for rportfwd)."""
+    for c2 in getattr(taskData, "C2Profiles", None) or []:
+        if getattr(c2, "Name", "") == "httpx":
+            return True
+    return False
+
+
 class RportfwdArguments(TaskArguments):
 
     def __init__(self, command_line, **kwargs):
@@ -122,6 +131,8 @@ class RportfwdCommand(CommandBase):
         if taskData.args.get_arg('username') != "" and taskData.args.get_arg('username') is not None:
             response.DisplayParams += f" -Username {taskData.args.get_arg('username')} -Password {taskData.args.get_arg('password')}"
 
+        use_httpx_sleep = _callback_uses_httpx(taskData)
+
         if taskData.args.get_arg("action") == "start":
             resp = await SendMythicRPCProxyStartCommand(MythicRPCProxyStartMessage(
                 TaskID=taskData.Task.ID,
@@ -140,21 +151,28 @@ class RportfwdCommand(CommandBase):
                     Response=resp.Error.encode()
                 ))
             else:
-                await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
-                    TaskID=taskData.Task.ID,
-                    Response=(
-                        f"Starting reverse port forward on port {taskData.args.get_arg('port')} "
-                        f"-> {taskData.args.get_arg('remote_ip')}:{taskData.args.get_arg('remote_port')}\n"
-                        f"Updating Sleep to 0\n"
-                    ).encode()
-                ))
-                await SendMythicRPCTaskCreateSubtask(MythicRPCTaskCreateSubtaskMessage(
-                    TaskID=taskData.Task.ID,
-                    CommandName="sleep",
-                    Params=json.dumps({
-                        "seconds": 0,
-                    })
-                ))
+                # HTTPX: sleep 0 for poll. Push C2: Mythic pushes rpfwd — do not poll.
+                base_msg = (
+                    f"Starting reverse port forward on port {taskData.args.get_arg('port')} "
+                    f"-> {taskData.args.get_arg('remote_ip')}:{taskData.args.get_arg('remote_port')}\n"
+                )
+                if use_httpx_sleep:
+                    await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+                        TaskID=taskData.Task.ID,
+                        Response=(base_msg + "Updating Sleep to 0\n").encode()
+                    ))
+                    await SendMythicRPCTaskCreateSubtask(MythicRPCTaskCreateSubtaskMessage(
+                        TaskID=taskData.Task.ID,
+                        CommandName="sleep",
+                        Params=json.dumps({
+                            "seconds": 0,
+                        })
+                    ))
+                else:
+                    await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+                        TaskID=taskData.Task.ID,
+                        Response=base_msg.encode()
+                    ))
         else:
             resp = await SendMythicRPCProxyStopCommand(MythicRPCProxyStopMessage(
                 TaskID=taskData.Task.ID,
@@ -173,17 +191,23 @@ class RportfwdCommand(CommandBase):
                 ))
             else:
                 response.TaskStatus = MythicStatus.Success
-                await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
-                    TaskID=taskData.Task.ID,
-                    Response=f"Stopped reverse port forward on port {taskData.args.get_arg('port')}\nUpdating Sleep to 1\n".encode()
-                ))
-                await SendMythicRPCTaskCreateSubtask(MythicRPCTaskCreateSubtaskMessage(
-                    TaskID=taskData.Task.ID,
-                    CommandName="sleep",
-                    Params=json.dumps({
-                        "seconds": 1,
-                    })
-                ))
+                if use_httpx_sleep:
+                    await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+                        TaskID=taskData.Task.ID,
+                        Response=f"Stopped reverse port forward on port {taskData.args.get_arg('port')}\nUpdating Sleep to 1\n".encode()
+                    ))
+                    await SendMythicRPCTaskCreateSubtask(MythicRPCTaskCreateSubtaskMessage(
+                        TaskID=taskData.Task.ID,
+                        CommandName="sleep",
+                        Params=json.dumps({
+                            "seconds": 1,
+                        })
+                    ))
+                else:
+                    await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+                        TaskID=taskData.Task.ID,
+                        Response=f"Stopped reverse port forward on port {taskData.args.get_arg('port')}\n".encode()
+                    ))
 
         return response
 

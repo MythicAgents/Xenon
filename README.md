@@ -152,19 +152,20 @@ Xenon agents can be generated with the TCP comms profile to link agents in a pee
 If you have suggestions/requests open an issue or you can message me on discord.
 
 ### Features
+- [ ] Mythic features (process browser, TTPs)
+- [ ] Support dns external transport
 - [x] Socks5 proxy
 - [x] Support File Browser UI
 - [x] `powerchell` command
-- [ ] Mythic features (process browser, TTPs)
-- [ ] Support dns external transport
+
 
 ### Bugs
+- [ ] Weirdness with File Browser UI (remote hosts, etc)
 - [X] Work on memory issues (duplicate buffers etc)
 - [X] Fix initial install files not found
 - [x] Random named pipes per payload generation
 - [x] Issues executing BOFs compiled with MSVC
 - [x] `execute_assembly` can cause PIPE_BUSY if doesnt exit properly
-- [ ] Weirdness with File Browser UI (remote hosts, etc)
 
 
 ## Contributors
@@ -178,9 +179,9 @@ Special thanks to all contributors who help improve this project.
 If you would like to contribute to the project, please work off of the **next version branch** (named like "v1.2.3") as merges will go into that.
 
 If you'd like your PRs to be merged then:
-- Do not submit completely vibe-coded additions
-- Follow the existing programming styling
-- Keep PRs < 1k lines of code focused on single features
+- Do not submit untested, unverified ai-generated code
+- Comply with the existing code syntax, styling, and comments
+- Keep PRs relatively small and focused on single features
 - C is inherently prone to memory bugs, do not refactor large portions of code unless explicitly stating why
 
 ## Credits

@@ -48,7 +48,7 @@ typedef struct
     PCHAR spawnto;  
     CHAR injectKitSpawn[37];               // Mythic UUIDs for BOF files
     CHAR injectKitExplicit[37];
-    PCHAR pipename;
+    //PCHAR pipename;
     // Linked Agents
     PLINKS Links;
     // Message Queue
@@ -83,6 +83,30 @@ typedef struct
     SOCKET TcpSocketClient;
     UINT32 TcpPort;
     PCHAR  TcpBindAddress;  
+
+#endif
+
+#if defined(WEBSOCKET_TRANSPORT)
+
+    PCHAR  WsHostname;
+    UINT32 WsPort;
+    BOOL   WsIsSSL;
+    PCHAR  WsEndpoint;
+    PCHAR  WsUserAgent;
+    PCHAR  WsDomainFront;
+
+    BOOL   WsConnected;
+    HANDLE WsSession;
+    HANDLE WsConnection;
+    HANDLE WsRequest;
+    HANDLE WsHandle;
+    HANDLE WsRecvThread;
+    HANDLE WsInboundEvent;
+    HANDLE WsSendMutex;
+    HANDLE WsQueueMutex;
+    volatile BOOL WsStopRecv;
+    struct _WS_INBOUND_NODE* WsInboundHead;
+    struct _WS_INBOUND_NODE* WsInboundTail;
 
 #endif
 

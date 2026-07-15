@@ -394,7 +394,7 @@ def download_init_to_mythic_format(data):
             }
     }
     
-    logging.info(f"[DOWNLOAD_INIT] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t total_chunks:{total_chunks}, \n\t full_path:{full_path.decode('cp850')}, \n\t chunk_size:{chunk_size}")
+    #logging.info(f"[DOWNLOAD_INIT] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t total_chunks:{total_chunks}, \n\t full_path:{full_path.decode('cp850')}, \n\t chunk_size:{chunk_size}")
     
     return task_json, data
 
@@ -450,7 +450,7 @@ def download_cont_to_mythic_format(data):
             }
     }
     
-    logging.info(f"[DOWNLOAD_CHUNK] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t chunk_num:{chunk_num}, \n\t file_id:{file_id.decode('cp850')}, \n\t chunk_size:{chunk_size}, \n\tchunk_data:{len(chunk_data)} bytes")
+    #logging.info(f"[DOWNLOAD_CHUNK] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t chunk_num:{chunk_num}, \n\t file_id:{file_id.decode('cp850')}, \n\t chunk_size:{chunk_size}, \n\tchunk_data:{len(chunk_data)} bytes")
     
     return task_json, data
 
@@ -505,7 +505,7 @@ def upload_to_mythic_format(data):
             }
     }
     
-    logging.info(f"[UPLOAD] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t chunk_num:{chunk_num}, \n\t file_id:{file_id.decode('cp850')}, \n\t full_path:{full_path.decode('cp850')}, \n\t chunk_size:{chunk_size}")
+    #logging.info(f"[UPLOAD] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t chunk_num:{chunk_num}, \n\t file_id:{file_id.decode('cp850')}, \n\t full_path:{full_path.decode('cp850')}, \n\t chunk_size:{chunk_size}")
     
     return task_json, data
 
@@ -565,7 +565,7 @@ def p2p_checkin_to_mythic_format(data):
         }
     ]
     
-    logging.info(f"[P2P_CHECKIN] IMPLANT -> C2: \n\t message: {output.decode('cp850')}, \n\t uuid: {str(link_id)}, \n\t c2_profile: {link_type_str}")
+    #logging.info(f"[P2P_CHECKIN] IMPLANT -> C2: \n\t message: {output.decode('cp850')}, \n\t uuid: {str(link_id)}, \n\t c2_profile: {link_type_str}")
     
     return task_json, delegates, data
 
@@ -606,7 +606,7 @@ def p2p_to_mythic_format(data):
         }
     ]
     
-    logging.info(f"[P2P] IMPLANT -> C2: \n\t message: {len(output)} bytes, \n\t mythic_uuid: {payload_uuid.decode('cp850')}, \n\t c2_profile: smb")
+    #logging.info(f"[P2P] IMPLANT -> C2: \n\t message: {len(output)} bytes, \n\t mythic_uuid: {payload_uuid.decode('cp850')}, \n\t c2_profile: smb")
         
     return task_json, delegates, data
 
@@ -713,7 +713,7 @@ def socks_to_mythic_format(data):
         "exit": exit_flag
     }
     
-    logging.info(f"[SOCKS] IMPLANT -> C2: server_id={server_id}, data_len={len(socks_data)}, exit={exit_flag}")
+    #logging.info(f"[SOCKS] IMPLANT -> C2: server_id={server_id}, data_len={len(socks_data)}, exit={exit_flag}")
     
     return task_json, socks_msg, data
 
@@ -780,6 +780,6 @@ def rportfwd_to_mythic_format(data):
         "exit": exit_flag
     }
 
-    logging.info(f"[RPORTFWD] IMPLANT -> C2: server_id={server_id}, port={port}, data_len={len(rpfwd_data)}, exit={exit_flag}")
+    #logging.info(f"[RPORTFWD] IMPLANT -> C2: server_id={server_id}, port={port}, data_len={len(rpfwd_data)}, exit={exit_flag}")
 
     return task_json, rpfwd_msg, data

@@ -2,6 +2,15 @@ from mythic_container.MythicCommandBase import *
 import json
 from mythic_container.MythicRPC import *
 
+
+def _callback_uses_httpx(taskData: PTTaskMessageAllData) -> bool:
+    """True when this callback's C2 profile is httpx (poll-style sleep 0 needed for SOCKS)."""
+    for c2 in getattr(taskData, "C2Profiles", None) or []:
+        if getattr(c2, "Name", "") == "httpx":
+            return True
+    return False
+
+
 class SocksArguments(TaskArguments):
 
     def __init__(self, command_line, **kwargs):
@@ -92,6 +101,8 @@ class SocksCommand(CommandBase):
         response.DisplayParams = f"{taskData.args.get_arg('action')} {taskData.args.get_arg('port')}"
         if taskData.args.get_arg('username') != "" and taskData.args.get_arg('username') is not None:
             response.DisplayParams += f" -Username {taskData.args.get_arg('username')} -Password {taskData.args.get_arg('password')}"
+
+        use_httpx_sleep = _callback_uses_httpx(taskData)
         
         # Start
         if taskData.args.get_arg("action") == "start":
@@ -110,17 +121,24 @@ class SocksCommand(CommandBase):
                     Response=resp.Error.encode()
                 ))
             else:
-                await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
-                    TaskID=taskData.Task.ID,
-                    Response=f"Started SOCKS5 server on port {taskData.args.get_arg('port')}\nUpdating Sleep to 0\n".encode()
-                ))
-                await SendMythicRPCTaskCreateSubtask(MythicRPCTaskCreateSubtaskMessage(
-                    TaskID=taskData.Task.ID,
-                    CommandName="sleep",
-                    Params=json.dumps({
-                        "seconds": 0,
-                    })
-                ))
+                # HTTPX: sleep 0 so get_tasking polls pull socks. Push C2 (websocket): Mythic pushes socks — do not poll.
+                if use_httpx_sleep:
+                    await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+                        TaskID=taskData.Task.ID,
+                        Response=f"Started SOCKS5 server on port {taskData.args.get_arg('port')}\nUpdating Sleep to 0\n".encode()
+                    ))
+                    await SendMythicRPCTaskCreateSubtask(MythicRPCTaskCreateSubtaskMessage(
+                        TaskID=taskData.Task.ID,
+                        CommandName="sleep",
+                        Params=json.dumps({
+                            "seconds": 0,
+                        })
+                    ))
+                else:
+                    await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+                        TaskID=taskData.Task.ID,
+                        Response=f"Started SOCKS5 server on port {taskData.args.get_arg('port')}\n".encode()
+                    ))
         # Stop
         else:
             resp = await SendMythicRPCProxyStopCommand(MythicRPCProxyStopMessage(
@@ -141,17 +159,23 @@ class SocksCommand(CommandBase):
             else:
                 response.TaskStatus = MythicStatus.Success
                 response.Completed = True
-                await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
-                    TaskID=taskData.Task.ID,
-                    Response=f"Stopped SOCKS5 server on port {taskData.args.get_arg('port')}\nUpdating Sleep to 1\n".encode()
-                ))
-                await SendMythicRPCTaskCreateSubtask(MythicRPCTaskCreateSubtaskMessage(
-                    TaskID=taskData.Task.ID,
-                    CommandName="sleep",
-                    Params=json.dumps({
-                        "seconds": 1,
-                    })
-                ))
+                if use_httpx_sleep:
+                    await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+                        TaskID=taskData.Task.ID,
+                        Response=f"Stopped SOCKS5 server on port {taskData.args.get_arg('port')}\nUpdating Sleep to 1\n".encode()
+                    ))
+                    await SendMythicRPCTaskCreateSubtask(MythicRPCTaskCreateSubtaskMessage(
+                        TaskID=taskData.Task.ID,
+                        CommandName="sleep",
+                        Params=json.dumps({
+                            "seconds": 1,
+                        })
+                    ))
+                else:
+                    await SendMythicRPCResponseCreate(MythicRPCResponseCreateMessage(
+                        TaskID=taskData.Task.ID,
+                        Response=f"Stopped SOCKS5 server on port {taskData.args.get_arg('port')}\n".encode()
+                    ))
                 
         return response
 
@@ -159,4 +183,3 @@ class SocksCommand(CommandBase):
     async def process_response(self, task: PTTaskMessageAllData, response: any) -> PTTaskProcessResponseMessageResponse:
         resp = PTTaskProcessResponseMessageResponse(TaskID=task.Task.ID, Success=True)
         return resp
-
