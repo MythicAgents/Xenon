@@ -40,7 +40,8 @@ class RemoteExecArguments(TaskArguments):
                 name="target",
                 cli_name="Target",
                 display_name="Target",
-                type=ParameterType.String,
+                type=ParameterType.ChooseOne,
+                dynamic_query_function=self.get_hostnames,
                 description="The target to execute the module on.",
                 default_value="",
                 parameter_group_info=[
@@ -112,7 +113,25 @@ class RemoteExecArguments(TaskArguments):
                 ]
             ),
         ]
-    
+
+    async def get_hostnames(
+        self, callback: PTRPCDynamicQueryFunctionMessage
+    ) -> PTRPCDynamicQueryFunctionMessageResponse:
+        response = PTRPCDynamicQueryFunctionMessageResponse(Success=False)
+        callback_response = await SendMythicRPCCallbackSearch(
+            MythicRPCCallbackSearchMessage(CallbackID=callback.Callback)
+        )
+        if not callback_response.Success:
+            response.Error = callback_response.Error
+            return response
+
+        response.Success = True
+        response.Choices = sorted(
+            {result.Host for result in callback_response.Results if result.Host},
+            key=str.casefold,
+        )
+        return response
+
     async def parse_arguments(self):
         if len(self.command_line) == 0:
             raise Exception(
