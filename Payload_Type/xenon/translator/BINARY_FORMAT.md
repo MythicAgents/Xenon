@@ -20,6 +20,25 @@ All multi-byte integers are in **big-endian** (network byte order) to match the 
 
 ## Message Types
 
+### Check-in Request (Agent → C2)
+
+Binary payload after outer UUID + action `0xA1` (parsed by `checkin_to_mythic_format`):
+
+```
+BYTES[36]:   payload UUID
+UINT32:      IP count
+UINT32[N]:   IPs (big-endian)
+String:      OS
+BYTE:        architecture (0x64 = x64, 0x86 = x86)
+String:      hostname
+String:      username
+WString:     domain
+UINT32:      PID
+String:      process name
+String:      external IP
+BYTE:        integrity_level (0–4; Mythic treats >2 as elevated)
+```
+
 ### Check-in Response (C2 → Agent)
 
 ```

