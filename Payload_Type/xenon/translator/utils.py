@@ -17,6 +17,7 @@ MYTHIC_P2P_REMOVE = 0x07
 MYTHIC_SOCKS_DATA = 0x08
 MYTHIC_FILE_BROWSER = 0x09
 MYTHIC_RPORTFWD_DATA = 0x0A
+MYTHIC_PROCESS_BROWSER = 0x0B
 # Mythic Responses
 MYTHIC_NORMAL_RESP = 0xAA
 MYTHIC_DOWNLOAD_RESP = 0xAB
@@ -42,6 +43,7 @@ commands = {
     "inject_shellcode": 0x56,
     "socks": 0x57,
     "rportfwd": 0x58,
+    "kill": 0x59,
     "shell": 0x60, 
     "getuid": 0x70, 
     "steal_token": 0x71, 
@@ -149,6 +151,66 @@ def filetime_to_unix_ms(filetime_100ns):
         return 0
     unix_ms = (filetime_100ns - FILETIME_EPOCH_OFFSET) // 10000
     return max(0, unix_ms)
+
+
+def parse_ps_tsv(output, host=None):
+    """
+    Parse Xenon ps TSV output into Mythic Process Browser process dicts.
+
+    Lines are either:
+      name\\tppid\\tpid\\tarch\\tuser\\tsession
+    or (OpenProcess failed):
+      name\\tppid\\tpid
+
+    Always sets update_deleted=True so Mythic marks processes absent from this
+    full listing as deleted (required for Process Browser refresh after kill).
+    Host is uppercased for stable Mythic host matching.
+    """
+    if isinstance(output, bytes):
+        text = output.decode("cp850", errors="ignore")
+    else:
+        text = output or ""
+
+    host_value = (host or "").strip().upper() or None
+
+    processes = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or "\t" not in line:
+            continue
+        parts = line.split("\t")
+        if len(parts) < 3:
+            continue
+        try:
+            ppid = int(parts[1])
+            pid = int(parts[2])
+        except ValueError:
+            continue
+
+        proc = {
+            "process_id": pid,
+            "parent_process_id": ppid,
+            "name": parts[0],
+            "update_deleted": True,
+        }
+        if host_value:
+            proc["host"] = host_value
+        if len(parts) >= 6:
+            if parts[3]:
+                proc["architecture"] = parts[3]
+            if parts[4]:
+                proc["user"] = parts[4]
+            try:
+                proc["session_id"] = int(parts[5])
+            except ValueError:
+                pass
+        elif len(parts) >= 4 and parts[3]:
+            proc["architecture"] = parts[3]
+
+        processes.append(proc)
+
+    return processes
+
 
 def parse_file_browser_tlv(data):
     """

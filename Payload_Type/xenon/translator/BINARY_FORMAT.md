@@ -118,6 +118,37 @@ BYTE:    success (0/1)
 
 The translator converts FILETIME to Unix milliseconds and builds Mythic's `file_browser` JSON via `file_browser_to_mythic_format()`.
 
+#### Process Browser Listing (`ps`)
+
+When `ps` completes successfully, the agent sends a dedicated message type instead of a generic task response:
+
+```
+BYTE:    0x0B (MYTHIC_PROCESS_BROWSER)
+BYTES[36]: task_uuid
+BYTE:    status (0x95=complete, 0x97=update, 0x99=failed)
+UINT32:  host_length
+BYTES:   host (NetBIOS computer name; used for Mythic process host matching)
+UINT32:  tsv_length
+BYTES:   TSV process listing
+```
+
+TSV lines (tab-separated):
+
+```
+name\tppid\tpid\tarch\tuser\tsession\n   # OpenProcess succeeded
+name\tppid\tpid\n                         # OpenProcess failed (partial)
+```
+
+The translator parses TSV via `parse_ps_tsv()` and builds Mythic's `processes` array (Process Browser) while keeping `user_output` as the raw TSV for `ps_new.js`.
+
+Each process entry includes:
+- `update_deleted: true` — Mythic marks any previously known process for that host that is **not** in this listing as deleted ([Process Browser docs](https://docs.mythic-c2.net/customizing/hooking-features/process_list))
+- `host` — uppercased hostname for stable host matching across refreshes
+
+#### Kill (`kill` command)
+
+Operator command opcode: `0x59` (`KILL_CMD`). Parameters: one UINT32 PID (after parameter count), same packing as `steal_token`.
+
 ### Download/Upload Messages
 
 These are handled as special task types:

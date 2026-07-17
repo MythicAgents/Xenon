@@ -18,8 +18,8 @@ class PsCommand(CommandBase):
     needs_admin = False
     help_cmd = "ps"
     description = "List host processes."
-    version = 1
-    supported_ui_features = ["callback_table:ps"]
+    version = 2
+    supported_ui_features = ["process_browser:list"]
     author = "@c0rnbread"
     argument_class = PsArguments
     browser_script = BrowserScript(

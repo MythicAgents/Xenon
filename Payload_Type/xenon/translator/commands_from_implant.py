@@ -1,6 +1,6 @@
 from translator.utils import *
 import ipaddress, logging
-from .utils import parse_file_browser_tlv
+from .utils import parse_file_browser_tlv, parse_ps_tsv
 
 logging.basicConfig(level=logging.INFO)
 
@@ -174,6 +174,10 @@ def post_response_handler(data):
         elif response_type == MYTHIC_FILE_BROWSER:
             task_json, data = file_browser_to_mythic_format(data)
             logging.info(f"[MYTHIC_FILE_BROWSER]")
+
+        elif response_type == MYTHIC_PROCESS_BROWSER:
+            task_json, data = process_browser_to_mythic_format(data)
+            logging.info(f"[MYTHIC_PROCESS_BROWSER]")
         else:
             logging.info(f"[UNKNOWN_RESPONSE]: {response_type}")
             continue
@@ -342,6 +346,80 @@ def file_browser_to_mythic_format(data):
     }
     if file_browser_data is not None:
         task_json["file_browser"] = file_browser_data
+
+    return task_json, data
+
+
+def process_browser_to_mythic_format(data):
+    """
+    Parse process-browser message from Agent (message type MYTHIC_PROCESS_BROWSER already consumed).
+    Format: task_uuid (36), status_byte (1), UINT32 host_len + host, UINT32 tsv_len + tsv.
+    Returns (task_json, remaining_data) with Mythic `processes` array for Process Browser.
+    Each process includes update_deleted=True so Mythic clears stale/killed PIDs on refresh.
+    """
+    if len(data) < 36 + 1:
+        logging.error("process_browser_to_mythic_format: buffer too small for task_uuid + status")
+        return None, data
+
+    task_uuid = data[:36].decode("cp850")
+    data = data[36:]
+    status_byte = data[0]
+    data = data[1:]
+
+    if status_byte == 0x95:
+        status = "success"
+    elif status_byte == 0x97:
+        status = None
+    elif status_byte == 0x99:
+        status = "error"
+    else:
+        status = "unknown"
+
+    if len(data) < 4:
+        logging.error("process_browser_to_mythic_format: missing host length prefix")
+        return {
+            "task_id": task_uuid,
+            "user_output": "[!] process browser: truncated response\n",
+            "status": "error",
+            "completed": True,
+        }, data
+
+    host_bytes, data = get_bytes_with_size(data)
+    host = host_bytes.decode("cp850", errors="ignore") if host_bytes else ""
+
+    if len(data) < 4:
+        logging.error("process_browser_to_mythic_format: missing TSV length prefix")
+        return {
+            "task_id": task_uuid,
+            "user_output": "[!] process browser: truncated response\n",
+            "status": "error",
+            "completed": True,
+        }, data
+
+    tsv_bytes, data = get_bytes_with_size(data)
+    processes = parse_ps_tsv(tsv_bytes, host=host) if tsv_bytes else []
+
+    if status == "success":
+        user_output = (
+            f"[+] agent called home, sent: {len(tsv_bytes)} bytes\n"
+            f"[+] received output:\n\n{tsv_bytes.decode('cp850', errors='ignore')}"
+        )
+    elif status == "error":
+        user_output = "[!] process listing failed\n"
+    else:
+        user_output = "[+] process listing\n"
+
+    task_json = {
+        "task_id": task_uuid,
+        "user_output": user_output,
+        "status": status,
+        "completed": status in ("success", "error"),
+    }
+    if processes:
+        # Reinforce update_deleted on every entry (Mythic v3 Process Browser)
+        for proc in processes:
+            proc["update_deleted"] = True
+        task_json["processes"] = processes
 
     return task_json, data
 

@@ -29,6 +29,7 @@
 #define SOCKS_DATA          0x08
 #define FILE_BROWSER        0x09
 #define RPORTFWD_DATA       0x0A
+#define PROCESS_BROWSER     0x0B
 
 // Commands
 #define STATUS_CMD      0x37
@@ -54,6 +55,7 @@
 
 // System enumeration
 #define PS_CMD          0x52
+#define KILL_CMD        0x59
 // MISC
 #define SHELL_CMD       0x60
 #define PWSH_CMD        0x61        // TODO

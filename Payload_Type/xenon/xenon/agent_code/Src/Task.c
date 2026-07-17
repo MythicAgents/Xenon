@@ -161,6 +161,14 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             return;
         }
 #endif
+#ifdef INCLUDE_CMD_KILL
+        case KILL_CMD:
+        {
+            _dbg("KILL_CMD was called");
+            ProcessKill(taskUuid, taskParser);
+            return;
+        }
+#endif
 #ifdef INCLUDE_CMD_GETUID
         case GETUID_CMD:
         {
