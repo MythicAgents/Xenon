@@ -421,7 +421,6 @@ def process_browser_to_mythic_format(data):
         "completed": status in ("success", "error"),
     }
     if processes:
-        # Reinforce update_deleted on every entry (Mythic v3 Process Browser)
         for proc in processes:
             proc["update_deleted"] = True
         task_json["processes"] = processes
