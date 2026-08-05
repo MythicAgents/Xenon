@@ -77,7 +77,7 @@ def format_normal_task(task: Dict[str, Any]) -> bytes:
     # Parameters (ls requires filepath then file_browser for agent)
     if parameters:
         try:
-            if command_name in ("inline_execute", "async_execute", "usermon"):
+            if command_name in ("inline_execute", "async_execute", "usermon", "keylogger"):
                 param_data = pack_parameters_ordered(parameters, ["bof_arguments", "bof_data"])
             elif command_name == "ls":
                 param_data = pack_parameters_ordered(parameters, ["filepath", "file_browser"])

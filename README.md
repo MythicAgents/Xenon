@@ -67,6 +67,7 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 | `jobs` | `jobs` | List running async BOF jobs and their Mythic task UUIDs. |
 | `jobkill` | `jobkill <task_uuid>` | Stop a running async BOF by Mythic agent task UUID (signals `BeaconGetStopJobEvent`). |
 | `usermon` | `usermon [-Interval 3000]` | Async login monitor (WTS session poll). Live alerts stream on this task. Stop with `jobkill <usermon_task_uuid>`. |
+| `keylogger` | `keylogger [-Interval 30000]` | Async keylogger: buffers keystrokes and dumps on an interval. Live output on this task. Stop with `jobkill <keylogger_task_uuid>`. |
 | `inline_execute_assembly` | `inline_execute_assembly -Assembly [file] [-Arguments [assembly args] [--patchexit] [--amsi] [--etw]]` | Execute a .NET Assembly in the current process using @EricEsquivel's BOF "Inline-EA" (e.g., inline_execute_assembly -Assembly SharpUp.exe -Arguments "audit" --patchexit --amsi --etw) |
 | `execute_assembly` | `execute_assembly -Assembly [SharpUp.exe] [-Arguments [assembly arguments]]` | Execute a .NET Assembly in a remote processes and retrieve the output. |
 | `execute_dll` | `execute_dll -File [mimikatz.x64.dll]` | Execute a Dynamic Link Library as PIC. (e.g., execute_dll -File mimikatz.x64.dll) |
@@ -95,13 +96,16 @@ Long-running Beacon Object Files run in a background thread and stream output wi
 | `jobs` | `jobs` | List running async BOF jobs. |
 | `jobkill` | `jobkill <task_uuid>` | Signal the stop event for a running async BOF. |
 | `usermon` | `usermon [-Interval 3000]` | Monitor local interactive logons (WTS poll). Live output on this task; stop with `jobkill`. |
+| `keylogger` | `keylogger [-Interval 30000]` | Buffer keystrokes and dump on interval. Live output on this task; stop with `jobkill`. |
 
 Example:
 ```
-usermon -Interval 3000
+keylogger -Interval 30000
 jobs
-jobkill <usermon_task_uuid>
+jobkill <keylogger_task_uuid>
 ```
+
+![Keylogger](images/keylogger.png)
 
 ---
 

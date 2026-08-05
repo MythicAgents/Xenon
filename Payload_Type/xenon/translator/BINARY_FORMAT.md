@@ -84,7 +84,7 @@ For each parameter:
 - **Integer**: UINT32 value (4 bytes)
 - **Boolean**: 1 byte (0x00 or 0x01)
 - **Bytes**: UINT32 length + raw bytes
-- **List** (for inline_execute / async_execute / usermon): 
+- **List** (for inline_execute / async_execute / usermon / keylogger):
   - UINT32: total_size
   - Packed TLV data (uses Packer class format)
 
@@ -95,12 +95,13 @@ For each parameter:
 | inline_execute | 0x53 |
 | async_execute | 0x5A |
 | usermon | 0x5A (same handler as async_execute) |
+| keylogger | 0x5A (same handler as async_execute) |
 | jobkill | 0x5B |
 | jobs | 0x5C |
 
 #### Async BOF responses
 
-`async_execute` / `usermon` stream output with status `0x97` (`TASK_UPDATE`) via `PackageUpdate`, then finish with `0x95` (`TASK_COMPLETE`). The translator maps `0x97` to Mythic `completed: false`.
+`async_execute` / `usermon` / `keylogger` stream output with status `0x97` (`TASK_UPDATE`) via `PackageUpdate`, then finish with `0x95` (`TASK_COMPLETE`). The translator maps `0x97` to Mythic `completed: false`.
 
 Async BOF authors can call:
 - `BeaconWakeup()` — interrupt agent sleep / websocket idle wait

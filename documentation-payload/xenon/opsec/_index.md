@@ -31,6 +31,7 @@ These commands run Beacon Object Files in a background thread. Output streams to
 |---------|-------|-------------|
 | `async_execute` | `async_execute -BOF [COFF.o] [-Arguments ...]` | Generic async BOF runner. |
 | `usermon` | `usermon [-Interval 3000]` | Poll WTS sessions for new interactive logons. |
+| `keylogger` | `keylogger [-Interval 30000]` | Poll key state and dump buffered keystrokes on an interval. |
 | `jobs` / `jobkill` | `jobs` / `jobkill <task_uuid>` | List or stop async jobs. |
 
 ## User-Defined Reflective Loader (UDRL)
