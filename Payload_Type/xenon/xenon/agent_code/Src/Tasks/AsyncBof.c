@@ -197,9 +197,15 @@ done:
 
 PASYNC_BOF_CONTEXT AsyncBofGetOutputContext(void)
 {
-    if (tls_CurrentBofContext)
-        return tls_CurrentBofContext;
-    return AsyncBofFindByThreadId(GetCurrentThreadId());
+    /*
+     * Prefer thread-ID lookup over TLS. Reflective/PIC loads often do not
+     * initialize TLS correctly, so __declspec(thread) can behave like a
+     * shared global and route BeaconPrintf output to the wrong job.
+     */
+    PASYNC_BOF_CONTEXT byTid = AsyncBofFindByThreadId(GetCurrentThreadId());
+    if (byTid)
+        return byTid;
+    return tls_CurrentBofContext;
 }
 
 VOID AsyncBofAppendOutput(PASYNC_BOF_CONTEXT ctx, PCHAR data, INT len)
@@ -441,7 +447,8 @@ static BOOL AsyncBofStart(PASYNC_BOF_CONTEXT ctx)
 
     EnterCriticalSection(&g_AsyncBofManagerLock);
 
-    ctx->hThread = CreateThread(NULL, 0, AsyncBofThreadProc, ctx, 0, &ctx->threadId);
+    /* Suspended until listed/registered so FindByThreadId works before any BeaconPrintf */
+    ctx->hThread = CreateThread(NULL, 0, AsyncBofThreadProc, ctx, CREATE_SUSPENDED, &ctx->threadId);
     if (!ctx->hThread) {
         LeaveCriticalSection(&g_AsyncBofManagerLock);
         return FALSE;
@@ -450,6 +457,18 @@ static BOOL AsyncBofStart(PASYNC_BOF_CONTEXT ctx)
     AsyncBofRegisterThreadLocked(ctx, ctx->threadId);
     ctx->Next = g_AsyncBofList;
     g_AsyncBofList = ctx;
+
+    if (ResumeThread(ctx->hThread) == (DWORD)-1) {
+        /* Unlink; caller cleans up ctx via AsyncBofCleanupContext */
+        if (g_AsyncBofList == ctx)
+            g_AsyncBofList = ctx->Next;
+        ctx->Next = NULL;
+        AsyncBofCleanupThreadRegsForCtx(ctx);
+        CloseHandle(ctx->hThread);
+        ctx->hThread = NULL;
+        LeaveCriticalSection(&g_AsyncBofManagerLock);
+        return FALSE;
+    }
 
     LeaveCriticalSection(&g_AsyncBofManagerLock);
     return TRUE;
