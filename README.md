@@ -169,6 +169,7 @@ See the configuration guide on the [Wiki](https://github.com/MythicAgents/Xenon/
 
 ### [Websockets Profile](https://github.com/MythicC2Profiles/websocket)
 Xenon can use the websockets profile as it's main C2 egress channel instead of HTTPX.
+Only "push" style is supported currently.
 
 ### [SMB Profile](https://github.com/MythicC2Profiles/smb)
 Xenon can be generated with the SMB comms profile to link agents in a peer-to-peer way.
