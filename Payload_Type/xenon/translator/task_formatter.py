@@ -77,7 +77,12 @@ def format_normal_task(task: Dict[str, Any]) -> bytes:
     # Parameters (ls requires filepath then file_browser for agent)
     if parameters:
         try:
-            param_data = pack_parameters(parameters)
+            if command_name in ("inline_execute", "async_execute", "usermon"):
+                param_data = pack_parameters_ordered(parameters, ["bof_arguments", "bof_data"])
+            elif command_name == "ls":
+                param_data = pack_parameters_ordered(parameters, ["filepath", "file_browser"])
+            else:
+                param_data = pack_parameters(parameters)
             packer.add_raw(param_data)
         except Exception as e:
             logger.error(f"Failed to pack parameters: {e}")

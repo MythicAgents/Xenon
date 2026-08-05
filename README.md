@@ -62,6 +62,10 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 | `remote_exec`  | `remote_exec -Module [module] -Target [target] -Command [command + args] [-Domain [domain]] [-Username [username]] [-Password [password]]` | Execute a command on a remote machine using WMI, WinRM, or SCShell. |
 | `sleep`        | `sleep <seconds> [jitter]`                          | Change sleep timer and jitter. |
 | `inline_execute` | `inline_execute -BOF [COFF.o] [-Arguments [optional arguments]]` | Execute a Beacon Object File in the current process thread and see output. **Warning:** Incorrect argument types can crash the Agent process. |
+| `async_execute` | `async_execute -BOF [COFF.o] [-Arguments [optional arguments]]` | Execute a Beacon Object File asynchronously in a background thread. Output streams via task updates. Supports `BeaconWakeup` / `BeaconGetStopJobEvent`. |
+| `jobs` | `jobs` | List running async BOF jobs and their Mythic task UUIDs. |
+| `jobkill` | `jobkill <task_uuid>` | Stop a running async BOF by Mythic agent task UUID (signals `BeaconGetStopJobEvent`). |
+| `usermon` | `usermon [-Interval 3000]` | Async login monitor (WTS session poll). Live alerts stream on this task. Stop with `jobkill <usermon_task_uuid>`. |
 | `inline_execute_assembly` | `inline_execute_assembly -Assembly [file] [-Arguments [assembly args] [--patchexit] [--amsi] [--etw]]` | Execute a .NET Assembly in the current process using @EricEsquivel's BOF "Inline-EA" (e.g., inline_execute_assembly -Assembly SharpUp.exe -Arguments "audit" --patchexit --amsi --etw) |
 | `execute_assembly` | `execute_assembly -Assembly [SharpUp.exe] [-Arguments [assembly arguments]]` | Execute a .NET Assembly in a remote processes and retrieve the output. |
 | `execute_dll` | `execute_dll -File [mimikatz.x64.dll]` | Execute a Dynamic Link Library as PIC. (e.g., execute_dll -File mimikatz.x64.dll) |

@@ -6,7 +6,7 @@
 #include "Config.h"
 #include "BeaconCompatibility.h"
 
-#ifdef INCLUDE_CMD_INLINE_EXECUTE
+#if defined(INCLUDE_CMD_INLINE_EXECUTE) || defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
 
 /*
     Most code is from here https://github.com/Ap3x/COFF-Loader/tree/main/Src
@@ -45,10 +45,12 @@ void* ProcessBeaconSymbols(char* SymbolName, BOOL InternalFunction) {
         localfunc = SymbolName + strlen(PREPENDSYMBOLVALUE);
         UINT32 hash = custom_hash(localfunc);
     
+        BeaconCompatibilityEnsureHashes();
+
         // Compare function hashes
-        for (int tempcounter = 0; tempcounter < 30; tempcounter++) {
+        for (int tempcounter = 0; tempcounter < INTERNAL_FUNCTIONS_COUNT; tempcounter++) {
             if (InternalFunctions[tempcounter][0] != NULL) {
-                if (hash == (UINT32)(InternalFunctions[tempcounter][0])) {
+                if (hash == (UINT32)(ULONG_PTR)InternalFunctions[tempcounter][0]) {
                     functionaddress = (void*)InternalFunctions[tempcounter][1];
                     return functionaddress;
                 }
@@ -177,110 +179,135 @@ void RelocationTypeParse(COFF_t* COFF, void** SectionMapped, int SectionNumber, 
     //_dbg("\tSectionNumber: 0x%X\n", COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].SectionNumber);
 }
 
-BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdata, unsigned long argumentsize)
+BOOL CoffMap(char* FileData, COFF_RUNTIME_t* out)
 {
+    if (!FileData || !out)
+        return FALSE;
 
-	COFF_t COFF;
-    COFF.FileBase = FileData;
-    COFF.FileHeader = (FileHeader_t*)COFF.FileBase;
-    COFF.SymbolTable = (Symbol_t*)(COFF.FileBase + COFF.FileHeader->PointerToSymbolTable);
-    COFF.FunctionMappingCount = 0;
-    COFF.RelocationsCount = 0;
-    
-    char* functionMapping = NULL;
-    void** sectionMapped = (void**)calloc(sizeof(char*) * (COFF.FileHeader->NumberOfSections + 1), 1);
-    COFF.SectionMapped = sectionMapped;
+    memset(out, 0, sizeof(COFF_RUNTIME_t));
 
-    if ((int)COFF.FileHeader->Machine != IMAGE_FILE_MACHINE_AMD64) {
+    out->coff.FileBase = FileData;
+    out->coff.FileHeader = (FileHeader_t*)out->coff.FileBase;
+    out->coff.SymbolTable = (Symbol_t*)(out->coff.FileBase + out->coff.FileHeader->PointerToSymbolTable);
+    out->coff.FunctionMappingCount = 0;
+    out->coff.RelocationsCount = 0;
+    out->numberOfSections = out->coff.FileHeader->NumberOfSections;
+
+    out->sectionMapped = (void**)calloc(sizeof(char*) * (out->numberOfSections + 1), 1);
+    if (!out->sectionMapped)
+        return FALSE;
+    out->coff.SectionMapped = out->sectionMapped;
+
+    if ((int)out->coff.FileHeader->Machine != IMAGE_FILE_MACHINE_AMD64) {
         _dbg("[!] This common object file format is not supported yet :)");
-        free(sectionMapped);
+        free(out->sectionMapped);
+        out->sectionMapped = NULL;
         return FALSE;
     }
 
-    for (byte i = 0; i < COFF.FileHeader->NumberOfSections; i++) {
-        Section_t* section = (Section_t*)(COFF.FileBase + sizeof(FileHeader_t) + (i * sizeof(Section_t)));
-        //_dbg("********* COFF Section %d: \"%s\" *********\n", i, section->Name);
+    for (byte i = 0; i < out->numberOfSections; i++) {
+        Section_t* section = (Section_t*)(out->coff.FileBase + sizeof(FileHeader_t) + (i * sizeof(Section_t)));
 
-        sectionMapped[i] = (char*)VirtualAlloc(NULL, section->SizeOfRawData, MEM_COMMIT | MEM_RESERVE | MEM_TOP_DOWN, PAGE_EXECUTE_READWRITE);
-        //_dbg("Allocated section %d at 0x%p\n", i, sectionMapped[i]);
+        out->sectionMapped[i] = (char*)VirtualAlloc(NULL, section->SizeOfRawData, MEM_COMMIT | MEM_RESERVE | MEM_TOP_DOWN, PAGE_EXECUTE_READWRITE);
 
         if (section->PointerToRawData != 0) {
-            memcpy(sectionMapped[i], COFF.FileBase + section->PointerToRawData, section->SizeOfRawData);
+            memcpy(out->sectionMapped[i], out->coff.FileBase + section->PointerToRawData, section->SizeOfRawData);
         }
         else {
-            memset(sectionMapped[i], 0, section->SizeOfRawData);
+            memset(out->sectionMapped[i], 0, section->SizeOfRawData);
         }
 
         if (!strcmp(section->Name, ".text")) {
-            COFF.RawTextData = sectionMapped[i];
+            out->coff.RawTextData = out->sectionMapped[i];
         }
 
-        COFF.RelocationsCount += section->NumberOfRelocations;
+        out->coff.RelocationsCount += section->NumberOfRelocations;
     }
 
-    //_dbg("Total Relocations: %d\n", COFF.RelocationsCount);
+    out->functionMapping = (char*)VirtualAlloc(NULL, out->coff.RelocationsCount * 8, MEM_COMMIT | MEM_RESERVE | MEM_TOP_DOWN, PAGE_EXECUTE_READWRITE);
+    if (!out->functionMapping && out->coff.RelocationsCount > 0) {
+        CoffUnmap(out);
+        return FALSE;
+    }
 
-    functionMapping = (char*)VirtualAlloc(NULL, COFF.RelocationsCount * 8, MEM_COMMIT | MEM_RESERVE | MEM_TOP_DOWN, PAGE_EXECUTE_READWRITE);
-    int currentSection = 0;
-    for (int s = 0; s < COFF.FileHeader->NumberOfSections; s++) {
-        if (sectionMapped[s] == NULL) continue; /* filtered/skipped section */
-        Section_t* section = (Section_t*)(COFF.FileBase + sizeof(FileHeader_t) + (s * sizeof(Section_t)));
-        COFF.RelocationsTextPTR = COFF.FileBase + section->PointerToRelocations;
-        //_dbg("********* Performing Relocations for \"%s\" Section *********\n", section->Name);
-        
+    for (int s = 0; s < out->numberOfSections; s++) {
+        if (out->sectionMapped[s] == NULL) continue;
+        Section_t* section = (Section_t*)(out->coff.FileBase + sizeof(FileHeader_t) + (s * sizeof(Section_t)));
+        out->coff.RelocationsTextPTR = out->coff.FileBase + section->PointerToRelocations;
+
         for (int i = 0; i < section->NumberOfRelocations; i++) {
-
             UINT32 symbolOffset = 0;
             void* funcptrlocation = NULL;
-            COFF.Relocation = (Relocation_t*)(COFF.RelocationsTextPTR + (i * sizeof(Relocation_t)));
-            
-            symbolOffset = COFF.SymbolTable[COFF.Relocation->SymbolTableIndex].first.value[1];
+            out->coff.Relocation = (Relocation_t*)(out->coff.RelocationsTextPTR + (i * sizeof(Relocation_t)));
 
-            // Check if the symbol name is more that 8 bytes. If so then the name is stored at the .first.value address
-            // We can assume that if the name is longer than 8 bytes then it is probably an internal function and starts with "__imp_" and needs to be processed.
-            // So if the name is 8 bytes then it points to a specific section.
-            if (COFF.SymbolTable[COFF.Relocation->SymbolTableIndex].first.Name[0] != 0) {
-                RelocationTypeParse(&COFF, sectionMapped, s, FALSE, NULL, NULL);
+            symbolOffset = out->coff.SymbolTable[out->coff.Relocation->SymbolTableIndex].first.value[1];
+
+            if (out->coff.SymbolTable[out->coff.Relocation->SymbolTableIndex].first.Name[0] != 0) {
+                RelocationTypeParse(&out->coff, out->sectionMapped, s, FALSE, NULL, NULL);
             }
             else {
                 BOOL internalFunctionCheck = FALSE;
-                funcptrlocation = ProcessBeaconSymbols(((char*)(COFF.SymbolTable + COFF.FileHeader->NumberOfSymbols)) + symbolOffset, &internalFunctionCheck);
-                if (funcptrlocation == NULL && COFF.SymbolTable[COFF.Relocation->SymbolTableIndex].SectionNumber == 0) {
-                    _dbg("[!] Failed to resolve symbol. Symbol : %s\n", ((char*)(COFF.SymbolTable + COFF.FileHeader->NumberOfSymbols)) + symbolOffset);
+                funcptrlocation = ProcessBeaconSymbols(((char*)(out->coff.SymbolTable + out->coff.FileHeader->NumberOfSymbols)) + symbolOffset, &internalFunctionCheck);
+                if (funcptrlocation == NULL && out->coff.SymbolTable[out->coff.Relocation->SymbolTableIndex].SectionNumber == 0) {
+                    _dbg("[!] Failed to resolve symbol. Symbol : %s\n", ((char*)(out->coff.SymbolTable + out->coff.FileHeader->NumberOfSymbols)) + symbolOffset);
                 }
 
-                RelocationTypeParse(&COFF, sectionMapped, s, &internalFunctionCheck, funcptrlocation, functionMapping);
+                RelocationTypeParse(&out->coff, out->sectionMapped, s, &internalFunctionCheck, funcptrlocation, out->functionMapping);
             }
         }
     }
-
-///////////////
-/// EXECUTE ///
-///////////////
-    ExecuteEntry(&COFF, EntryName, argumentdata, argumentsize);
-///////////////
-/// EXECUTE ///
-///////////////
-
-
-// CLEANUP
-    for (byte i = 0; i < COFF.FileHeader->NumberOfSections; i++) {
-        if (sectionMapped[i] != NULL) {
-            // Free memory allocated with VirtualAlloc
-            VirtualFree(sectionMapped[i], 0, MEM_RELEASE);
-            sectionMapped[i] = NULL;  // Prevent dangling pointers
-        }
-    }
-    // Free the array
-    free(sectionMapped);
-    sectionMapped = NULL;
-
-    VirtualFree(functionMapping, 0, MEM_RELEASE);
 
     return TRUE;
 }
 
+BOOL CoffExecute(COFF_RUNTIME_t* rt, char* EntryName, char* argumentdata, unsigned long argumentsize)
+{
+    if (!rt || !EntryName)
+        return FALSE;
+    return ExecuteEntry(&rt->coff, EntryName, argumentdata, argumentsize);
+}
 
+VOID CoffUnmap(COFF_RUNTIME_t* rt)
+{
+    if (!rt)
+        return;
+
+    if (rt->sectionMapped) {
+        for (byte i = 0; i < rt->numberOfSections; i++) {
+            if (rt->sectionMapped[i] != NULL) {
+                VirtualFree(rt->sectionMapped[i], 0, MEM_RELEASE);
+                rt->sectionMapped[i] = NULL;
+            }
+        }
+        free(rt->sectionMapped);
+        rt->sectionMapped = NULL;
+    }
+
+    if (rt->functionMapping) {
+        VirtualFree(rt->functionMapping, 0, MEM_RELEASE);
+        rt->functionMapping = NULL;
+    }
+
+    memset(rt, 0, sizeof(COFF_RUNTIME_t));
+}
+
+BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdata, unsigned long argumentsize)
+{
+    COFF_RUNTIME_t rt = { 0 };
+    BOOL Success = FALSE;
+
+    (void)DataSize;
+
+    if (!CoffMap(FileData, &rt))
+        return FALSE;
+
+    Success = CoffExecute(&rt, EntryName, argumentdata, argumentsize);
+    CoffUnmap(&rt);
+    return Success;
+}
+
+
+#ifdef INCLUDE_CMD_INLINE_EXECUTE
 /**
  * @brief Execute a Beacon Object File in current process thread.
  * 
@@ -348,5 +375,6 @@ VOID InlineExecute(PCHAR taskUuid, PPARSER arguments)
     free(OutData);                  // allocated in BeaconOutput()
     PackageDestroy(locals);
 }
+#endif /* INCLUDE_CMD_INLINE_EXECUTE */
 
-#endif  //INCLUDE_CMD_INLINE_EXECUTE
+#endif  //INCLUDE_CMD_INLINE_EXECUTE || INCLUDE_CMD_ASYNC_EXECUTE || INCLUDE_CMD_JOBKILL || INCLUDE_CMD_JOBS

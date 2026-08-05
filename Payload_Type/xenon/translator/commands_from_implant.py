@@ -221,6 +221,7 @@ def post_response_to_mythic_format(data):
     
     :param data: Raw data from Agent
     """
+    original_len = len(data)
 
     # --- Task UUID ---
     if len(data) < 36:
@@ -258,7 +259,7 @@ def post_response_to_mythic_format(data):
     if status_byte == 0x95:
         status = "success"          # Succeeded
     elif status_byte == 0x97:
-        status = None               # Still processing
+        status = "running"     # Still processing
     elif status_byte == 0x99:
         status = "error"            # Failed
     else:
@@ -277,13 +278,12 @@ def post_response_to_mythic_format(data):
             error_code = int.from_bytes(error_code_bytes, byteorder="big")
 
     # --- Operator Output ---
-    if output_length > 0:
-        user_output = (
-            f"[+] agent called home, sent: {output_length} bytes\n"
-            f"[+] received output:\n\n{output.decode('cp850', errors='ignore')}"
-        )
-    else:
-        user_output = "[+] agent called home, no output\n"
+    if status == "running":
+        user_output = output.decode('cp850', errors='ignore')
+    elif status == "success" or status == "error":
+        msg1 = f"[+] agent called home, sent: {original_len} bytes\n"
+        msg2 = f"[+] received output:\n\n{output.decode('cp850', errors='ignore')}" if output_length > 0 else ""
+        user_output = msg1 + msg2
 
     if status == "error":
         error = ERROR_CODES.get(

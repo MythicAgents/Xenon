@@ -52,6 +52,9 @@
 #define INJECT_SHELLCODE_CMD     0x56
 #define SOCKS_CMD       0x57
 #define RPORTFWD_CMD    0x58
+#define ASYNC_EXECUTE_CMD 0x5A
+#define JOBKILL_CMD     0x5B
+#define JOBS_CMD        0x5C
 
 // System enumeration
 #define PS_CMD          0x52

@@ -3,6 +3,11 @@
 #include "Utils.h"
 #include "Debug.h"
 #include "Sleep.h"
+#include "Config.h"
+
+#if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
+#include "Tasks/AsyncBof.h"
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -326,6 +331,8 @@ BOOL WebsocketIsConnected(void)
 BOOL WebsocketNeedsLocalPump(void)
 {
 #if defined(INCLUDE_CMD_LINK)
+    /* TODO: This is not ideal because if there are any links,
+     it will cause websocket to constantly poll, but it works for now. */
     if ( xenonConfig->Links )
         return TRUE;
 #endif
@@ -695,8 +702,14 @@ DWORD WebsocketWaitInbound(DWORD dwMilliseconds)
 {
     if ( !xenonConfig->WsInboundEvent )
         return WAIT_FAILED;
-
+    
+#if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
+    /* Wait on two possible events: (1) websocket inbound event, (2) async bof wakeup event */
+    const HANDLE Events[] = {xenonConfig->WsInboundEvent, g_AsyncBofWakeup};    
+    return WaitForMultipleObjects(2, Events, FALSE, dwMilliseconds);
+#else
     return WaitForSingleObject(xenonConfig->WsInboundEvent, dwMilliseconds);
+#endif
 }
 
-#endif // WEBSOCKET_TRANSPORT
+#endif // #ifdef WEBSOCKET_TRANSPORT

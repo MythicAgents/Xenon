@@ -4,6 +4,7 @@ Ref: https://github.com/MythicAgents/Athena/blob/main/Payload_Type/athena/athena
 import struct
 import subprocess
 import os
+from pathlib import Path
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
 import logging
@@ -28,43 +29,39 @@ class CoffCommandBase(CommandBase):
     completion_functions = {"coff_completion_callback": default_coff_completion_callback}
 
 
-async def upload_module_if_missing(file_name: str, taskData):
+async def upload_module_if_missing(file_name: str, taskData, force: bool = False):
     """
     Upload a Module to Mythic only if it doesn't already exist for the given task.
+    If force=True, always upload a fresh copy from Modules/bin.
+    Returns True on success, False on failure. When force=True and upload succeeds,
+    returns the new AgentFileId string when available.
     """
 
+    module_path = Path("xenon/agent_code/Modules/bin") / file_name
+
     try:
-        # Search for module by filename
-        search_resp = await SendMythicRPCFileSearch(
-            MythicRPCFileSearchMessage(
-                TaskID=taskData.Task.ID,
-                Filename=file_name,
-                LimitByCallback=False,
-                MaxResults=1,
+        if not force:
+            search_resp = await SendMythicRPCFileSearch(
+                MythicRPCFileSearchMessage(
+                    TaskID=taskData.Task.ID,
+                    Filename=file_name,
+                    LimitByCallback=False,
+                    MaxResults=1,
+                )
             )
-        )
 
-        # File search failed
-        if not search_resp.Success:
-            logging.error(f"[Module Upload] File search failed for {file_name}: {search_resp.Error}")
-            return False
+            if not search_resp.Success:
+                logging.error(f"[Module Upload] File search failed for {file_name}: {search_resp.Error}")
+                return False
 
-        # Already uploaded to Mythic
-        existing_names = {f.Filename for f in search_resp.Files}
-        if file_name in existing_names:
-            logging.info(f"[Module Upload] {file_name} already exists in Mythic, skipping upload.")
-            return True
+            existing_names = {f.Filename for f in search_resp.Files}
+            if file_name in existing_names:
+                logging.info(f"[Module Upload] {file_name} already exists in Mythic, skipping upload.")
+                return True
 
-        # Path to module on disk
-        module_path = (
-            Path("xenon/agent_code/Modules/bin")
-            / file_name
-        )
-
-        # Read and upload the module
         with open(module_path, "rb") as module_file:
             module_bytes = module_file.read()
-            
+
         upload_resp = await SendMythicRPCFileCreate(
             MythicRPCFileCreateMessage(
                 TaskID=taskData.Task.ID,
@@ -76,6 +73,11 @@ async def upload_module_if_missing(file_name: str, taskData):
 
         if upload_resp.Success:
             logging.info(f"[Module Upload] Successfully uploaded: {file_name}")
+            agent_file_id = getattr(upload_resp, "AgentFileId", None) or getattr(
+                upload_resp, "agent_file_id", None
+            )
+            if force and agent_file_id:
+                return agent_file_id
             return True
         else:
             logging.error(f"[Module Upload] Failed to upload {file_name}: {upload_resp.Error}")

