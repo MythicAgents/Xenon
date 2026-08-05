@@ -39,6 +39,7 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 - Malleable C2 Profiles
 - Supported comms: [httpx](https://github.com/MythicC2Profiles/httpx), [smb](https://github.com/MythicC2Profiles/smb), [tcp](https://github.com/MythicC2Profiles/tcp)
 - Uses [forge](https://github.com/MythicAgents/forge) for BOF modules and SharpCollections
+- Async BOF Support (async BeaconAPIs)
 - User-Defined Reflective Dll Loaders (based on Crystal Palace)
 - Compatible with CS Process Inject Kits
 
@@ -78,8 +79,29 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 | `link`           | `link <target> [<named pipe>\|<tcp_port>]`                          | Connect to an SMB/TCP Link Agent. |
 | `unlink`         | `unlink <Display Id>`                                 | Disconnect from an SMB/TCP Link Agent. |
 | `socks` | `socks <start/stop> <port number>` | Enable SOCKS 5 compliant proxy to send data to the target network. |
+| `rportfwd` | `rportfwd -Action {start\|stop} -Port [port] -RemoteIP [ip] -RemotePort [port]` | Reverse port forward. |
+| `kill` | `kill [pid]` | Kill a process by PID. |
 | `register_process_inject_kit`       | `register_process_inject_kit (pops modal)`                                            | Register a custom BOF to use for process injection (CS compatible). See documentation for requirements. |
 | `exit`         | `exit`                                              | Task the implant to exit. |
+
+---
+
+### Async BOF Commands
+Long-running Beacon Object Files run in a background thread and stream output with task updates. Stop them with `jobkill` using the Mythic agent task UUID (see `jobs`).
+
+| Command | Usage | Description |
+|---------|-------|-------------|
+| `async_execute` | `async_execute -BOF [COFF.o] [-Arguments ...]` | Run a BOF asynchronously (`BeaconWakeup` / `BeaconGetStopJobEvent`). |
+| `jobs` | `jobs` | List running async BOF jobs. |
+| `jobkill` | `jobkill <task_uuid>` | Signal the stop event for a running async BOF. |
+| `usermon` | `usermon [-Interval 3000]` | Monitor local interactive logons (WTS poll). Live output on this task; stop with `jobkill`. |
+
+Example:
+```
+usermon -Interval 3000
+jobs
+jobkill <usermon_task_uuid>
+```
 
 ---
 
@@ -145,12 +167,16 @@ Xenon currently supports these features of the HTTPX profile:
 
 See the configuration guide on the [Wiki](https://github.com/MythicAgents/Xenon/wiki/Setup-Malleable-C2-Traffic-with-Httpx).
 
+### [Websockets Profile](https://github.com/MythicC2Profiles/websocket)
+Xenon can use the websockets profile as it's main C2 egress channel instead of HTTPX.
 
 ### [SMB Profile](https://github.com/MythicC2Profiles/smb)
-Xenon agents can be generated with the SMB comms profile to link agents in a peer-to-peer way.
+Xenon can be generated with the SMB comms profile to link agents in a peer-to-peer way.
 
 ### [TCP Profile](https://github.com/MythicC2Profiles/tcp)
-Xenon agents can be generated with the TCP comms profile to link agents in a peer-to-peer way.
+Xenon can be generated with the TCP comms profile to link agents in a peer-to-peer way.
+
+
 
 ## Roadmap
 If you have suggestions/requests open an issue or you can message me on discord.

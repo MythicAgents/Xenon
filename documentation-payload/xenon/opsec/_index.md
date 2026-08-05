@@ -24,6 +24,15 @@ These commands execute Beacon Object Files inline in the current agent process v
 |--------------------------|---------------------------------------------------------------|-------------|
 | `remote_exec` | `remote_exec -Module [module] -Target [target] -Command [command + args] [-Domain [domain]] [-Username [username]] [-Password [password]]` | Execute a command on a remote machine. Supported modules: `winrm`, `wmi`, `scshell`. |
 
+## Async BOF Commands
+These commands run Beacon Object Files in a background thread. Output streams to the Mythic task while the job runs. Use `jobkill <task_uuid>` to stop (list UUIDs with `jobs`).
+
+| Command | Usage | Description |
+|---------|-------|-------------|
+| `async_execute` | `async_execute -BOF [COFF.o] [-Arguments ...]` | Generic async BOF runner. |
+| `usermon` | `usermon [-Interval 3000]` | Poll WTS sessions for new interactive logons. |
+| `jobs` / `jobkill` | `jobs` / `jobkill <task_uuid>` | List or stop async jobs. |
+
 ## User-Defined Reflective Loader (UDRL)
 In previous versions, Xenon used donut-shellcode to generate shellcode from its DLL output type. That has changed.
 Now by default, Xenon uses a simple reflective DLL loader based on the [Crystal Palace](https://tradecraftgarden.org/crystalpalace.html) linker created by Raphael Mudge.
