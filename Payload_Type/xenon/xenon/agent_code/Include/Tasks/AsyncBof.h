@@ -38,7 +38,6 @@ typedef struct _ASYNC_BOF_CONTEXT {
     struct _ASYNC_BOF_CONTEXT* Next;
 } ASYNC_BOF_CONTEXT, *PASYNC_BOF_CONTEXT;
 
-extern __declspec(thread) PASYNC_BOF_CONTEXT tls_CurrentBofContext;
 extern HANDLE g_AsyncBofWakeup;
 
 BOOL  AsyncBofInitialize(void);

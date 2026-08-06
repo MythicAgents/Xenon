@@ -14,8 +14,6 @@
 
 #if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
 
-__declspec(thread) PASYNC_BOF_CONTEXT tls_CurrentBofContext = NULL;
-
 HANDLE g_AsyncBofWakeup = NULL;
 
 static CRITICAL_SECTION g_AsyncBofManagerLock;
@@ -198,14 +196,11 @@ done:
 PASYNC_BOF_CONTEXT AsyncBofGetOutputContext(void)
 {
     /*
-     * Prefer thread-ID lookup over TLS. Reflective/PIC loads often do not
-     * initialize TLS correctly, so __declspec(thread) can behave like a
-     * shared global and route BeaconPrintf output to the wrong job.
+     * Route only by thread-ID registry. Reflective/PIC loads often break
+     * __declspec(thread), so a TLS fallback would look process-global and
+     * send sync BOF BeaconPrintf into a running async job.
      */
-    PASYNC_BOF_CONTEXT byTid = AsyncBofFindByThreadId(GetCurrentThreadId());
-    if (byTid)
-        return byTid;
-    return tls_CurrentBofContext;
+    return AsyncBofFindByThreadId(GetCurrentThreadId());
 }
 
 VOID AsyncBofAppendOutput(PASYNC_BOF_CONTEXT ctx, PCHAR data, INT len)
@@ -355,8 +350,6 @@ static DWORD WINAPI AsyncBofThreadProc(LPVOID lpParameter)
     if (!ctx)
         return 1;
 
-    tls_CurrentBofContext = ctx;
-
     if (gIdentityToken)
         ImpersonateLoggedOnUser(gIdentityToken);
 
@@ -364,7 +357,6 @@ static DWORD WINAPI AsyncBofThreadProc(LPVOID lpParameter)
 
     if (!CoffMap((char*)ctx->coffFile, &ctx->coffRt)) {
         ctx->state = ASYNC_BOF_STATE_FINISHED;
-        tls_CurrentBofContext = NULL;
         AsyncBofSignalWakeup();
         return 1;
     }
@@ -378,7 +370,6 @@ static DWORD WINAPI AsyncBofThreadProc(LPVOID lpParameter)
     if (ctx->state != ASYNC_BOF_STATE_STOPPED)
         ctx->state = ASYNC_BOF_STATE_FINISHED;
 
-    tls_CurrentBofContext = NULL;
     AsyncBofSignalWakeup();
     return 0;
 }
