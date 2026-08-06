@@ -125,6 +125,19 @@ VOID XenonConfigure()
     xenonConfig->SmbPipe           = NULL;
     xenonConfig->SmbPipename       = ParserStringCopy(&ParserConfig, &namedPipeLen);                     // allocates
 
+    /* Create a unique runtime Link ID */
+    {
+        UINT32 mix = xenonConfig->SmbId;
+        mix ^= (UINT32)GetCurrentProcessId();
+        mix ^= (UINT32)GetTickCount();
+        mix ^= (UINT32)RandomInt32(1, 0x7fffffff);
+        if (mix == 0)
+            mix = (UINT32)GetCurrentProcessId() ^ 0xA5A5A5A5u;
+        if (mix == 0)
+            mix = 1;
+        xenonConfig->SmbId = mix;
+    }
+
 #endif
 
 #ifdef TCP_TRANSPORT
@@ -135,6 +148,19 @@ VOID XenonConfigure()
     xenonConfig->TcpSocketClient   = NULL;
     xenonConfig->TcpBindAddress    = ParserStringCopy(&ParserConfig, &tcpAddressLen);                     // allocates
     xenonConfig->TcpPort           = ParserGetInt32(&ParserConfig);
+
+    /* Create a unique runtime Link ID */
+    {
+        UINT32 mix = xenonConfig->TcpId;
+        mix ^= (UINT32)GetCurrentProcessId();
+        mix ^= (UINT32)GetTickCount();
+        mix ^= (UINT32)RandomInt32(1, 0x7fffffff);
+        if (mix == 0)
+            mix = (UINT32)GetCurrentProcessId() ^ 0x5A5A5A5Au;
+        if (mix == 0)
+            mix = 1;
+        xenonConfig->TcpId = mix;
+    }
 
 #endif
 
