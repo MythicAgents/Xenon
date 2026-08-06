@@ -4,11 +4,14 @@ import json
 
 
 def _pid_from_process_browser_dict(dictionary_arguments: dict):
-    """Map Process Browser / modal JSON to a pid int, or None."""
-    if "process_id" in dictionary_arguments and dictionary_arguments["process_id"] is not None:
-        return int(dictionary_arguments["process_id"])
-    if "pid" in dictionary_arguments and dictionary_arguments["pid"] is not None:
-        return int(dictionary_arguments["pid"])
+    """Map Process Browser / modal / CLI JSON to a pid int, or None.
+
+    Mythic CLI serializes using cli_name ("PID"); process browser uses
+    process_id; modal/internal often uses the parameter name ("pid").
+    """
+    for key in ("process_id", "pid", "Pid", "PID"):
+        if key in dictionary_arguments and dictionary_arguments[key] is not None:
+            return int(dictionary_arguments[key])
     return None
 
 
@@ -36,7 +39,7 @@ class KillArguments(TaskArguments):
             supplied = json.loads(self.command_line)
             pid = _pid_from_process_browser_dict(supplied)
             if pid is None:
-                raise Exception(f"No pid/process_id in JSON: {self.command_line}")
+                raise Exception(f"No pid/process_id/PID in JSON: {self.command_line}")
             self.add_arg("pid", pid, ParameterType.Number)
         else:
             try:
@@ -51,7 +54,7 @@ class KillArguments(TaskArguments):
     async def parse_dictionary(self, dictionary_arguments):
         pid = _pid_from_process_browser_dict(dictionary_arguments)
         if pid is None:
-            raise Exception(f"kill requires pid or process_id: {dictionary_arguments}")
+            raise Exception(f"kill requires pid, process_id, or PID: {dictionary_arguments}")
         self.add_arg("pid", pid, ParameterType.Number)
 
 
