@@ -98,26 +98,19 @@ BOOL PackageAddInt64(PPackage package, UINT64 value)
 
 BOOL PackageAddBytes(PPackage package, PBYTE data, SIZE_T size, BOOL copySize)
 {
-    if (copySize && size)
+    if (copySize)
     {
-        if (!PackageAddInt32(package, size))
+        if (!PackageAddInt32(package, (UINT32)size))
             return FALSE;
     }
 
     if (size)
     {
-        // Reallocate the size of package->buffer + size of new data
         package->buffer = LocalReAlloc(package->buffer, package->length + size, LMEM_MOVEABLE | LMEM_ZEROINIT);
         if (!package->buffer)
             return FALSE;
 
-        if (copySize)
-            addInt32ToBuffer((PBYTE)package->buffer + (package->length - sizeof(UINT32)), size);
-
-        // Copy new data to end of package->buffer
         memcpy((PBYTE)package->buffer + package->length, data, size);
-
-        // Adjust package size accordingly
         package->length += size;
     }
 

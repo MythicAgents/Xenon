@@ -58,9 +58,13 @@ def checkin_to_mythic_format(data):
     #Retrieve External IP
     external_ip, data = get_bytes_with_size(data)
 
-    # Integrity level (Mythic 0-4; >2 shows elevated in UI)
-    integrity_level = data[0]
-    data = data[1:]
+    # Integrity level (Mythic 0-4; >2 shows elevated in UI). Default to medium
+    if len(data) >= 1:
+        integrity_level = data[0]
+        data = data[1:]
+    else:
+        logging.warning("checkin missing integrity_level byte; defaulting to 2 (medium)")
+        integrity_level = 2
 
     # Mythic check-in format
     mythic_json = {
