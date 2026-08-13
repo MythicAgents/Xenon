@@ -126,6 +126,39 @@ If you want to modify/create your own reflective loader I highly recommend watch
 
 [Rasta Mouse](https://github.com/rasta-mouse) also has some great resources more specifically for Cobalt Strike in [Crystal-Kit](https://github.com/rasta-mouse/Crystal-Kit).
 
+### Sleep masking (Crystal Palace IAT hooks)
+
+HTTPX C2 idle always goes through a real `kernel32` IAT import so a UDRL can intercept it the same way Crystal Kit hooks Beacon's `Sleep`.
+
+To apply sleep masking to Xenon you must hook **`SleepEx(dwMilliseconds, TRUE)`**, not `Sleep` or `WaitForSingleObject`.
+
+Hook it at import resolution time:
+
+```text
+addhook "KERNEL32$SleepEx" "_SleepEx"
+```
+
+The hook must match `DWORD SleepEx(DWORD dwMilliseconds, BOOL bAlertable)`: mask memory, call the real `SleepEx` with the same arguments, unmask, and **return the wait status**. Leave the wait alertable. `BeaconWakeup` queues an APC on the beacon thread so `SleepEx(..., TRUE)` can return early (`WAIT_IO_COMPLETION`) when an async BOF has output. Swallowing that wakeup stalls async output until the full sleep expires. The APC trampoline is a one-byte `ret` in `VirtualAlloc`, not a Xenon `.text` gadget, so it is safe if it runs while the image is still masked.
+
+Do **not** globally `addhook` `WaitForSingleObject` / `WaitForMultipleObjects` for sleep masking. Xenon uses those APIs for mutexes, thread joins, and other sync. Masking around every wait can deadlock. `Sleep` is called in shell/link and the DLL export keep-alive loop, **dont** hook `Sleep()` for sleep-masking.
+
+WebSocket is not currently compatible with sleep masking and uses `WaitForMultipleObjects` (inbound frame + async wakeup event).
+
+SMB/TCP are unchanged. Only HTTPX (and WebSocket reconnect backoff via `SleepWithJitter`) will benefit from sleep masking with `SleepEx`.
+
+### Async BOFs while the image is masked
+
+Long-running jobs (`usermon`, `keylogger`, `async_execute`) keep running during `SleepEx`. Their COFF `.text` is already `VirtualAlloc` and is not XOR'd, but `Beacon*` imports would otherwise jump into the encrypted Xenon DLL.
+
+For each async job Xenon copies a small PIC Beacon stub island into `VirtualAlloc` (not heap-tracked) and binds that job's COFF imports there:
+
+- `BeaconPrintf` / `BeaconOutput` write a ring buffer in the island; the beacon thread drains it after unmask
+- `BeaconWakeup` uses `SetEvent` + `QueueUserAPC` with handles stored in the island
+- `BeaconGetStopJobEvent`, `BeaconData*`, `BeaconFormat*`, token helpers
+- `KERNEL32$` / `MSVCRT$` imports are resolved from the export table (not hooked `GetProcAddress`) so BOF `LocalAlloc` buffers are not heap-tracked
+
+The job thread starts in the island, not in Xenon `.text`. Map/relocate happens on the beacon thread while the image is still plaintext. `BeaconIsAdmin` / spawn / inject stay bound to the DLL. Do not call those from a job that must survive sleep.
+
 
 ## User-Defined Post-Ex Loader
 The UDRL for post-ex DLLs is a Crystal Palace PICO used to boostrap a post-ex DLL for execution. The default post-ex loader can be found under `xenon/agent_code/Loader/post-ex`.

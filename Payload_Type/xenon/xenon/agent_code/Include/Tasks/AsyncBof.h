@@ -35,6 +35,9 @@ typedef struct _ASYNC_BOF_CONTEXT {
 
     COFF_RUNTIME_t coffRt;
 
+    /* Unmasked Beacon API island (VirtualAlloc). NULL if create failed. */
+    struct _ASYNC_STUB_CTX *stub;
+
     struct _ASYNC_BOF_CONTEXT* Next;
 } ASYNC_BOF_CONTEXT, *PASYNC_BOF_CONTEXT;
 

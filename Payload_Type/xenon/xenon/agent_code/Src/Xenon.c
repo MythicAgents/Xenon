@@ -5,6 +5,7 @@
 #include "Xenon.h"
 #include "Config.h"
 #include "Task.h"
+#include "Sleep.h"
 
 #if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
 #include "Tasks/AsyncBof.h"
@@ -264,13 +265,15 @@ VOID XenonMain()
 
     XenonConfigure();
 
+    SleepInit();
+
 #if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
     AsyncBofInitialize();
 #endif
 
 /* 
-    Now we're set up for beaconing
-*/
+ * Now we're set up for beaconing
+ */
 
     // Send checkin request
     PARSER data     = { 0 };

@@ -97,9 +97,18 @@ typedef struct COFF_RUNTIME {
     UINT16 numberOfSections;
 } COFF_RUNTIME_t;
 
-BOOL CoffMap(char* FileData, COFF_RUNTIME_t* out);
-BOOL CoffExecute(COFF_RUNTIME_t* rt, char* EntryName, char* argumentdata, unsigned long argumentsize);
-VOID CoffUnmap(COFF_RUNTIME_t* rt);
+/* Optional COFF import overrides (hash of the Beacon/API name after __imp_) */
+typedef struct _COFF_SYM_OVERRIDE {
+    UINT32 hash;
+    void  *addr;
+} COFF_SYM_OVERRIDE;
+
+BOOL  CoffMap(char* FileData, COFF_RUNTIME_t* out);
+BOOL  CoffMapEx(char* FileData, COFF_RUNTIME_t* out, const COFF_SYM_OVERRIDE *ov, int ovCount, BOOL eatResolve);
+void *CoffFindEntry(COFF_RUNTIME_t* rt, char* func);
+FARPROC CoffPeGetProcAddress(HMODULE mod, const char *name);
+BOOL  CoffExecute(COFF_RUNTIME_t* rt, char* EntryName, char* argumentdata, unsigned long argumentsize);
+VOID  CoffUnmap(COFF_RUNTIME_t* rt);
 
 #ifdef INCLUDE_CMD_INLINE_EXECUTE
 VOID InlineExecute(PCHAR taskUuid, PPARSER arguments);

