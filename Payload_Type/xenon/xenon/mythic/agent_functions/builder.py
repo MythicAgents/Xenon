@@ -99,8 +99,8 @@ class XenonAgent(PayloadType):
         )
     ]
     agent_path = pathlib.Path(".") / "xenon" / "mythic"
-    # agent_icon_path = agent_path / "agent_functions" / "xenon_agent.svg"
-    agent_icon_path = agent_path / "agent_functions" / "v1-transparent.png"
+    agent_icon_path = agent_path / "agent_functions" / "xenon_agent.svg"
+    dark_mode_agent_icon_path = agent_path / "agent_functions" / "xenon_agent.svg"
     agent_code_path = pathlib.Path(".") / "xenon" / "agent_code"
     
     build_steps = [

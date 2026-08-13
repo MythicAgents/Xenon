@@ -257,8 +257,6 @@ VOID XenonMain()
         - Start main beaconing routine
 */
 
-    // NetworkInitMutex();     // Current workaround for avoiding race condition with global HINTERNET handles
-
     // Set pointer to Stack allocated instance
     CONFIG_XENON xenon = { 0 };
     xenonConfig = &xenon;
