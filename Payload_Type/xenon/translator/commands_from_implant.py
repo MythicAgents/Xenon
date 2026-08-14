@@ -63,7 +63,7 @@ def checkin_to_mythic_format(data):
         integrity_level = data[0]
         data = data[1:]
     else:
-        logging.warning("checkin missing integrity_level byte; defaulting to 2 (medium)")
+        # logging.warning("checkin missing integrity_level byte; defaulting to 2 (medium)")
         integrity_level = 2
 
     # Mythic check-in format
