@@ -12,4 +12,6 @@ RUN python3 -m pip install toml donut-shellcode
 
 WORKDIR /Mythic/
 
+COPY [".", "."]
+
 CMD ["python3", "main.py"]
