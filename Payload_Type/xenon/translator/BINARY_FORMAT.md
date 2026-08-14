@@ -20,6 +20,25 @@ All multi-byte integers are in **big-endian** (network byte order) to match the 
 
 ## Message Types
 
+### Check-in Request (Agent → C2)
+
+Binary payload after outer UUID + action `0xA1` (parsed by `checkin_to_mythic_format`):
+
+```
+BYTES[36]:   payload UUID
+UINT32:      IP count
+UINT32[N]:   IPs (big-endian)
+String:      OS
+BYTE:        architecture (0x64 = x64, 0x86 = x86)
+String:      hostname
+String:      username
+WString:     domain
+UINT32:      PID
+String:      process name
+String:      external IP
+BYTE:        integrity_level (0–4; Mythic treats >2 as elevated)
+```
+
 ### Check-in Response (C2 → Agent)
 
 ```
@@ -65,9 +84,29 @@ For each parameter:
 - **Integer**: UINT32 value (4 bytes)
 - **Boolean**: 1 byte (0x00 or 0x01)
 - **Bytes**: UINT32 length + raw bytes
-- **List** (for inline_execute): 
+- **List** (for inline_execute / async_execute / usermon / keylogger):
   - UINT32: total_size
   - Packed TLV data (uses Packer class format)
+
+#### Command IDs (selected)
+
+| Command | Opcode |
+|---------|--------|
+| inline_execute | 0x53 |
+| async_execute | 0x5A |
+| usermon | 0x5A (same handler as async_execute) |
+| keylogger | 0x5A (same handler as async_execute) |
+| jobkill | 0x5B |
+| jobs | 0x5C |
+
+#### Async BOF responses
+
+`async_execute` / `usermon` / `keylogger` stream output with status `0x97` (`TASK_UPDATE`) via `PackageUpdate`, then finish with `0x95` (`TASK_COMPLETE`). The translator maps `0x97` to Mythic `completed: false`.
+
+Async BOF authors can call:
+- `BeaconWakeup()` — interrupt agent sleep / websocket idle wait
+- `BeaconGetStopJobEvent()` — HANDLE signaled by `jobkill`
+- `BeaconRegisterThreadCallback` / `BeaconUnregisterThreadCallback` — route output from helper threads
 
 #### Special Parameter: chunk_data
 
@@ -117,6 +156,37 @@ BYTE:    success (0/1)
 ```
 
 The translator converts FILETIME to Unix milliseconds and builds Mythic's `file_browser` JSON via `file_browser_to_mythic_format()`.
+
+#### Process Browser Listing (`ps`)
+
+When `ps` completes successfully, the agent sends a dedicated message type instead of a generic task response:
+
+```
+BYTE:    0x0B (MYTHIC_PROCESS_BROWSER)
+BYTES[36]: task_uuid
+BYTE:    status (0x95=complete, 0x97=update, 0x99=failed)
+UINT32:  host_length
+BYTES:   host (NetBIOS computer name; used for Mythic process host matching)
+UINT32:  tsv_length
+BYTES:   TSV process listing
+```
+
+TSV lines (tab-separated):
+
+```
+name\tppid\tpid\tarch\tuser\tsession\n   # OpenProcess succeeded
+name\tppid\tpid\n                         # OpenProcess failed (partial)
+```
+
+The translator parses TSV via `parse_ps_tsv()` and builds Mythic's `processes` array (Process Browser) while keeping `user_output` as the raw TSV for `ps_new.js`.
+
+Each process entry includes:
+- `update_deleted: true` — Mythic marks any previously known process for that host that is **not** in this listing as deleted ([Process Browser docs](https://docs.mythic-c2.net/customizing/hooking-features/process_list))
+- `host` — uppercased hostname for stable host matching across refreshes
+
+#### Kill (`kill` command)
+
+Operator command opcode: `0x59` (`KILL_CMD`). Parameters: one UINT32 PID (after parameter count), same packing as `steal_token`.
 
 ### Download/Upload Messages
 
@@ -186,6 +256,60 @@ The translator converts this to Mythic's JSON format:
 
 1. **New Connection**: First message for a `server_id` contains target IP:port in data
 2. **Data Transfer**: Subsequent messages forward raw TCP data
+3. **Close Connection**: Message with `exit=true` signals connection closure
+4. **Error Handling**: Socket errors trigger `exit=true` response to Mythic
+
+### Reverse Port Forward Messages
+
+Reverse port forward allows inbound connections on a port bound on the target host to be relayed through Mythic to a remote IP:Port.
+
+#### RPORTFWD Data (C2 → Agent)
+
+RPFWD messages from Mythic are converted to `rportfwd_resp` (0xCF) tasks with parameters:
+- `server_id`: UINT32 - Unique connection identifier
+- `data`: Bytes - Base64-decoded data to forward (length-prefixed)
+- `exit`: Boolean - Whether to close the connection after sending
+- `port`: UINT32 - Local listen port on the agent
+
+Binary format as task parameters:
+```
+UINT32:  parameter_count (4)
+UINT32:  server_id
+UINT32:  data_length
+BYTES:   data (decoded from base64)
+BYTE:    exit (0x00=false, 0x01=true)
+UINT32:  port
+```
+
+#### RPORTFWD Response (Agent → C2)
+
+```
+BYTE:    0x0A (MYTHIC_RPORTFWD_DATA)
+UINT32:  server_id
+UINT32:  port
+UINT32:  data_length
+BYTES:   data
+BYTE:    exit_flag (0x00=false, 0x01=true)
+```
+
+The translator converts this to Mythic's JSON format:
+```json
+{
+  "rpfwd": [
+    {
+      "server_id": 12345,
+      "port": 445,
+      "data": "base64_encoded_data",
+      "exit": false
+    }
+  ]
+}
+```
+
+#### RPORTFWD Connection Lifecycle
+
+1. **New Connection**: Agent accepts inbound TCP connection, generates `server_id`, sends initial data to Mythic
+2. **Data Transfer**: Subsequent messages forward raw TCP data in both directions
 3. **Close Connection**: Message with `exit=true` signals connection closure
 4. **Error Handling**: Socket errors trigger `exit=true` response to Mythic
 

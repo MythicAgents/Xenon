@@ -75,6 +75,12 @@ DECLSPEC_IMPORT void    BeaconFormatInt(formatp * format, int value);
 DECLSPEC_IMPORT void   BeaconOutput(int type, const char * data, int len);
 DECLSPEC_IMPORT void   BeaconPrintf(int type, const char * fmt, ...);
 
+/* Async BOF APIs */
+DECLSPEC_IMPORT void   BeaconWakeup(void);
+DECLSPEC_IMPORT HANDLE BeaconGetStopJobEvent(void);
+DECLSPEC_IMPORT BOOL   BeaconRegisterThreadCallback(DWORD dwThreadId);
+DECLSPEC_IMPORT void   BeaconUnregisterThreadCallback(DWORD dwThreadId);
+
 
 /* Token Functions */
 DECLSPEC_IMPORT BOOL   BeaconUseToken(HANDLE token);

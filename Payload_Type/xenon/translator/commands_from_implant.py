@@ -1,6 +1,6 @@
 from translator.utils import *
 import ipaddress, logging
-from .utils import parse_file_browser_tlv
+from .utils import parse_file_browser_tlv, parse_ps_tsv
 
 logging.basicConfig(level=logging.INFO)
 
@@ -58,6 +58,14 @@ def checkin_to_mythic_format(data):
     #Retrieve External IP
     external_ip, data = get_bytes_with_size(data)
 
+    # Integrity level (Mythic 0-4; >2 shows elevated in UI). Default to medium
+    if len(data) >= 1:
+        integrity_level = data[0]
+        data = data[1:]
+    else:
+        # logging.warning("checkin missing integrity_level byte; defaulting to 2 (medium)")
+        integrity_level = 2
+
     # Mythic check-in format
     mythic_json = {
             "action": "checkin",
@@ -71,6 +79,7 @@ def checkin_to_mythic_format(data):
             "uuid": callback_uuid.decode('cp850'),
             "architecture": arch_os ,
             "external_ip": external_ip.decode('cp850'),
+            "integrity_level": integrity_level,
         }
     
     return mythic_json
@@ -107,6 +116,7 @@ def post_response_handler(data):
     mythic_delegates = []
     mythic_edges = []
     mythic_socks = []
+    mythic_rpfwd = []
 
     # Number of tasks to return to agent
     num_of_tasks = int.from_bytes(data[0:4], byteorder='big')
@@ -164,9 +174,19 @@ def post_response_handler(data):
             if socks_msg:
                 mythic_socks.append(socks_msg)
 
+        elif response_type == MYTHIC_RPORTFWD_DATA:
+            task_json, rpfwd_msg, data = rportfwd_to_mythic_format(data)
+            logging.info(f"[MYTHIC_RPORTFWD_DATA]")
+            if rpfwd_msg:
+                mythic_rpfwd.append(rpfwd_msg)
+
         elif response_type == MYTHIC_FILE_BROWSER:
             task_json, data = file_browser_to_mythic_format(data)
             logging.info(f"[MYTHIC_FILE_BROWSER]")
+
+        elif response_type == MYTHIC_PROCESS_BROWSER:
+            task_json, data = process_browser_to_mythic_format(data)
+            logging.info(f"[MYTHIC_PROCESS_BROWSER]")
         else:
             logging.info(f"[UNKNOWN_RESPONSE]: {response_type}")
             continue
@@ -193,6 +213,9 @@ def post_response_handler(data):
     if mythic_socks:
         mythic_json["socks"] = mythic_socks
 
+    if mythic_rpfwd:
+        mythic_json["rpfwd"] = mythic_rpfwd
+
     return mythic_json
 
 
@@ -202,6 +225,7 @@ def post_response_to_mythic_format(data):
     
     :param data: Raw data from Agent
     """
+    original_len = len(data)
 
     # --- Task UUID ---
     if len(data) < 36:
@@ -239,7 +263,7 @@ def post_response_to_mythic_format(data):
     if status_byte == 0x95:
         status = "success"          # Succeeded
     elif status_byte == 0x97:
-        status = None               # Still processing
+        status = "running"     # Still processing
     elif status_byte == 0x99:
         status = "error"            # Failed
     else:
@@ -258,13 +282,12 @@ def post_response_to_mythic_format(data):
             error_code = int.from_bytes(error_code_bytes, byteorder="big")
 
     # --- Operator Output ---
-    if output_length > 0:
-        user_output = (
-            f"[+] agent called home, sent: {output_length} bytes\n"
-            f"[+] received output:\n\n{output.decode('cp850', errors='ignore')}"
-        )
-    else:
-        user_output = "[+] agent called home, no output\n"
+    if status == "running":
+        user_output = output.decode('cp850', errors='ignore')
+    elif status == "success" or status == "error":
+        msg1 = f"[+] agent called home, sent: {original_len} bytes\n"
+        msg2 = f"[+] received output:\n\n{output.decode('cp850', errors='ignore')}" if output_length > 0 else ""
+        user_output = msg1 + msg2
 
     if status == "error":
         error = ERROR_CODES.get(
@@ -336,6 +359,79 @@ def file_browser_to_mythic_format(data):
     return task_json, data
 
 
+def process_browser_to_mythic_format(data):
+    """
+    Parse process-browser message from Agent (message type MYTHIC_PROCESS_BROWSER already consumed).
+    Format: task_uuid (36), status_byte (1), UINT32 host_len + host, UINT32 tsv_len + tsv.
+    Returns (task_json, remaining_data) with Mythic `processes` array for Process Browser.
+    Each process includes update_deleted=True so Mythic clears stale/killed PIDs on refresh.
+    """
+    if len(data) < 36 + 1:
+        logging.error("process_browser_to_mythic_format: buffer too small for task_uuid + status")
+        return None, data
+
+    task_uuid = data[:36].decode("cp850")
+    data = data[36:]
+    status_byte = data[0]
+    data = data[1:]
+
+    if status_byte == 0x95:
+        status = "success"
+    elif status_byte == 0x97:
+        status = None
+    elif status_byte == 0x99:
+        status = "error"
+    else:
+        status = "unknown"
+
+    if len(data) < 4:
+        logging.error("process_browser_to_mythic_format: missing host length prefix")
+        return {
+            "task_id": task_uuid,
+            "user_output": "[!] process browser: truncated response\n",
+            "status": "error",
+            "completed": True,
+        }, data
+
+    host_bytes, data = get_bytes_with_size(data)
+    host = host_bytes.decode("cp850", errors="ignore") if host_bytes else ""
+
+    if len(data) < 4:
+        logging.error("process_browser_to_mythic_format: missing TSV length prefix")
+        return {
+            "task_id": task_uuid,
+            "user_output": "[!] process browser: truncated response\n",
+            "status": "error",
+            "completed": True,
+        }, data
+
+    tsv_bytes, data = get_bytes_with_size(data)
+    processes = parse_ps_tsv(tsv_bytes, host=host) if tsv_bytes else []
+
+    if status == "success":
+        user_output = (
+            f"[+] agent called home, sent: {len(tsv_bytes)} bytes\n"
+            f"[+] received output:\n\n{tsv_bytes.decode('cp850', errors='ignore')}"
+        )
+    elif status == "error":
+        user_output = "[!] process listing failed\n"
+    else:
+        user_output = "[+] process listing\n"
+
+    task_json = {
+        "task_id": task_uuid,
+        "user_output": user_output,
+        "status": status,
+        "completed": status in ("success", "error"),
+    }
+    if processes:
+        for proc in processes:
+            proc["update_deleted"] = True
+        task_json["processes"] = processes
+
+    return task_json, data
+
+
 def download_init_to_mythic_format(data):
     """
     Parse download initialize message from Agent and return JSON in Mythic format.
@@ -384,7 +480,7 @@ def download_init_to_mythic_format(data):
             }
     }
     
-    logging.info(f"[DOWNLOAD_INIT] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t total_chunks:{total_chunks}, \n\t full_path:{full_path.decode('cp850')}, \n\t chunk_size:{chunk_size}")
+    #logging.info(f"[DOWNLOAD_INIT] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t total_chunks:{total_chunks}, \n\t full_path:{full_path.decode('cp850')}, \n\t chunk_size:{chunk_size}")
     
     return task_json, data
 
@@ -440,7 +536,7 @@ def download_cont_to_mythic_format(data):
             }
     }
     
-    logging.info(f"[DOWNLOAD_CHUNK] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t chunk_num:{chunk_num}, \n\t file_id:{file_id.decode('cp850')}, \n\t chunk_size:{chunk_size}, \n\tchunk_data:{len(chunk_data)} bytes")
+    #logging.info(f"[DOWNLOAD_CHUNK] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t chunk_num:{chunk_num}, \n\t file_id:{file_id.decode('cp850')}, \n\t chunk_size:{chunk_size}, \n\tchunk_data:{len(chunk_data)} bytes")
     
     return task_json, data
 
@@ -495,7 +591,7 @@ def upload_to_mythic_format(data):
             }
     }
     
-    logging.info(f"[UPLOAD] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t chunk_num:{chunk_num}, \n\t file_id:{file_id.decode('cp850')}, \n\t full_path:{full_path.decode('cp850')}, \n\t chunk_size:{chunk_size}")
+    #logging.info(f"[UPLOAD] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t chunk_num:{chunk_num}, \n\t file_id:{file_id.decode('cp850')}, \n\t full_path:{full_path.decode('cp850')}, \n\t chunk_size:{chunk_size}")
     
     return task_json, data
 
@@ -555,7 +651,7 @@ def p2p_checkin_to_mythic_format(data):
         }
     ]
     
-    logging.info(f"[P2P_CHECKIN] IMPLANT -> C2: \n\t message: {output.decode('cp850')}, \n\t uuid: {str(link_id)}, \n\t c2_profile: {link_type_str}")
+    #logging.info(f"[P2P_CHECKIN] IMPLANT -> C2: \n\t message: {output.decode('cp850')}, \n\t uuid: {str(link_id)}, \n\t c2_profile: {link_type_str}")
     
     return task_json, delegates, data
 
@@ -596,7 +692,7 @@ def p2p_to_mythic_format(data):
         }
     ]
     
-    logging.info(f"[P2P] IMPLANT -> C2: \n\t message: {len(output)} bytes, \n\t mythic_uuid: {payload_uuid.decode('cp850')}, \n\t c2_profile: smb")
+    #logging.info(f"[P2P] IMPLANT -> C2: \n\t message: {len(output)} bytes, \n\t mythic_uuid: {payload_uuid.decode('cp850')}, \n\t c2_profile: smb")
         
     return task_json, delegates, data
 
@@ -703,6 +799,73 @@ def socks_to_mythic_format(data):
         "exit": exit_flag
     }
     
-    logging.info(f"[SOCKS] IMPLANT -> C2: server_id={server_id}, data_len={len(socks_data)}, exit={exit_flag}")
+    #logging.info(f"[SOCKS] IMPLANT -> C2: server_id={server_id}, data_len={len(socks_data)}, exit={exit_flag}")
     
     return task_json, socks_msg, data
+
+
+def rportfwd_to_mythic_format(data):
+    """
+    Parse reverse port forward data message from Agent and return JSON in Mythic format.
+
+    RPORTFWD messages are forwarded to Mythic in the "rpfwd" array:
+    {
+        "action": "get_tasking",
+        "rpfwd": [
+            {
+                "server_id": 12345,
+                "port": 445,
+                "data": "base64_encoded_data",
+                "exit": false
+            }
+        ]
+    }
+
+    Binary format from agent:
+        UINT32: server_id
+        UINT32: port
+        UINT32: data_length
+        BYTES:  data
+        BYTE:   exit_flag (0x00 or 0x01)
+    """
+    task_json = None
+
+    if len(data) < 4:
+        logging.error("[RPORTFWD] Insufficient data for server_id")
+        return None, None, data
+
+    server_id = int.from_bytes(data[0:4], byteorder='big')
+    data = data[4:]
+
+    if len(data) < 4:
+        logging.error("[RPORTFWD] Insufficient data for port")
+        return None, None, data
+
+    port = int.from_bytes(data[0:4], byteorder='big')
+    data = data[4:]
+
+    if len(data) < 4:
+        logging.error("[RPORTFWD] Insufficient data for data_length")
+        return None, None, data
+
+    rpfwd_data, data = get_bytes_with_size(data)
+
+    if len(data) < 1:
+        logging.error("[RPORTFWD] Insufficient data for exit_flag")
+        return None, None, data
+
+    exit_flag = data[0] == 0x01
+    data = data[1:]
+
+    data_b64 = base64.b64encode(rpfwd_data).decode('utf-8') if rpfwd_data else ""
+
+    rpfwd_msg = {
+        "server_id": server_id,
+        "port": port,
+        "data": data_b64,
+        "exit": exit_flag
+    }
+
+    #logging.info(f"[RPORTFWD] IMPLANT -> C2: server_id={server_id}, port={port}, data_len={len(rpfwd_data)}, exit={exit_flag}")
+
+    return task_json, rpfwd_msg, data

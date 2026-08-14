@@ -18,5 +18,6 @@ VOID IdentityImpersonateToken(void);
 VOID IdentityAgentRevertToken(void);
 BOOL IdentityGetUserInfo(HANDLE hToken, char* buffer, int size);
 BOOL IdentityIsAdmin(void);
+BYTE IdentityGetIntegrityLevel(void);
 
 #endif //IDENTITY_H

@@ -52,6 +52,63 @@ VOID IdentityAgentRevertToken(void)
 }
 
 /**
+ * @brief Query the effective token's integrity level for Mythic check-in.
+ * @return Mythic integrity_level: 0 unknown, 1 low, 2 medium, 3 high, 4 SYSTEM. Defaults to 2 (medium) on failure.
+ * @ref Apollo IdentityManager.GetIntegrityLevel
+ */
+BYTE IdentityGetIntegrityLevel(void)
+{
+	HANDLE                 hToken = NULL;
+	DWORD 				   dwLength = 0;
+	PTOKEN_MANDATORY_LABEL pTIL = NULL;
+	DWORD                  dwIntegrityRid = 0;
+	BYTE                   level = 2;
+
+	if (!OpenThreadToken(GetCurrentThread(), TOKEN_QUERY, TRUE, &hToken))
+	{
+		if (GetLastError() != ERROR_NO_TOKEN)
+			return level;
+		if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken))
+			return level;
+	}
+
+	GetTokenInformation(hToken, TokenIntegrityLevel, NULL, 0, &dwLength);
+	if (dwLength == 0)
+	{
+		CloseHandle(hToken);
+		return level;
+	}
+
+	pTIL = (PTOKEN_MANDATORY_LABEL)LocalAlloc(LPTR, dwLength);
+	if (!pTIL)
+	{
+		CloseHandle(hToken);
+		return level;
+	}
+
+	if (GetTokenInformation(hToken, TokenIntegrityLevel, pTIL, dwLength, &dwLength))
+	{
+		dwIntegrityRid = *GetSidSubAuthority(pTIL->Label.Sid,
+			(DWORD)(UCHAR)(*GetSidSubAuthorityCount(pTIL->Label.Sid) - 1));
+
+		if (dwIntegrityRid < SECURITY_MANDATORY_LOW_RID)
+			level = 0;
+		else if (dwIntegrityRid < SECURITY_MANDATORY_MEDIUM_RID)
+			level = 1;
+		else if (dwIntegrityRid < SECURITY_MANDATORY_HIGH_RID)
+			level = 2;
+		else if (dwIntegrityRid < SECURITY_MANDATORY_SYSTEM_RID)
+			level = 3;
+		else
+			level = 4;
+	}
+
+	LocalFree(pTIL);
+	CloseHandle(hToken);
+	return level;
+}
+
+/**
  * @brief Checks if the current user running the code has administrative privileges.
  * @ref https://github.com/kyxiaxiang/Beacon_Source/blob/main/Beacon/identity.c#L196
  * @return TRUE if Beacon is in a high-integrity context, FALSE otherwise.

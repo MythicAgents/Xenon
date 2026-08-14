@@ -10,14 +10,15 @@ weight = 100
 
 Xenon is a Cobalt Strike-like Windows agent built for the Mythic C2 framework. The agent was written in C with the goal of learning more about how C2 agents (such as Cobalt Strike's Beacon) work.
 
-**Current Version: v0.0.6** 
+**Current Version: v0.0.7** 
 
 ### Highlighted Agent Features
 
 - Modular command inclusion
 - Malleable C2 Profiles
-- Supported comms: [httpx](https://github.com/MythicC2Profiles/httpx), [smb](https://github.com/MythicC2Profiles/smb), [tcp](https://github.com/MythicC2Profiles/tcp)
+- Supported comms: [httpx](https://github.com/MythicC2Profiles/httpx), [smb](https://github.com/MythicC2Profiles/smb), [tcp](https://github.com/MythicC2Profiles/tcp), [websocket](https://github.com/MythicC2Profiles/websocket)
 - Uses forge for BOF modules and SharpCollections
+- Async BOF Support (`async_execute`, `usermon`, `keylogger`, `jobs`, `jobkill`)
 - User-Defined Reflective Dll Loaders (based on Crystal Palace)
 - Compatible with CS Process Inject Kits
 

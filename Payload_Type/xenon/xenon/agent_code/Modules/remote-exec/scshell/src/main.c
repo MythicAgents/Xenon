@@ -19,6 +19,8 @@ DECLSPEC_IMPORT BOOL WINAPI ADVAPI32$StartServiceW(SC_HANDLE,DWORD, LPCWSTR*);
 DECLSPEC_IMPORT BOOL WINAPI ADVAPI32$CloseServiceHandle(SC_HANDLE);
 DECLSPEC_IMPORT DWORD WINAPI KERNEL32$GetLastError();
 DECLSPEC_IMPORT HANDLE WINAPI KERNEL32$GetCurrentProcess();
+DECLSPEC_IMPORT HANDLE WINAPI KERNEL32$GetCurrentThread();
+DECLSPEC_IMPORT BOOL WINAPI ADVAPI32$OpenThreadToken(HANDLE, DWORD, BOOL, PHANDLE);
 DECLSPEC_IMPORT BOOL WINAPI KERNEL32$CloseHandle(HANDLE);
 
 void go(char * args, int length) {
@@ -78,6 +80,14 @@ void go(char * args, int length) {
         }
         BeaconPrintf(CALLBACK_OUTPUT, "[*] Using explicit credentials: %ls\\%ls\n", domain, username);
         impersonating = TRUE;
+    } else {
+        HANDLE hTok = NULL;
+        if (ADVAPI32$OpenThreadToken(KERNEL32$GetCurrentThread(), TOKEN_QUERY, TRUE, &hTok)) {
+            BeaconPrintf(CALLBACK_OUTPUT, "[*] Using impersonated token\n");
+            KERNEL32$CloseHandle(hTok);
+        } else {
+            BeaconPrintf(CALLBACK_OUTPUT, "[*] Using current context\n");
+        }
     }
 
     /* Open SC Manager and Service */

