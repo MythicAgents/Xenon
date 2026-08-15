@@ -1,18 +1,21 @@
 About
 =====
 
-Crystal Palace is a linker and linker script language specialized to the needs of writing position-independent code.
+Crystal Palace is a linker and linker script language specialized to the needs 
+of writing post-exploitation capability and evasion tradecraft.
 
 https://tradecraftgarden.org
 
 Build
 =====
 
-Crystal Palace is written in Java and requires Apache Ant to build. The build output is in the build/ folder.
+Crystal Palace is written in Java and requires Apache Ant to build. The build
+output is in the build/ folder.
 
 	ant clean ; ant
 
-Software to demonstrate Crystal Palace outputs is included in the demo/ folder. Build these files with:
+Software to demonstrate Crystal Palace outputs is included in the demo/ folder.
+Build these files with:
 
 	cd demo
 	make clean ; make
@@ -24,30 +27,41 @@ Crystal Palace thrives in a Windows Subsystem for Linux environment.
 
 https://tradecraftgarden.org/wslsetup.html
 
+Install
+=======
+
+(0) If you built from source: the build/ folder has the project files
+
+(1) Copy the crystalpalace/ folder where you want it (or keep it in ~)
+
+(2) Run the install script from within the crystalpalace/ folder:
+
+	./install
+
 Usage
 =====
 
-Use the link script to link a Windows DLL or COFF to a position-independent loader (and other resources) using steps
-provided in a specification file. Specification files are specific to each loader.
+Use 'cpl link' to link a Windows DLL or COFF to a position-independent code 
+loader using steps provided in a Crystal Palace specification file.
 
-	./link [loader.spec] [/path/to/dll] [out.bin]
+	cpl link [loader.spec] [/path/to/file.dll] [out.bin]
 
 For example:
 
-	./link /path/to/loader.spec demo/test.x64.dll out.x64.bin
+	cpl link /path/to/loader.spec demo/test.x64.dll out.x64.bin
 
 To try out the same output (on Windows):
 
 	./demo/run.x64.exe out.x64.bin
 
-To debug how Crystal Palace parses an object file, use ./coffparse
+To debug how Crystal Palace parses an object file, use:
 
-	./coffparse [file.o]
+	cpl coffparse [file.o]
 
 License
 =======
 
-(c) 2025 Raphael Mudge, Adversary Fan Fiction Writers Guild
+(c) 2025-2026 Raphael Mudge, Adversary Fan Fiction Writers Guild
 All rights reserved.
 
 Crystal Palace is released under the 3-clause BSD license
@@ -59,3 +73,13 @@ Credits
 
 iced (C) 2018-present iced project and contributors (MIT License)
 https://github.com/icedland/iced
+
+JSON in Java (org.json) by Douglas Crockford, Sean Leary (Public Domain, CC0 1.0)
+https://github.com/stleary/JSON-java
+
+	COMPLIANCE NOTE: restrictions on "evil" were removed in 2022 with JSON in
+	Java's move to a Public Domain unlicense.
+
+	https://en.wikipedia.org/wiki/Douglas_Crockford
+
+	Got you covered evil fam!

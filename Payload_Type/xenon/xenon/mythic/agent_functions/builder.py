@@ -669,7 +669,7 @@ class XenonAgent(PayloadType):
                 
                 # Link with Crystal Palace
                 bin_file = f"{agent_build_path.name}/out.x64.bin"
-                command = f"./link {udrl_path}/loader.spec {output_path} {bin_file}"
+                command = f"./cpl link {udrl_path}/loader.spec {output_path} {bin_file}"
                 crystal_palace_path = agent_build_path.name + "/Loader/crystal-linker"
                 
                 proc = await asyncio.create_subprocess_shell(command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=crystal_palace_path)

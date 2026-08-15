@@ -58,9 +58,9 @@ async def convert_postex_dll_to_pic(file_id: str, dll_arguments: str, dll_argume
         tmp.write(dll_arguments)
         tmp.write(b"\0")
 
-    # ./link {post-ex}/loader.spec temppath out.x64.bin
+    # ./cpl link {post-ex}/loader.spec temppath out.x64.bin
     output_file = f"{post_ex_path}/out.x64.bin"
-    command = f"./link {post_ex_path}/loader.spec {temppath} {output_file} %ARGFILE='{dll_arg_file}'"
+    command = f"./cpl link {post_ex_path}/loader.spec {temppath} {output_file} %ARGFILE='{dll_arg_file}'"
 
     proc = await asyncio.create_subprocess_shell(command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=crystal_palace_path)
     stdout, stderr = await proc.communicate()

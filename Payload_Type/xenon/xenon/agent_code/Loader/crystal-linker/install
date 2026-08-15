@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+
+# Modify this to change where cpl is copied to
+BIN_DIR="$HOME/.local/bin"
+
+#
+# Nothing else to modify below this line
+#  --------------------------------------
+#
+# What does this script do?
+#
+# (a) It creates an executable cpl file in $BIN_DIR
+# (b) There is no (b). (a) is all it actually does
+#
+# Everything else is a series of checks to guide you on this let's create a cpl file in
+# $BIN_DIR journey.
+#
+# Tested on WSL and Ubuntu
+
+function print_good () {
+	echo -e "\x1B[01;32m[+]\x1B[0m $1"
+}
+
+function print_error () {
+	echo -e "\x1B[01;31m[-]\x1B[0m $1"
+}
+
+function print_info () {
+	echo -e "\x1B[01;34m[*]\x1B[0m $1"
+}
+
+#
+# Check if we're in bash or not
+#
+if [ -z "$BASH_VERSION" ]; then
+	print_error "install stopped: this script must be run with bash"
+	echo -e "\nYou are currently using a different shell."
+	echo -e "Please run the installer explicitly with: bash ./install"
+	exit 1
+fi
+
+#
+# Check for realpath
+#
+if ! command -v realpath &> /dev/null; then
+	print_error "install stopped: 'realpath' command not found"
+	echo -e "\nThis installer requires 'realpath' to resolve file paths."
+	exit 1
+fi
+
+# figure out our folder where everything lives together
+APP_DIR=$(realpath "${BASH_SOURCE%/*}")
+
+#
+# Check for Java
+#
+# Check if Java is installed and in the PATH
+if ! command -v java &> /dev/null; then
+	print_error "install stopped: java is not in \$PATH"
+	echo -e "\nCrystal Palace requires Java to run. Please install it and try again."
+	echo -e "More information: https://tradecraftgarden.org/wslsetup.html"
+	exit 1
+fi
+
+#
+# check if the cpl command is already present
+#
+if command -v cpl &> /dev/null; then
+	# Capture the exact path where it lives
+	EXISTING_CPL=$(command -v cpl)
+
+	print_error "The cpl command already exists at: $EXISTING_CPL"
+	echo -e "\nIf you'd like to clean it up first:\n"
+	echo -e "    rm \"$EXISTING_CPL\""
+	echo -e ""
+
+	# Dynamically search ~/.bashrc for the completion script
+	if grep -q "cpl-completion.bash" ~/.bashrc 2>/dev/null; then
+		# Grab the exact line from their config, strip whitespace, and display it
+		COMPLETION_LINE=$(grep "cpl-completion.bash" ~/.bashrc | head -n 1 | awk '{$1=$1;print}')
+		echo -e "Remove the following line from your ~/.bashrc:\n"
+		echo -e "    $COMPLETION_LINE"
+		echo -e ""
+	fi
+
+	exit 1
+fi
+
+#
+# check if $BIN_DIR is in $PATH
+#
+if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
+	print_error "install stopped: $BIN_DIR is not in your \$PATH"
+	echo -e "\nTo help this process, consider adding these lines to ~/.bashrc (or edit BIN_DIR at the top of this file):"
+	echo -e ""
+	echo -e "    export PATH=\"$BIN_DIR:\$PATH\""
+	echo -e "    source \"$APP_DIR/cpl-completion.bash\""
+	echo -e ""
+	echo -e "After that's done run:\n"
+	echo -e "source ~/.bashrc"
+	echo -e ""
+	exit 1
+fi
+
+#
+# Create cpl in $BIN_DIR
+#
+print_info "Creating $BIN_DIR/cpl"
+
+# create the folder if it doesn't exist
+mkdir -p "$BIN_DIR"
+
+# write the cpl wrapper pointing to where our .jar file currently lives
+cat << EOF > "$BIN_DIR/cpl"
+#!/usr/bin/env bash
+java -jar "$APP_DIR/crystalpalace.jar" "\$@"
+EOF
+
+# give it executable permissions
+chmod +x "$BIN_DIR/cpl"
+
+print_info "OPTIONAL: add the following to ~/.bashrc to enable tab completion"
+echo -e "\nsource \"$APP_DIR/cpl-completion.bash\""
+echo -e "   (don't forget to source ~/.bashrc for it to take effect)"
+echo -e ""
+
+print_good "We're done. We're installed. Welcome to the fight!"
