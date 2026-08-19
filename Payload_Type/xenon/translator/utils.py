@@ -158,7 +158,7 @@ def filetime_to_unix_ms(filetime_100ns):
     return max(0, unix_ms)
 
 
-def parse_ps_tsv(output, host=None):
+def parse_ps_tsv(output):
     """
     Parse Xenon ps TSV output into Mythic Process Browser process dicts.
 
@@ -167,16 +167,13 @@ def parse_ps_tsv(output, host=None):
     or (OpenProcess failed):
       name\\tppid\\tpid
 
-    Always sets update_deleted=True so Mythic marks processes absent from this
-    full listing as deleted (required for Process Browser refresh after kill).
-    Host is uppercased for stable Mythic host matching.
+    Host / update_deleted / os belong on the Mythic v4 `processes` wrapper
+    object, not on each process entry.
     """
     if isinstance(output, bytes):
         text = output.decode("cp850", errors="ignore")
     else:
         text = output or ""
-
-    host_value = (host or "").strip().upper() or None
 
     processes = []
     for line in text.splitlines():
@@ -196,10 +193,7 @@ def parse_ps_tsv(output, host=None):
             "process_id": pid,
             "parent_process_id": ppid,
             "name": parts[0],
-            "update_deleted": True,
         }
-        if host_value:
-            proc["host"] = host_value
         if len(parts) >= 6:
             if parts[3]:
                 proc["architecture"] = parts[3]

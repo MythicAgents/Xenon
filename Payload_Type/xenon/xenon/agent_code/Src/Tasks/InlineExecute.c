@@ -536,5 +536,4 @@ VOID InlineExecute(PCHAR taskUuid, PPARSER arguments)
     PackageDestroy(locals);
 }
 #endif /* INCLUDE_CMD_INLINE_EXECUTE */
-
-#endif  //INCLUDE_CMD_INLINE_EXECUTE || INCLUDE_CMD_ASYNC_EXECUTE || INCLUDE_CMD_JOBKILL || INCLUDE_CMD_JOBS
+#endif

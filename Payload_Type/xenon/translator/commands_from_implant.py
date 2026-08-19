@@ -363,8 +363,8 @@ def process_browser_to_mythic_format(data):
     """
     Parse process-browser message from Agent (message type MYTHIC_PROCESS_BROWSER already consumed).
     Format: task_uuid (36), status_byte (1), UINT32 host_len + host, UINT32 tsv_len + tsv.
-    Returns (task_json, remaining_data) with Mythic `processes` array for Process Browser.
-    Each process includes update_deleted=True so Mythic clears stale/killed PIDs on refresh.
+    Returns (task_json, remaining_data) with Mythic v4 `processes` map for Process Browser:
+      {"host", "os", "update_deleted", "processes": [...]}
     """
     if len(data) < 36 + 1:
         logging.error("process_browser_to_mythic_format: buffer too small for task_uuid + status")
@@ -406,7 +406,7 @@ def process_browser_to_mythic_format(data):
         }, data
 
     tsv_bytes, data = get_bytes_with_size(data)
-    processes = parse_ps_tsv(tsv_bytes, host=host) if tsv_bytes else []
+    processes = parse_ps_tsv(tsv_bytes) if tsv_bytes else []
 
     if status == "success":
         user_output = (
@@ -425,9 +425,15 @@ def process_browser_to_mythic_format(data):
         "completed": status in ("success", "error"),
     }
     if processes:
-        for proc in processes:
-            proc["update_deleted"] = True
-        task_json["processes"] = processes
+        processes_payload = {
+            "os": "windows",
+            "update_deleted": True,
+            "processes": processes,
+        }
+        host_value = (host or "").strip().upper()
+        if host_value:
+            processes_payload["host"] = host_value
+        task_json["processes"] = processes_payload
 
     return task_json, data
 

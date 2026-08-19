@@ -178,11 +178,21 @@ name\tppid\tpid\tarch\tuser\tsession\n   # OpenProcess succeeded
 name\tppid\tpid\n                         # OpenProcess failed (partial)
 ```
 
-The translator parses TSV via `parse_ps_tsv()` and builds Mythic's `processes` array (Process Browser) while keeping `user_output` as the raw TSV for `ps_new.js`.
+The translator parses TSV via `parse_ps_tsv()` and builds Mythic v4's `processes` map (Process Browser) while keeping `user_output` as the raw TSV for `ps_new.js`:
 
-Each process entry includes:
+```json
+"processes": {
+  "host": "HOSTNAME",
+  "os": "windows",
+  "update_deleted": true,
+  "processes": [ { "process_id": 123, "parent_process_id": 4, "name": "evil.exe", ... } ]
+}
+```
+
+Wrapper fields:
 - `update_deleted: true` — Mythic marks any previously known process for that host that is **not** in this listing as deleted ([Process Browser docs](https://docs.mythic-c2.net/customizing/hooking-features/process_list))
 - `host` — uppercased hostname for stable host matching across refreshes
+- `os` — always `windows` for Xenon
 
 #### Kill (`kill` command)
 
