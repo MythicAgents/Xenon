@@ -440,110 +440,94 @@ def process_browser_to_mythic_format(data):
 
 def download_init_to_mythic_format(data):
     """
-    Parse download initialize message from Agent and return JSON in Mythic format.
+    Parse download initialize message from Agent and return JSON in Mythic v4 offset mode.
     {
-        "action": "post_response", 
+        "action": "post_response",
         "responses": [
             {
                 "task_id": "UUID here",
                 "download": {
-                    "total_chunks": 4, 
-                    "full_path": "/test/test2/test3.file",                                      // optional full path to the file downloaded
-                    "host": "hostname the file is downloaded from",                             // optional
-                    "filename": "filename for Mythic/operator if full_path doesn't make sense", // optional
-                    "is_screenshot": false,                                                     //indicate if this is a file or screenshot (default is false)
-                    "chunk_size": 512000,                                                       // indicate chunk size if intending to send chunks out of order or paralellized
+                    "total_size": 1048576,
+                    "full_path": "/test/test2/test3.file",
+                    "is_screenshot": false,
                 }
             }
         ]
     }
+    Binary: task_uuid (36), UINT64 total_size, UINT32 path_len + path, UINT32 chunk_size
+    (chunk_size is agent-local and omitted from Mythic JSON).
     """
-    
+
     # First 36 bytes are task UUID
     task_uuid = data[:36]
     data = data[36:]
-    
-    # Retrieve total chunks for file
-    total_chunks = int.from_bytes(data[0:4], byteorder='big')
-    data = data[4:]
-    
+
+    # UINT64: exact file size in bytes
+    total_size = int.from_bytes(data[0:8], byteorder='big')
+    data = data[8:]
+
     # Retrieve full path of file
     full_path, data = get_bytes_with_size(data)
-    
-    # Retrive chunk size of file chunks
-    chunk_size = int.from_bytes(data[0:4], byteorder='big')
-    data = data[4:]
 
-    response_task = []
+    # Skip UINT32 CHUNK_SIZE, we are using Offset mode now
+    data = data[4:]
 
     task_json = {
         "task_id": task_uuid.decode('cp850'),
         "download": {
-            "total_chunks": total_chunks,
+            "total_size": total_size,
             "full_path": full_path.decode('cp850'),
-            "is_screenshot": False,     # Agent can ignore this field
-            "chunk_size": chunk_size
+            "is_screenshot": False,
             }
     }
-    
-    #logging.info(f"[DOWNLOAD_INIT] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t total_chunks:{total_chunks}, \n\t full_path:{full_path.decode('cp850')}, \n\t chunk_size:{chunk_size}")
-    
+
     return task_json, data
 
 
 def download_cont_to_mythic_format(data):
     """
-    Parse download chunk message from Agent and return JSON in Mythic format.
+    Parse download chunk message from Agent and return JSON in Mythic v4 offset mode.
     {
-        "action": "post_response", 
+        "action": "post_response",
         "responses": [
             {
                 "task_id": "task uuid",
                 "download": {
-                    "chunk_num": 1, 
-                    "file_id": "UUID From previous response", 
+                    "file_id": "UUID From previous response",
+                    "chunk_offset": 0,
                     "chunk_data": "base64_blob==",
-                    "chunk_size": 512000, // this is optional, but required if you're not sending it with the initial registration message and planning on sending chunks out of order
                 }
             }
         ]
     }
+    Binary: task_uuid (36), UINT64 chunk_offset, file_id (36), UINT32 data_len + data
     """
 
     # First 36 bytes are task UUID
     task_uuid = data[:36]
     data = data[36:]
 
-    # Retrieve current chunk
-    chunk_num = int.from_bytes(data[0:4], byteorder='big')
-    data = data[4:]
+    # UINT64: zero-based byte offset of this block
+    chunk_offset = int.from_bytes(data[0:8], byteorder='big')
+    data = data[8:]
 
     # Retrieve UUID from previous response
     file_id = data[:36]
     data = data[36:]
-    
+
     # Retrive chunk data
     chunk_data, data = get_bytes_with_size(data)
-    bs64_chunk_data = base64.b64encode(chunk_data).decode('utf-8')      # base64 encode file bytes on translator side here
-
-    # Retrieve chunk size
-    chunk_size = int.from_bytes(data[0:4], byteorder='big')
-    data = data[4:]
-    
-    response_task = []
+    bs64_chunk_data = base64.b64encode(chunk_data).decode('utf-8')
 
     task_json = {
         "task_id": task_uuid.decode('cp850'),
         "download": {
-            "chunk_num": chunk_num,
             "file_id": file_id.decode('cp850'),
-            "chunk_data": bs64_chunk_data, 
-            "chunk_size": chunk_size
+            "chunk_offset": chunk_offset,
+            "chunk_data": bs64_chunk_data,
             }
     }
-    
-    #logging.info(f"[DOWNLOAD_CHUNK] IMPLANT -> C2: \n\t task_id:{task_uuid.decode('cp850')}, \n\t chunk_num:{chunk_num}, \n\t file_id:{file_id.decode('cp850')}, \n\t chunk_size:{chunk_size}, \n\tchunk_data:{len(chunk_data)} bytes")
-    
+
     return task_json, data
 
 

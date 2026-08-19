@@ -201,8 +201,48 @@ Operator command opcode: `0x59` (`KILL_CMD`). Parameters: one UINT32 PID (after 
 ### Download/Upload Messages
 
 These are handled as special task types:
-- `download_resp` (0xCC): Download response task
+- `download_resp` (0xCC): Download response task (C2 → Agent; carries Mythic `file_id`)
 - `upload_resp` (0xCD): Upload response task
+
+#### File Download Init (Agent → C2, type `0x02`)
+
+Mythic v4 offset mode. Registers the file with its exact byte length:
+
+```
+BYTE:     0x02 (DOWNLOAD_INIT / MYTHIC_INIT_DOWNLOAD)
+BYTES[36]: task_uuid
+UINT64:   total_size (file length in bytes)
+UINT32:   path_len
+BYTES:    full_path
+UINT32:   chunk_size (agent-local read size; omitted from Mythic JSON)
+```
+
+The translator emits:
+
+```json
+"download": { "total_size": 104960, "full_path": "...", "is_screenshot": false }
+```
+
+#### File Download Continue (Agent → C2, type `0x03`)
+
+Zero-based byte offset of this block. Chunk length is the UINT32 prefix on the data; do not send `chunk_num` or `chunk_size`.
+
+```
+BYTE:     0x03 (DOWNLOAD_CONTINUE / MYTHIC_CONT_DOWNLOAD)
+BYTES[36]: task_uuid
+UINT64:   chunk_offset (0-based)
+BYTES[36]: file_id
+UINT32:   data_len
+BYTES:    chunk_data
+```
+
+The translator base64-encodes `chunk_data` and emits:
+
+```json
+"download": { "file_id": "...", "chunk_offset": 0, "chunk_data": "<base64>" }
+```
+
+Do not mix `total_size`/`chunk_offset` with `total_chunks`/`chunk_num` in the same transfer.
 
 ### P2P Delegate Messages
 

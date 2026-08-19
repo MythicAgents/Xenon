@@ -43,19 +43,21 @@ DWORD DownloadInit(_In_ PCHAR taskUuid, _Inout_ PFILE_DOWNLOAD File)
 
     SIZE_T tuid = 0;
     strncpy(File->TaskUuid, taskUuid, TASK_UUID_SIZE + 1);
-    // Calculate total chunks (rounded up)
+    
+    /* Calculate total chunks (rounded up) for local read loop */
     File->totalChunks = (DWORD)((File->fileSize.QuadPart + CHUNK_SIZE - 1) / CHUNK_SIZE);
+    File->currentChunk = 1;
     File->Initialized = FALSE;
 
-    _dbg("Queueing Download for file %s with %d chunks (chunk size: %d bytes)", File->filepath, File->totalChunks, CHUNK_SIZE);
+    _dbg("Queueing Download for file %s (%I64d bytes, %d chunks, chunk size: %d)", File->filepath, File->fileSize.QuadPart, File->totalChunks, CHUNK_SIZE);
 
-    // Prepare package
+    /* Create Download Init package in Offset mode */
     PPackage data = PackageInit(NULL, FALSE);
     PackageAddByte(data, DOWNLOAD_INIT);
     PackageAddString(data, taskUuid, FALSE);
-    PackageAddInt32(data, File->totalChunks);
+    PackageAddInt64(data, (UINT64)File->fileSize.QuadPart);
     PackageAddString(data, File->filepath, TRUE);
-    PackageAddInt32(data, CHUNK_SIZE);
+    PackageAddInt32(data, CHUNK_SIZE);      // Gets skipped in translator
 
     PackageQueue(data);
 
@@ -140,81 +142,89 @@ VOID DownloadQueue(_In_ PFILE_DOWNLOAD File)
 
 
 /**
- * @brief Queue file chunks to Sender Queue
- * 
- * @param[inout] File FILE_DOWNLOAD file instance
- * @return BOOL
+ * @brief Queue the next file chunk (one per call) so only CHUNK_SIZE is in memory.
+ *
+ * @return TRUE if the download is finished (success or error) and should be removed from queue.
  */
 BOOL DownloadQueueChunks(_Inout_ PFILE_DOWNLOAD File)
 {
-    BOOL     Success     = FALSE;
-    DWORD    NumOfChunks = 0;
+    BOOL  Success     = FALSE;
+    DWORD bytesRead   = 0;
+    char* chunkBuffer = NULL;
 
-    char* chunkBuffer = (char*)LocalAlloc(LPTR, CHUNK_SIZE);
+    if ( File->currentChunk == 0 )
+        File->currentChunk = 1;
 
-    if (!chunkBuffer)
+    /* Empty file, or all chunks already queued */
+    if ( File->currentChunk > File->totalChunks )
+    {
+        PackageComplete(File->TaskUuid, NULL);
+        return TRUE;
+    }
+
+    chunkBuffer = (char*)LocalAlloc(LPTR, CHUNK_SIZE);
+    if ( !chunkBuffer )
     {
         DWORD error = GetLastError();
         _err("Memory allocation failed. ERROR CODE: %d", error);
+        PackageError(File->TaskUuid, error);
+        return TRUE;
+    }
+
+    _dbg("Downloading Mythic File as UUID : %s (chunk %d/%d)", File->fileUuid, File->currentChunk, File->totalChunks);
+
+    if ( !ReadFile(File->hFile, chunkBuffer, CHUNK_SIZE, &bytesRead, NULL) )
+    {
+        DWORD error = GetLastError();
+        _err("Error reading file: ERROR CODE: %d", error);
+        PackageError(File->TaskUuid, error);
+        Success = TRUE;
         goto CLEANUP;
     }
 
-    _dbg("Downloading Mythic File as UUID : %s", File->fileUuid);
-
-    File->currentChunk = 1;
-
-    while (File->currentChunk <= File->totalChunks)
+    if ( bytesRead == 0 )
     {
-        DWORD bytesRead = 0;
-        if ( !ReadFile(File->hFile, chunkBuffer, CHUNK_SIZE, &bytesRead, NULL) )
-        {
-            DWORD error = GetLastError();
-            _err("Error reading file: ERROR CODE: %d", error);
-            goto CLEANUP;
-        }
-
-
-        if ( bytesRead == 0 ) {
-            /* EOF Reached */
-            goto CLEANUP;
-        }
-
-
-        _dbg("Adding chunk %d/%d (size: %d)", File->currentChunk, File->totalChunks, bytesRead);
-
-        /* Add Chunk to Message Queue */
-        PPackage Chunk = PackageInit(NULL, FALSE);
-
-        PackageAddByte(Chunk, DOWNLOAD_CONTINUE);
-        PackageAddString(Chunk, File->TaskUuid, FALSE);
-        PackageAddInt32(Chunk, File->currentChunk);
-        PackageAddBytes(Chunk, File->fileUuid, TASK_UUID_SIZE, FALSE);
-        PackageAddBytes(Chunk, chunkBuffer, bytesRead, TRUE);
-        PackageAddInt32(Chunk, bytesRead);
-
-        PackageQueue(Chunk);
-
-        NumOfChunks++;
-        File->currentChunk++;
-
+        _err("Unexpected EOF while reading %s at chunk %d/%d", File->filepath, File->currentChunk, File->totalChunks);
+        PackageError(File->TaskUuid, ERROR_HANDLE_EOF);
+        Success = TRUE;
+        goto CLEANUP;
     }
 
+    UINT64 chunkOffset = ((UINT64)File->currentChunk - 1) * (UINT64)CHUNK_SIZE;
+    _dbg("Adding chunk %d/%d offset %I64u (size: %d)", File->currentChunk, File->totalChunks, chunkOffset, bytesRead);
 
-    PackageComplete(File->TaskUuid, NULL);
+    /* Queue file chunk */
+    PPackage Chunk = PackageInit(NULL, FALSE);
+    PackageAddByte(Chunk, DOWNLOAD_CONTINUE);
+    PackageAddString(Chunk, File->TaskUuid, FALSE);
+    PackageAddInt64(Chunk, chunkOffset);
+    PackageAddBytes(Chunk, File->fileUuid, TASK_UUID_SIZE, FALSE);
+    PackageAddBytes(Chunk, chunkBuffer, bytesRead, TRUE);
+    PackageQueue(Chunk);
 
-    Success = TRUE;
+    /* Queue operator message, this isnt needed but is nice feedback */
+    PPackage Pkg = PackageInit(NULL, FALSE);
+    PackageAddFormatPrintf(Pkg, FALSE, "Downloaded %d / %d chunks ... \n\n", File->currentChunk, File->totalChunks);
+    PackageUpdate(File->TaskUuid, Pkg);
+
+    File->currentChunk++;
+
+    if ( File->currentChunk > File->totalChunks )
+    {
+        PackageComplete(File->TaskUuid, NULL);
+        Success = TRUE;
+    }
 
 CLEANUP:
-    if (chunkBuffer) LocalFree(chunkBuffer);
+    if ( chunkBuffer ) LocalFree(chunkBuffer);
 
     return Success;
 }
 
 
 /**
- * @brief Add any chunks for file downloads to packet
- * 
- * TODO - Currently queues all chunks at once, improve
+ * @brief Queue the next download chunk for each initialized transfer.
+ *        The file stays in DownloadQueue until every chunk has been queued.
  */
 VOID DownloadPush()
 {
