@@ -1,5 +1,6 @@
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
+from .utils.mythicrpc_utilities import clear_callback_impersonation_on_success
 
 
 class Rev2SelfArguments(TaskArguments):
@@ -21,6 +22,7 @@ class Rev2SelfCommand(CommandBase):
     author = "@c0rnbread"
     attackmapping = []
     argument_class = Rev2SelfArguments
+    completion_functions = {"clear_callback_impersonation": clear_callback_impersonation_on_success}
     attributes = CommandAttributes(
         builtin=False,
         supported_os=[ SupportedOS.Windows ],
@@ -31,6 +33,7 @@ class Rev2SelfCommand(CommandBase):
         response = PTTaskCreateTaskingMessageResponse(
             TaskID=taskData.Task.ID,
             Success=True,
+            CompletionFunctionName="clear_callback_impersonation",
         )
         return response
 

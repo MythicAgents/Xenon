@@ -1,5 +1,6 @@
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
+from .utils.mythicrpc_utilities import update_callback_cwd_on_success
 
 
 class CdArguments(TaskArguments):
@@ -34,6 +35,7 @@ class CdCommand(CommandBase):
     author = "@c0rnbread"
     attackmapping = []
     argument_class = CdArguments
+    completion_functions = {"update_callback_cwd": update_callback_cwd_on_success}
     attributes = CommandAttributes(
         builtin=False,
         supported_os=[ SupportedOS.Windows ],
@@ -48,6 +50,7 @@ class CdCommand(CommandBase):
         response = PTTaskCreateTaskingMessageResponse(
             TaskID=taskData.Task.ID,
             Success=True,
+            CompletionFunctionName="update_callback_cwd",
         )
         
         # Set display parameters

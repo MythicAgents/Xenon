@@ -1,5 +1,6 @@
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
+from .utils.mythicrpc_utilities import update_callback_impersonation_from_make_token
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -71,6 +72,7 @@ class MakeTokenCommand(CommandBase):
     author = "@c0rnbread"
     attackmapping = ["T1134.003"]
     argument_class = MakeTokenArguments
+    completion_functions = {"update_callback_impersonation": update_callback_impersonation_from_make_token}
     attributes = CommandAttributes(
         builtin=False,
         supported_os=[ SupportedOS.Windows ],
@@ -81,6 +83,7 @@ class MakeTokenCommand(CommandBase):
         response = PTTaskCreateTaskingMessageResponse(
             TaskID=taskData.Task.ID,
             Success=True,
+            CompletionFunctionName="update_callback_impersonation",
         )
 
         # Set display parameters

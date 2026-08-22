@@ -66,6 +66,12 @@ def checkin_to_mythic_format(data):
         # logging.warning("checkin missing integrity_level byte; defaulting to 2 (medium)")
         integrity_level = 2
 
+    # Optional cwd (length-prefixed). Older implants omit this field.
+    cwd = None
+    if len(data) >= 4:
+        cwd_bytes, data = get_bytes_with_size(data)
+        cwd = cwd_bytes.decode('cp850', errors='ignore')
+
     # Mythic check-in format
     mythic_json = {
             "action": "checkin",
@@ -81,6 +87,8 @@ def checkin_to_mythic_format(data):
             "external_ip": external_ip.decode('cp850'),
             "integrity_level": integrity_level,
         }
+    if cwd:
+        mythic_json["cwd"] = cwd
     
     return mythic_json
 

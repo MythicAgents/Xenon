@@ -37,6 +37,7 @@ UINT32:      PID
 String:      process name
 String:      external IP
 BYTE:        integrity_level (0–4; Mythic treats >2 as elevated)
+String:      cwd (optional; omitted by older implants)
 ```
 
 ### Check-in Response (C2 → Agent)

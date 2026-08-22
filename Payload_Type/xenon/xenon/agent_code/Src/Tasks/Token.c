@@ -242,14 +242,16 @@ VOID TokenMake(_In_ PCHAR taskUuid, _In_ PPARSER arguments)
 			return;
 		}
 
+		/*
+		 * LOGON32_LOGON_NEW_CREDENTIALS clones the current user locally.
+		 * LookupAccountSid / IdentityGetUserInfo then report the original
+		 * account, not the credentials applied for remote access. Report
+		 * DOMAIN\user from the args the operator supplied.
+		 */
 		char accountName[0x200];
-		if (!IdentityGetUserInfo(gIdentityToken, accountName, sizeof(accountName)))
-		{
-			DWORD error = GetLastError();
-			_err("Could not get identity for token. ERROR : %d", error);
-			PackageError(taskUuid, error);
-			return;
-		}
+		snprintf(accountName, sizeof(accountName), "%s\\%s", Domain, User);
+		accountName[sizeof(accountName) - 1] = 0;
+
 		PPackage data = PackageInit(0, FALSE);
 		PackageAddString(data, accountName, FALSE);
 		

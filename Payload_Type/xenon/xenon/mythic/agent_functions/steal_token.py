@@ -1,5 +1,6 @@
 from mythic_container.MythicCommandBase import *
 from mythic_container.MythicRPC import *
+from .utils.mythicrpc_utilities import update_callback_impersonation_on_success
 import json
 import logging
 
@@ -66,6 +67,7 @@ class StealTokenCommand(CommandBase):
     author = "@c0rnbread"
     attackmapping = ["T1134"]
     argument_class = StealTokenArguments
+    completion_functions = {"update_callback_impersonation": update_callback_impersonation_on_success}
     supported_ui_features = ["steal_token", "process_browser:steal_token"]
     attributes = CommandAttributes(
         builtin=False,
@@ -77,6 +79,7 @@ class StealTokenCommand(CommandBase):
         response = PTTaskCreateTaskingMessageResponse(
             TaskID=taskData.Task.ID,
             Success=True,
+            CompletionFunctionName="update_callback_impersonation",
         )
         response.DisplayParams = "{}".format(
             taskData.args.get_arg("pid")
