@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y \
     mingw-w64 \
     nasm \
     make \
-    openjdk-11-jdk
+    openjdk-17-jdk
 
 RUN python3 -m pip install toml donut-shellcode
 
