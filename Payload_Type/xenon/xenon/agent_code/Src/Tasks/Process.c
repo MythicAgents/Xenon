@@ -13,15 +13,15 @@
 
 BOOL GetAccountNameFromToken(HANDLE hProcess, char* accountName, int length) 
 {
-	HANDLE hToken;
-	BOOL result = OpenProcessToken(hProcess, TOKEN_QUERY, &hToken);
-	if (!result)
+	HANDLE hToken = NULL;
+	BOOL   result = FALSE;
+	
+	if (!OpenProcessToken(hProcess, TOKEN_QUERY, &hToken)) {
 		return FALSE;
+	}
 
 	result = IdentityGetUserInfo(hToken, accountName, length);
-	if (!result)
-		return FALSE;
-
+	
 	CloseHandle(hToken);
 	return result;
 }
