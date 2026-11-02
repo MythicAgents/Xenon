@@ -19,8 +19,7 @@ BOOL GetAccountNameFromToken(HANDLE hProcess, char* accountName, int length)
 		return FALSE;
 
 	result = IdentityGetUserInfo(hToken, accountName, length);
-	if (!result)
-		return FALSE;
+
 
 	CloseHandle(hToken);
 	return result;
