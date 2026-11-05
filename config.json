@@ -5,6 +5,6 @@
 	"exclude_documentation_c2": false,
 	"exclude_agent_icons": false,
 	"remote_images": {
-		"xenon": "ghcr.io/mythicagents/xenon:latest"
+		"xenon": "ghcr.io/mythicagents/xenon:Mythic-v4.0.0"
 	}
 }

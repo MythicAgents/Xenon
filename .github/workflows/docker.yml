@@ -4,8 +4,10 @@ on:
   push:
     branches:
       - "main"
+      - "Mythic-v4*"
     tags:
       - "v*.*.*"
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -43,9 +45,11 @@ jobs:
         with:
           context: Payload_Type/xenon
           file: Payload_Type/xenon/Dockerfile
+          # Mythic-v4* branches only get their branch-name tag (e.g. :Mythic-v4.0.0)
+          # so they never overwrite the :latest image used by the main branch.
           tags: |
             ${{ env.REGISTRY }}/${{ env.AGENT_IMAGE_NAME }}:${{ env.VERSION }}
-            ${{ env.REGISTRY }}/${{ env.AGENT_IMAGE_NAME }}:latest
+            ${{ !startsWith(github.ref_name, 'Mythic-v4') && format('{0}/{1}:latest', env.REGISTRY, env.AGENT_IMAGE_NAME) || '' }}
           push: true
           labels: |
             org.opencontainers.image.source=${{ env.IMAGE_SOURCE }}
